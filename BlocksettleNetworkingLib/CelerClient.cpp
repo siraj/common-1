@@ -53,8 +53,6 @@ CelerClient::CelerClient(const std::shared_ptr<ConnectionManager>& connectionMan
    , userId_(CelerUserProperties::UserIdPropertyName)
    , submittedAuthAddressListProperty_(CelerUserProperties::SubmittedBtcAuthAddressListPropertyName)
    , submittedCCAddressListProperty_(CelerUserProperties::SubmittedCCAddressListPropertyName)
-   , otpId_(CelerUserProperties::OtpIdPropertyName)
-   , otpIndex_(CelerUserProperties::OtpUsedKeyIndexPropertyName)
    , userIdRequired_(userIdRequired)
    , serverNotAvailable_(false)
 {
@@ -86,7 +84,7 @@ bool CelerClient::LoginToServer(const std::string& hostname, const std::string& 
      loginSuccessCallback(loginString, sessionToken, heartbeatInterval);
    };
    auto onLoginFailed = [this](const std::string& errorMessage) {
-     this->loginFailedCallback(errorMessage);
+     loginFailedCallback(errorMessage);
    };
    loginSequence->SetCallbackFunctions(onLoginSuccess, onLoginFailed);
 
@@ -122,8 +120,6 @@ void CelerClient::loginSuccessCallback(const std::string& userName, const std::s
    if (userIdRequired_) {
       auto getUserIdSequence = std::make_shared<CelerLoadUserInfoSequence>(logger_, userName, [this](CelerProperties properties) {
          userId_ = properties[CelerUserProperties::UserIdPropertyName];
-         otpId_ = properties[CelerUserProperties::OtpIdPropertyName];
-         otpIndex_ = properties[CelerUserProperties::OtpUsedKeyIndexPropertyName];
          bitcoinParticipant_ = properties[CelerUserProperties::BitcoinParticipantPropertyName];
 
          const auto authIt = properties.find(CelerUserProperties::SubmittedBtcAuthAddressListPropertyName);
@@ -144,9 +140,9 @@ void CelerClient::loginSuccessCallback(const std::string& userName, const std::s
          if (bp && bd) {
             userType_ = tr("Dealing Participant");
          } else if (bp && !bd) {
-            userType_ = tr("Market Participant");
+            userType_ = tr("Trading Participant");
          } else {
-            userType_ = tr("Market Data Participant");
+            userType_ = tr("Market Participant");
          }
 
          emit OnConnectedToServer();
@@ -479,24 +475,6 @@ std::string CelerClient::userId() const
 const QString& CelerClient::userType() const
 {
    return userType_;
-}
-
-std::string CelerClient::getUserOtpId() const
-{
-   return otpId_.value;
-}
-
-uint64_t CelerClient::getUserOtpUsedCount() const
-{
-   return QString::fromStdString(otpIndex_.value).toLongLong();
-}
-
-bool CelerClient::setUserOtpUsedCount(uint64_t count)
-{
-   otpIndex_.value = std::to_string(count);
-   auto command = std::make_shared<CelerSetUserPropertySequence>(logger_, userName_, otpIndex_);
-
-   return ExecuteSequence(command);
 }
 
 std::unordered_set<std::string> CelerClient::GetSubmittedAuthAddressSet() const

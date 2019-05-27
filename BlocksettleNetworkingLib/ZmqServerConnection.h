@@ -28,13 +28,15 @@ public:
    ZmqServerConnection(ZmqServerConnection&&) = delete;
    ZmqServerConnection& operator = (ZmqServerConnection&&) = delete;
 
-public:
    bool BindConnection(const std::string& host, const std::string& port
       , ServerConnectionListener* listener) override;
 
    std::string GetClientInfo(const std::string &clientId) const override;
 
    bool SetZMQTransport(ZMQTransport transport);
+
+   void SetImmediate(bool flag = true) { immediate_ = flag; }
+   void SetIdentity(const std::string &id) { identity_ = id; }
 
 protected:
    bool isActive() const;
@@ -44,15 +46,16 @@ protected:
 
    void notifyListenerOnNewConnection(const std::string& clientId);
    void notifyListenerOnDisconnectedClient(const std::string& clientId);
+   void notifyListenerOnClientError(const std::string& clientId, const std::string &error);
 
    virtual ZmqContext::sock_ptr CreateDataSocket() = 0;
-   virtual bool ConfigDataSocket(const ZmqContext::sock_ptr& dataSocket) = 0;
+   virtual bool ConfigDataSocket(const ZmqContext::sock_ptr& dataSocket);
 
    virtual bool ReadFromDataSocket() = 0;
 
-   virtual bool QueueDataToSend(const std::string& clientId, const std::string& data, bool sendMore);
+   virtual bool QueueDataToSend(const std::string& clientId, const std::string& data
+      , const SendResultCb &cb, bool sendMore);
 
-protected:
    std::shared_ptr<spdlog::logger>  logger_;
    std::shared_ptr<ZmqContext>      context_;
 
@@ -62,7 +65,7 @@ protected:
    ZmqContext::sock_ptr             dataSocket_;
    ZmqContext::sock_ptr             monSocket_;
 
-   std::unordered_map<std::string, std::string> clientInfo_;
+   std::unordered_map<std::string, std::string> clientInfo_; // ClientID & related string
 
 private:
    void stopServer();
@@ -83,31 +86,28 @@ private:
 
    struct DataToSend
    {
-      std::string clientId;
-      std::string data;
-      bool        sendMore;
+      std::string    clientId;
+      std::string    data;
+      SendResultCb   cb;
+      bool           sendMore;
    };
 
    bool SendDataCommand();
-   bool SendDataToDataSocket();
+   void SendDataToDataSocket();
 
-private:
    std::thread                      listenThread_;
-
    std::atomic_flag                 controlSocketLockFlag_ = ATOMIC_FLAG_INIT;
-
    ZmqContext::sock_ptr             threadMasterSocket_;
    ZmqContext::sock_ptr             threadSlaveSocket_;
-
-   ServerConnectionListener*        listener_;
-
+   ServerConnectionListener*        listener_{nullptr};
    std::atomic_flag                 dataQueueLock_ = ATOMIC_FLAG_INIT;
    std::deque<DataToSend>           dataQueue_;
-
    ZMQTransport                     zmqTransport_ = ZMQTransport::TCPTransport;
    std::unordered_map<int, std::string> connectedPeers_;
-
    std::string                      monitorConnectionName_;
+   bool        immediate_{ false };
+   std::string identity_;
+   int sendTimeoutInMs_{ 5000 };
 };
 
 #endif // __ZEROMQ_SERVER_CONNECTION_H__

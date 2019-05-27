@@ -1,16 +1,20 @@
 #ifndef ADDRESSLISTMODEL_H
 #define ADDRESSLISTMODEL_H
 
-#include "MetaData.h"
 #include <map>
 #include <memory>
 #include <QAbstractTableModel>
+#include "CoreWallet.h"
 
-class WalletsManager;
 namespace bs {
-   class Wallet;
+   namespace sync {
+      class Wallet;
+      class WalletsManager;
+   }
 }
 
+// Table for address detail list. Used for address & wallet detail widgets. Not
+// used for blockchain explorer address widget.
 class AddressListModel : public QAbstractTableModel
 {
    Q_OBJECT
@@ -18,7 +22,7 @@ class AddressListModel : public QAbstractTableModel
 public:
    struct AddressRow
    {
-      std::shared_ptr<bs::Wallet> wallet;
+      std::shared_ptr<bs::sync::Wallet> wallet;
       bs::Address address;
       QByteArray bytes;
       int transactionCount = 0;
@@ -28,7 +32,7 @@ public:
       QString  walletName;
       QString  walletId;
       size_t   addrIndex = 0;
-      bs::wallet::Type wltType = bs::wallet::Type::Unknown;
+      bs::core::wallet::Type wltType = bs::core::wallet::Type::Unknown;
       bool     isExternal;
 
       bool isMultiLineComment() const;
@@ -63,9 +67,9 @@ public:
       ExtAndNonEmptyInt = 4
    };
 
-   typedef std::vector<std::shared_ptr<bs::Wallet>>   Wallets;
+   typedef std::vector<std::shared_ptr<bs::sync::Wallet>>   Wallets;
 
-   AddressListModel(std::shared_ptr<WalletsManager> walletsManager, QObject* parent
+   AddressListModel(const std::shared_ptr<bs::sync::WalletsManager> &, QObject* parent
       , AddressType addrType = AddressType::All);
    ~AddressListModel() noexcept = default;
 
@@ -75,9 +79,6 @@ public:
    QVariant headerData(int section, Qt::Orientation orientation, int role) const override;
 
    bool setWallets(const Wallets &);
-
-signals:
-   void updated();
 
 private slots:
    void updateData();
@@ -91,9 +92,9 @@ private:
    std::atomic_bool           processing_;
 
 private:
-   void updateWallet(const std::shared_ptr<bs::Wallet> &);
+   void updateWallet(const std::shared_ptr<bs::sync::Wallet> &);
    void updateWalletData();
-   AddressRow createRow(const bs::Address &, const std::shared_ptr<bs::Wallet> &) const;
+   AddressRow createRow(const bs::Address &, const std::shared_ptr<bs::sync::Wallet> &) const;
    QVariant dataForRow(const AddressListModel::AddressRow &row, int column) const;
 };
 

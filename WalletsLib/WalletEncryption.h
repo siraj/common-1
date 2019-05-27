@@ -1,13 +1,16 @@
 #ifndef WALLET_ENCRYPTION_H
 #define WALLET_ENCRYPTION_H
 
+//!#include <QObject>
+
 #include "BinaryData.h"
 #include "EncryptionUtils.h"
 
 
 namespace bs {
    namespace wallet {
-      enum class EncryptionType : uint8_t {
+
+      enum EncryptionType : uint8_t {
          Unencrypted,
          Password,
          Auth

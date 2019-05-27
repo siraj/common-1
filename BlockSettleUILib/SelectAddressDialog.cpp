@@ -3,11 +3,11 @@
 
 #include <QPushButton>
 
-#include "WalletsManager.h"
+#include "Wallets/SyncWalletsManager.h"
 
 
-SelectAddressDialog::SelectAddressDialog(const std::shared_ptr<WalletsManager>& walletsManager
-   , const std::shared_ptr<bs::Wallet>& wallet
+SelectAddressDialog::SelectAddressDialog(const std::shared_ptr<bs::sync::WalletsManager> &walletsManager
+   , const std::shared_ptr<bs::sync::Wallet>& wallet
    , QWidget* parent, AddressListModel::AddressType addrType)
  : QDialog(parent)
  , ui_(new Ui::SelectAddressDialog)
@@ -34,7 +34,7 @@ SelectAddressDialog::~SelectAddressDialog() = default;
 
 bs::Address SelectAddressDialog::getAddress(const QModelIndex& index) const
 {
-   return bs::Address(model_->data(index, AddressListModel::AddressRole).toString());
+   return bs::Address(model_->data(index, AddressListModel::AddressRole).toString().toStdString());
 }
 
 void SelectAddressDialog::onSelectionChanged()

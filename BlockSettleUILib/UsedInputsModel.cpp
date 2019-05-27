@@ -4,6 +4,7 @@
 #include "TxClasses.h"
 #include "UiUtils.h"
 
+#include <QSize>
 #include <unordered_map>
 
 UsedInputsModel::UsedInputsModel(QObject* parent)
@@ -33,12 +34,15 @@ void UsedInputsModel::clear()
 
 QVariant UsedInputsModel::data(const QModelIndex & index, int role) const
 {
+   if (role == Qt::SizeHintRole && index.column() == 1) {
+      return QSize(50, 14); // workaround used here
+                            // TODO: move "Delete output button"
+                            // from CreateTransactionDialogAdvanced::onOutputsInserted to model delegate
+   }
+
    switch (role) {
    case Qt::TextAlignmentRole:
-      if (index.column() == ColumnBalance) {
-         return Qt::AlignRight;
-      }
-      return Qt::AlignLeft;
+      return int(Qt::AlignLeft | Qt::AlignVCenter);
    case Qt::DisplayRole:
       return getRowData(index.column(), inputs_[index.row()]);
    }
@@ -71,7 +75,7 @@ void UsedInputsModel::updateInputs(const std::vector<UTXO>& usedInputs)
 
    for (const auto& utx : usedInputs) {
       const auto address = bs::Address::fromUTXO(utx);
-      const auto addrStr = address.display<std::string>();
+      const auto addrStr = address.display();
 
       auto it = loadedInputs.find(addrStr);
       if (it == loadedInputs.end()) {

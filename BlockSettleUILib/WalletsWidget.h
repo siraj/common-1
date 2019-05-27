@@ -2,31 +2,39 @@
 #define __WALLETS_WIDGET_H__
 
 #include <memory>
+#include <unordered_map>
 #include <QWidget>
-#include "WalletsManager.h"
+#include <QItemSelection>
+#include "Address.h"
 #include "TabWithShortcut.h"
 
 
 namespace Ui {
     class WalletsWidget;
 }
+namespace spdlog {
+   class logger;
+}
 namespace bs {
-   namespace hd {
+   namespace sync {
+      namespace hd {
+         class Wallet;
+      }
       class Wallet;
+      class WalletsManager;
    }
 }
 class AddressListModel;
 class AddressSortFilterModel;
 class ApplicationSettings;
-class ArmoryConnection;
+class ArmoryObject;
 class AssetManager;
 class AuthAddressManager;
 class QAction;
 class QMenu;
 class SignContainer;
-class WalletImporter;
 class WalletsViewModel;
-
+class ConnectionManager;
 
 class WalletsWidget : public TabWithShortcut
 {
@@ -37,17 +45,21 @@ public:
    ~WalletsWidget() override;
 
    void init(const std::shared_ptr<spdlog::logger> &logger
-      , const std::shared_ptr<WalletsManager> &, const std::shared_ptr<SignContainer> &
-      , const std::shared_ptr<ApplicationSettings> &, const std::shared_ptr<AssetManager> &
-      , const std::shared_ptr<AuthAddressManager> &, const std::shared_ptr<ArmoryConnection> &);
+      , const std::shared_ptr<bs::sync::WalletsManager> &
+      , const std::shared_ptr<SignContainer> &
+      , const std::shared_ptr<ApplicationSettings> &
+      , const std::shared_ptr<ConnectionManager> &connectionManager
+      , const std::shared_ptr<AssetManager> &
+      , const std::shared_ptr<AuthAddressManager> &
+      , const std::shared_ptr<ArmoryObject> &);
 
    void setUsername(const QString& username);
 
-   std::vector<WalletsManager::wallet_gen_type> GetSelectedWallets() const;
-   std::vector<WalletsManager::wallet_gen_type> GetFirstWallets() const;
+   std::vector<std::shared_ptr<bs::sync::Wallet>> getSelectedWallets() const;
+   std::vector<std::shared_ptr<bs::sync::Wallet>> getFirstWallets() const;
 
-   bool CreateNewWallet(bool primary, bool report = true);
-   bool ImportNewWallet(bool primary, bool report = true);
+   bool CreateNewWallet(bool report = true);
+   bool ImportNewWallet(bool report = true);
 
    void shortcutActivated(ShortcutType s) override;
 
@@ -59,6 +71,7 @@ private:
 
    int getUIFilterSettings() const;
    void updateAddressFilters(int filterSettings);
+   void keepSelection();
 
 signals:
    void showContextMenu(QMenu *, QPoint);
@@ -70,7 +83,6 @@ private slots:
    void updateAddresses();
    void onAddressContextMenu(const QPoint &);
    void onWalletContextMenu(const QPoint &);
-   void onImportComplete(const std::string &walletId);
    void onNewWallet();
    void onCopyAddress();
    void onEditAddrComment();
@@ -82,35 +94,38 @@ private slots:
    void onEnterKeyInWalletsPressed(const QModelIndex &index);
    void onShowContextMenu(QMenu *, QPoint);
    void onWalletBalanceChanged(std::string);
+   void treeViewAddressesSelectionChanged(const QItemSelection &selected, const QItemSelection &deselected);
+   void treeViewAddressesLayoutChanged();
+   void scrollChanged();
+   void onWalletsSynchronized();
 
 private:
-   std::unique_ptr<Ui::WalletsWidget> ui;
+   std::unique_ptr<Ui::WalletsWidget> ui_;
 
    std::shared_ptr<spdlog::logger> logger_;
-   std::shared_ptr<WalletsManager>  walletsManager_;
+   std::shared_ptr<bs::sync::WalletsManager> walletsManager_;
    std::shared_ptr<SignContainer>   signingContainer_;
    std::shared_ptr<ApplicationSettings>   appSettings_;
+   std::shared_ptr<ConnectionManager>     connectionManager_;
    std::shared_ptr<AssetManager>          assetManager_;
    std::shared_ptr<AuthAddressManager>    authMgr_;
-   std::shared_ptr<ArmoryConnection>      armory_;
+   std::shared_ptr<ArmoryObject>          armory_;
    WalletsViewModel        *  walletsModel_;
    AddressListModel        *  addressModel_;
    AddressSortFilterModel  *  addressSortFilterModel_;
-   std::unordered_map<std::string, std::shared_ptr<WalletImporter>>  walletImporters_;
    QAction  *  actCopyAddr_ = nullptr;
    QAction  *  actEditComment_ = nullptr;
    QAction  *  actRevokeSettl_ = nullptr;
    QAction  *  actDeleteWallet_ = nullptr;
    bs::Address curAddress_;
-   std::shared_ptr<bs::Wallet>   curWallet_;
+   std::shared_ptr<bs::sync::Wallet>   curWallet_;
    unsigned int   revokeReqId_ = 0;
    QString username_;
-   std::vector<std::shared_ptr<bs::Wallet>>  prevSelectedWallets_;
+   std::vector<std::shared_ptr<bs::sync::Wallet>>  prevSelectedWallets_;
+   int prevSelectedWalletRow_;
+   int prevSelectedAddressRow_;
+   QPoint walletsScrollPos_;
+   QPoint addressesScrollPos_;
 };
-
-bool WalletBackupAndVerify(const std::shared_ptr<bs::hd::Wallet> &
-   , const std::shared_ptr<SignContainer> &
-   , const std::shared_ptr<ApplicationSettings> &appSettings
-   , QWidget *parent);
 
 #endif // __WALLETS_WIDGET_H__

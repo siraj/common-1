@@ -8,6 +8,8 @@
 
 #include "DecryptedDataContainer.h"
 
+using namespace std;
+
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 //// DecryptedDataContainer
@@ -15,7 +17,7 @@
 ////////////////////////////////////////////////////////////////////////////////
 void DecryptedDataContainer::initAfterLock()
 {
-   auto&& decryptedDataInstance = make_unique<DecryptedData>();
+   auto&& decryptedDataInstance = make_unique<DecryptedDataMaps>();
 
    //copy default encryption key
    auto&& defaultEncryptionKeyCopy = defaultEncryptionKey_.copy();
@@ -79,8 +81,8 @@ unique_ptr<DecryptedEncryptionKey> decrKey, const BinaryData& kdfid) const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-const SecureBinaryData& DecryptedDataContainer::getDecryptedPrivateKey(
-   shared_ptr<Asset_PrivateKey> dataPtr)
+const SecureBinaryData& DecryptedDataContainer::getDecryptedPrivateData(
+   shared_ptr<Asset_EncryptedData> dataPtr)
 {
    //sanity check
    if (!ownsLock())
@@ -90,7 +92,7 @@ const SecureBinaryData& DecryptedDataContainer::getDecryptedPrivateKey(
       throw DecryptedDataContainerException(
       "nullptr lock! how did we get this far?");
 
-   auto insertDecryptedData = [this](unique_ptr<DecryptedPrivateKey> decrKey)->
+   auto insertDecryptedData = [this](unique_ptr<DecryptedData> decrKey)->
       const SecureBinaryData&
    {
       //if decrKey is empty, all casts failed, throw
@@ -98,17 +100,17 @@ const SecureBinaryData& DecryptedDataContainer::getDecryptedPrivateKey(
       throw DecryptedDataContainerException("unexpected dataPtr type");
 
       //make sure insertion succeeds
-      lockedDecryptedData_->privateKeys_.erase(decrKey->getId());
+      lockedDecryptedData_->privateData_.erase(decrKey->getId());
       auto&& keypair = make_pair(decrKey->getId(), move(decrKey));
       auto&& insertionPair =
-         lockedDecryptedData_->privateKeys_.insert(move(keypair));
+         lockedDecryptedData_->privateData_.insert(move(keypair));
 
       return insertionPair.first->second->getDataRef();
    };
 
    //look for already decrypted data
-   auto dataIter = lockedDecryptedData_->privateKeys_.find(dataPtr->getId());
-   if (dataIter != lockedDecryptedData_->privateKeys_.end())
+   auto dataIter = lockedDecryptedData_->privateData_.find(dataPtr->getId());
+   if (dataIter != lockedDecryptedData_->privateData_.end())
       return dataIter->second->getDataRef();
 
    //no decrypted val entry, let's try to decrypt the data instead
@@ -120,20 +122,20 @@ const SecureBinaryData& DecryptedDataContainer::getDecryptedPrivateKey(
       throw EncryptedDataMissing();
    }
 
-   //check cypher
-   if (dataPtr->cypher_ == nullptr)
+   //check cipher
+   if (dataPtr->cipher_ == nullptr)
    {
-      //null cypher, data is not encrypted, create entry and return it
-      auto dataCopy = dataPtr->data_;
-      auto&& decrKey = make_unique<DecryptedPrivateKey>(
+      //null cipher, data is not encrypted, create entry and return it
+      auto dataCopy = dataPtr->cipherText_;
+      auto&& decrKey = make_unique<DecryptedData>(
          dataPtr->getId(), dataCopy);
       return insertDecryptedData(move(decrKey));
    }
 
-   //we have a valid cypher, grab the encryption key
+   //we have a valid cipher, grab the encryption key
    unique_ptr<DecryptedEncryptionKey> decrKey;
-   auto& encryptionKeyId = dataPtr->cypher_->getEncryptionKeyId();
-   auto& kdfId = dataPtr->cypher_->getKdfId();
+   auto& encryptionKeyId = dataPtr->cipher_->getEncryptionKeyId();
+   auto& kdfId = dataPtr->cipher_->getKdfId();
 
    populateEncryptionKey(encryptionKeyId, kdfId);
 
@@ -170,8 +172,8 @@ void DecryptedDataContainer::populateEncryptionKey(
       "nullptr lock! how did we get this far?");
 
    //lambda to insert keys back into the container
-   auto insertDecryptedData = [&keyid, this](
-      unique_ptr<DecryptedEncryptionKey> decrKey)->void
+   auto insertDecryptedData = [this](
+      const BinaryData& keyid, unique_ptr<DecryptedEncryptionKey> decrKey)->void
    {
       //if decrKey is empty, all casts failed, throw
       if (decrKey == nullptr)
@@ -201,37 +203,40 @@ void DecryptedDataContainer::populateEncryptionKey(
          auto encryptedKeyPtr = dynamic_pointer_cast<Asset_EncryptionKey>(
             encrKeyIter->second);
          if (encryptedKeyPtr == nullptr)
+         {
             throw DecryptedDataContainerException(
-            "unexpected object for encryption key id");
+               "unexpected object for encryption key id");
+         }
 
          //found the encrypted key, need to decrypt it first
          populateEncryptionKey(
-            encryptedKeyPtr->cypher_->getEncryptionKeyId(),
-            encryptedKeyPtr->cypher_->getKdfId());
+            encryptedKeyPtr->cipher_->getEncryptionKeyId(),
+            encryptedKeyPtr->cipher_->getKdfId());
 
          //grab encryption key from map
          auto decrKeyIter =
             lockedDecryptedData_->encryptionKeys_.find(
-            encryptedKeyPtr->cypher_->getEncryptionKeyId());
+               encryptedKeyPtr->cipher_->getEncryptionKeyId());
          if (decrKeyIter == lockedDecryptedData_->encryptionKeys_.end())
             throw DecryptedDataContainerException("failed to decrypt key");
          auto&& decryptionKey = move(decrKeyIter->second);
 
          //derive encryption key
-         decryptionKey = move(
-            deriveEncryptionKey(move(decryptionKey),
-            encryptedKeyPtr->cypher_->getKdfId()));
+         decryptionKey = move(deriveEncryptionKey(
+            move(decryptionKey),
+            encryptedKeyPtr->cipher_->getKdfId()));
 
          //decrypt encrypted key
-         auto&& rawDecryptedKey = encryptedKeyPtr->cypher_->decrypt(
-            decryptionKey->getDerivedKey(encryptedKeyPtr->cypher_->getKdfId()),
-            encryptedKeyPtr->data_);
+         auto&& rawDecryptedKey = encryptedKeyPtr->cipher_->decrypt(
+            decryptionKey->getDerivedKey(encryptedKeyPtr->cipher_->getKdfId()),
+            encryptedKeyPtr->cipherText_);
 
          decryptedKey = move(make_unique<DecryptedEncryptionKey>(
             rawDecryptedKey));
 
          //move decryption key back to container
-         insertDecryptedData(move(decryptionKey));
+         insertDecryptedData(
+            encryptedKeyPtr->cipher_->getEncryptionKeyId(), move(decryptionKey));
       }
    }
 
@@ -245,16 +250,16 @@ void DecryptedDataContainer::populateEncryptionKey(
    decryptedKey = move(deriveEncryptionKey(move(decryptedKey), kdfid));
 
    //insert into map
-   insertDecryptedData(move(decryptedKey));
+   insertDecryptedData(keyid, move(decryptedKey));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 SecureBinaryData DecryptedDataContainer::encryptData(
-   Cypher* const cypher, const SecureBinaryData& data)
+   Cipher* const cipher, const SecureBinaryData& data)
 {
    //sanity check
-   if (cypher == nullptr)
-      throw DecryptedDataContainerException("null cypher");
+   if (cipher == nullptr)
+      throw DecryptedDataContainerException("null cipher");
 
    if (!ownsLock())
       throw DecryptedDataContainerException("unlocked/does not own lock");
@@ -263,12 +268,12 @@ SecureBinaryData DecryptedDataContainer::encryptData(
       throw DecryptedDataContainerException(
       "nullptr lock! how did we get this far?");
 
-   populateEncryptionKey(cypher->getEncryptionKeyId(), cypher->getKdfId());
+   populateEncryptionKey(cipher->getEncryptionKeyId(), cipher->getKdfId());
    auto keyIter = lockedDecryptedData_->encryptionKeys_.find(
-      cypher->getEncryptionKeyId());
-   auto& derivedKey = keyIter->second->getDerivedKey(cypher->getKdfId());
+      cipher->getEncryptionKeyId());
+   auto& derivedKey = keyIter->second->getDerivedKey(cipher->getKdfId());
 
-   return move(cypher->encrypt(derivedKey, data));
+   return move(cipher->encrypt(derivedKey, data));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -519,7 +524,7 @@ void DecryptedDataContainer::encryptEncryptionKey(
       "cannot change passphrase for unknown key");
 
    //decrypt master encryption key
-   auto& kdfId = keyIter->second->cypher_->getKdfId();
+   auto& kdfId = keyIter->second->cipher_->getKdfId();
    populateEncryptionKey(keyID, kdfId);
 
    //grab decrypted key
@@ -531,7 +536,7 @@ void DecryptedDataContainer::encryptEncryptionKey(
    auto& decryptedKey = decryptedKeyIter->second->getData();
 
    //grab kdf for key id computation
-   auto masterKeyKdfId = keyIter->second->cypher_->getKdfId();
+   auto masterKeyKdfId = keyIter->second->cipher_->getKdfId();
    auto kdfIter = kdfMap_.find(masterKeyKdfId);
    if (kdfIter == kdfMap_.end())
       throw DecryptedDataContainerException("failed to grab kdf");
@@ -544,20 +549,20 @@ void DecryptedDataContainer::encryptEncryptionKey(
    newEncryptionKey->deriveKey(kdfIter->second);
    auto newKeyId = newEncryptionKey->getId(masterKeyKdfId);
 
-   //create new cypher, pointing to the new key id
-   auto newCypher = keyIter->second->cypher_->getCopy(newKeyId);
+   //create new cipher, pointing to the new key id
+   auto newCipher = keyIter->second->cipher_->getCopy(newKeyId);
 
    //add new encryption key object to container
    lockedDecryptedData_->encryptionKeys_.insert(
       move(make_pair(newKeyId, move(newEncryptionKey))));
 
    //encrypt master key
-   auto&& newEncryptedKey = encryptData(newCypher.get(), decryptedKey);
+   auto&& newEncryptedKey = encryptData(newCipher.get(), decryptedKey);
 
    //create new encrypted container
    auto keyIdCopy = keyID;
    auto newEncryptedKeyPtr =
-      make_shared<Asset_EncryptionKey>(keyIdCopy, newEncryptedKey, move(newCypher));
+      make_shared<Asset_EncryptionKey>(keyIdCopy, newEncryptedKey, move(newCipher));
 
    //update
    keyIter->second = newEncryptedKeyPtr;

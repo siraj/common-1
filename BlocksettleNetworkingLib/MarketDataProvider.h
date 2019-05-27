@@ -28,19 +28,25 @@ public:
    MarketDataProvider(MarketDataProvider&&) = delete;
    MarketDataProvider& operator = (MarketDataProvider&&) = delete;
 
+   void SetConnectionSettings(const std::string &host, const std::string &port);
+
    void SubscribeToMD();
+   void UnsubscribeFromMD();
    virtual bool DisconnectFromMDSource() { return true; }
 
    virtual bool IsConnectionActive() const { return false; }
 
 protected:
    virtual bool StartMDConnection() { return true; }
+   virtual void StopMDConnection() { }
 
 public slots:
    void MDLicenseAccepted();
 
 signals:
    void UserWantToConnectToMD();
+
+   void WaitingForConnectionDetails();
 
    void StartConnecting();
    void Connected();
@@ -53,8 +59,17 @@ signals:
    void MDSecuritiesReceived();
    void MDReqRejected(const std::string &security, const std::string &reason);
 
+   void OnNewFXTrade(const bs::network::NewTrade& trade);
+   void OnNewXBTTrade(const bs::network::NewTrade& trade);
+   void OnNewPMTrade(const bs::network::NewPMTrade& trade);
+
 protected:
    std::shared_ptr<spdlog::logger>  logger_ = nullptr;
+
+   bool waitingForConnectionDetails_ = false;
+
+   std::string host_;
+   std::string port_;
 };
 
 #endif // __MARKET_DATA_PROVIDER_H__

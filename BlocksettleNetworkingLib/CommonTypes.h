@@ -14,6 +14,12 @@
 #include "com/celertech/marketdata/api/enums/ProductTypeProto.pb.h"
 #include "com/celertech/marketdata/api/enums/MarketDataEntryTypeProto.pb.h"
 
+#include "ChatCommonTypes.h"
+
+#ifndef NDEBUG
+#include <stdexcept>
+#endif
+
 namespace bs {
    namespace network {
 
@@ -75,15 +81,16 @@ namespace bs {
          static Type fromCelerProductType(com::celertech::marketdata::api::enums::producttype::ProductType pt) {
             switch (pt) {
             case com::celertech::marketdata::api::enums::producttype::SPOT:           return SpotFX;
-            case com::celertech::marketdata::api::enums::producttype::BITCOIN:            return SpotXBT;
-            // case com::celertech::marketdata::api::enums::producttype::PRIVATE_SHARE:  return PrivateMarket;
+            case com::celertech::marketdata::api::enums::producttype::BITCOIN:        return SpotXBT;
+            case com::celertech::marketdata::api::enums::producttype::PRIVATE_SHARE:  return PrivateMarket;
             default: return Undefined;
             }
          }
+
          static Type fromCelerProductType(com::celertech::marketmerchant::api::enums::producttype::ProductType pt) {
             switch (pt) {
             case com::celertech::marketmerchant::api::enums::producttype::SPOT:           return SpotFX;
-            case com::celertech::marketmerchant::api::enums::producttype::BITCOIN:            return SpotXBT;
+            case com::celertech::marketmerchant::api::enums::producttype::BITCOIN:        return SpotXBT;
             case com::celertech::marketmerchant::api::enums::producttype::PRIVATE_SHARE:  return PrivateMarket;
             default: return Undefined;
             }
@@ -318,38 +325,16 @@ namespace bs {
             PriceBestBid,
             PriceBestOffer,
             DailyVolume,
-            Reject
+            Reject,
+            MDTimestamp
          };
          Type     type;
          double   value;
          QString  desc;
 
-         static Type fromCeler(com::celertech::marketdata::api::enums::marketdataentrytype::MarketDataEntryType mdType) {
-            switch (mdType)
-            {
-            case com::celertech::marketdata::api::enums::marketdataentrytype::BID:       return PriceBid;
-            case com::celertech::marketdata::api::enums::marketdataentrytype::OFFER:     return PriceOffer;
-            case com::celertech::marketdata::api::enums::marketdataentrytype::MID_PRICE: return PriceMid;
-            case com::celertech::marketdata::api::enums::marketdataentrytype::TRADE:     return PriceLast;
-            case com::celertech::marketdata::api::enums::marketdataentrytype::OPEN:      return PriceOpen;
-            case com::celertech::marketdata::api::enums::marketdataentrytype::CLOSE:     return PriceClose;
-            case com::celertech::marketdata::api::enums::marketdataentrytype::HIGH:      return PriceHigh;
-            case com::celertech::marketdata::api::enums::marketdataentrytype::LOW:       return PriceLow;
-            case com::celertech::marketdata::api::enums::marketdataentrytype::TOTALTRADEDVOL:  return TurnOverQty;
-            case com::celertech::marketdata::api::enums::marketdataentrytype::SETTLEMENT:return PriceSettlement;
-            case com::celertech::marketdata::api::enums::marketdataentrytype::VWAP:      return VWAP;
-            default:       return Unknown;
-            }
-         }
+         static Type fromCeler(com::celertech::marketdata::api::enums::marketdataentrytype::MarketDataEntryType mdType);
 
-         static MDField get(const MDFields &fields, Type type) {
-            for (const auto field : fields) {
-               if (field.type == type) {
-                  return field;
-               }
-            }
-            return { Unknown, 0, QString() };
-         }
+         static MDField get(const MDFields &fields, Type type);
       };
 
 
@@ -365,6 +350,23 @@ namespace bs {
 
       const std::string XbtCurrency = "XBT";
 
+      // fx and xbt
+      struct NewTrade
+      {
+         std::string product;
+         double      price;
+         double      amount;
+         uint64_t    timestamp;
+      };
+
+      struct NewPMTrade
+      {
+         double      price;
+         uint64_t    amount;
+         std::string product;
+         uint64_t    timestamp;
+      };
+
    }  //namespace network
 }  //namespace bs
 
@@ -378,6 +380,8 @@ Q_DECLARE_METATYPE(bs::network::QuoteNotification)
 Q_DECLARE_METATYPE(bs::network::MDField)
 Q_DECLARE_METATYPE(bs::network::MDFields)
 Q_DECLARE_METATYPE(bs::network::CCSecurityDef)
+Q_DECLARE_METATYPE(bs::network::NewTrade)
+Q_DECLARE_METATYPE(bs::network::NewPMTrade)
 
 
 #endif //__BS_COMMON_TYPES_H__

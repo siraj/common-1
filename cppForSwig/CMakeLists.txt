@@ -8,7 +8,10 @@ SET (SOURCES
    Assets.cpp
    AssetEncryption.cpp
    AsyncClient.cpp
+   AuthorizedPeers.cpp
    BinaryData.cpp
+   BIP150_151.cpp
+   BIP32_Node.cpp
    BlockDataManagerConfig.cpp
    BtcUtils.cpp
    ClientClasses.cpp
@@ -16,13 +19,18 @@ SET (SOURCES
    DBUtils.cpp
    DecryptedDataContainer.cpp
    DerivationScheme.cpp
-   EncryptionUtils.cpp
-   FcgiMessage.cpp
+   EncryptionUtils_libbtc.cpp
+   hkdf.cpp
+   HttpMessage.cpp
    JSON_codec.cpp
+   KDF.cpp
    lmdb_wrapper.cpp
    log.cpp
+   NetworkConfig.cpp
    ReentrantLock.cpp
    Script.cpp
+   ScriptRecipient.cpp
+   SecureBinaryData.cpp
    Signer.cpp
    SocketObject.cpp
    SwigClient.cpp
@@ -40,7 +48,39 @@ SET (SOURCES
    ${MDB_DIR}/lmdbpp.cpp
    bech32/ref/c++/bech32.cpp
    bech32/ref/c++/segwit_addr.cpp
+   chacha20poly1305/chacha.c
+   chacha20poly1305/chachapoly_aead.c
+   chacha20poly1305/poly1305.c
    )
+
+IF (BUILD_TEST_TOOLS)
+   LIST (APPEND SOURCES
+      BDM_mainthread.cpp
+      BDM_Server.cpp
+      BitcoinP2P.cpp
+      Blockchain.cpp
+      BlockchainScanner.cpp
+      BlockchainScanner_Super.cpp
+      BlockDataMap.cpp
+      BlockDataViewer.cpp
+      BlockObj.cpp
+      BlockUtils.cpp
+      BtcWallet.cpp
+      DatabaseBuilder.cpp
+      HistoryPager.cpp
+      LedgerEntry.cpp
+      nodeRPC.cpp
+      Progress.cpp
+      ScrAddrFilter.cpp
+      ScrAddrObj.cpp
+      Server.cpp
+      SshParser.cpp
+      StoredBlockObj.cpp
+      txio.cpp
+      ZeroConf.cpp
+      gtest/NodeUnitTest.cpp
+   )
+ENDIF (BUILD_TEST_TOOLS)
 
 IF (WIN32)
    LIST(APPEND SOURCES SocketService_win32.cpp)
@@ -54,8 +94,11 @@ SET (HEADERS
    Assets.h
    AssetEncryption.h
    AsyncClient.h
+   AuthorizedPeers.h
    BDVCodec.h
    BinaryData.h
+   BIP150_151.h
+   BIP32_Node.h
    BlockDataManagerConfig.h
    BtcUtils.h
    ClientClasses.h
@@ -64,10 +107,13 @@ SET (HEADERS
    DecryptedDataContainer.h
    DerivationScheme.h
    EncryptionUtils.h
-   FcgiMessage.h
+   hkdf.h
+   HttpMessage.h
    JSON_codec.h
    lmdb_wrapper.h
+   NetworkConfig.h
    ReentrantLock.h
+   SecureBinaryData.h
    Signer.h
    Script.h
    SocketObject.h
@@ -89,6 +135,35 @@ SET (HEADERS
    bech32/ref/c++/segwit_addr.h
    )
 
+IF (BUILD_TEST_TOOLS)
+   LIST (APPEND HEADERS
+      BDM_mainthread.h
+      BDM_Server.h
+      BitcoinP2p.h
+      Blockchain.h
+      BlockchainScanner.h
+      BlockchainScanner_Super.h
+      BlockDataMap.h
+      BlockDataViewer.h
+      BlockObj.h
+      BlockUtils.h
+      BtcWallet.h
+      DatabaseBuilder.h
+      HistoryPager.h
+      LedgerEntry.h
+      nodeRPC.h
+      Progress.h
+      ScrAddrFilter.h
+      ScrAddrObj.h
+      Server.h
+      SshParser.h
+      StoredBlockObj.h
+      txio.h
+      ZeroConf.h
+      gtest/NodeUnitTest.h
+   )
+ENDIF (BUILD_TEST_TOOLS)
+
 SET(PROTO_DIR ${CMAKE_CURRENT_SOURCE_DIR}/protobuf)
 FILE(GLOB PROTO_FILES ${PROTO_DIR}/*.proto)
 
@@ -109,10 +184,6 @@ FOREACH(PROTO_FILE ${PROTO_FILES})
 ENDFOREACH(PROTO_FILE)
 
 SET(PROTO_SOURCES ${PROTO_SOURCE_FILES} ${PROTO_HEADER_FILES})
-
-# Extra files for cryptopp
-SET (CRYPTOPP_EXTRA_SOURCES ${CRYPTOPP_EXTRA_DIR}/DetSign.cpp)
-SET (CRYPTOPP_EXTRA_HEADERS ${CRYPTOPP_EXTRA_DIR}/DetSign.h)
 
 # leveldb_windows_port
 IF(WIN32)

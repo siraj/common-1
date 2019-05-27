@@ -3,7 +3,6 @@
 
 #include <QWidget>
 #include <memory>
-#include "WalletsManager.h"
 
 namespace Ui {
     class CoinControlWidget;
@@ -19,7 +18,7 @@ public:
    CoinControlWidget(QWidget* parent = nullptr );
    ~CoinControlWidget() override;
 
-   void initWidget(const std::shared_ptr<SelectedTransactionInputs> &);
+   void initWidget(const std::shared_ptr<SelectedTransactionInputs> &, bool allowAutoSel = true);
    void applyChanges(const std::shared_ptr<SelectedTransactionInputs> &);
 
 signals:

@@ -8,42 +8,51 @@
 #include <vector>
 
 #include "ApplicationSettings.h"
-#include "ArmoryConnection.h"
+#include "ArmoryObject.h"
 #include "CelerClient.h"
-#include "TransactionsViewModel.h"
+#include "QWalletInfo.h"
+#include "SignContainer.h"
+#include "ZMQ_BIP15X_DataConnection.h"
 
 namespace Ui {
     class BSTerminalMainWindow;
 }
 namespace bs {
    class LogManager;
+   namespace sync {
+      class Wallet;
+      class WalletsManager;
+   }
 }
 
 class AboutDialog;
+class ArmoryServersProvider;
+class SignersProvider;
 class AssetManager;
 class AuthAddressDialog;
 class AuthAddressManager;
+class AutheIDClient;
+class AuthSignManager;
+class BSMarketDataProvider;
 class BSTerminalSplashScreen;
 class CCFileManager;
 class CCPortfolioModel;
 class CelerClient;
 class ConnectionManager;
-class HeadlessAddressSyncer;
-class CelerMarketDataProvider;
-class OTPManager;
 class QSystemTrayIcon;
-class SignContainer;
+class RequestReplyCommand;
 class StatusBarView;
 class StatusViewBlockListener;
+class TransactionsViewModel;
 class WalletManagementWizard;
-class WalletsManager;
 
 class BSTerminalMainWindow : public QMainWindow
 {
 Q_OBJECT
 
 public:
-   BSTerminalMainWindow(const std::shared_ptr<ApplicationSettings>& settings, BSTerminalSplashScreen& splashScreen, QWidget* parent = nullptr);
+   BSTerminalMainWindow(const std::shared_ptr<ApplicationSettings>& settings
+      , BSTerminalSplashScreen& splashScreen, QWidget* parent = nullptr);
    ~BSTerminalMainWindow() override;
 
    void postSplashscreenActions();
@@ -59,57 +68,77 @@ private:
    void InitConnections();
    void initArmory();
    void connectArmory();
+   void connectSigner();
+   std::shared_ptr<SignContainer> createSigner();
+   std::shared_ptr<SignContainer> createRemoteSigner();
+   std::shared_ptr<SignContainer> createLocalSigner();
 
    void setTabStyle();
 
-   void LoadWallets(BSTerminalSplashScreen& splashScreen);
+   void LoadWallets();
    void InitAuthManager();
-   void InitSigningContainer();
+   bool InitSigningContainer();
    void InitAssets();
 
    void InitPortfolioView();
    void InitWalletsView();
-
-   void InitOTP();
+   void InitChatView();
+   void InitChartsView();
 
    void UpdateMainWindowAppearence();
 
    bool isMDLicenseAccepted() const;
    void saveUserAcceptedMDLicense();
 
+   bool showStartupDialog();
+   void LoadCCDefinitionsFromPuB();
+   void setWidgetsAuthorized(bool authorized);
+
+signals:
+   void readyToLogin();
+   void armoryServerPromptResultReady();
+
 private slots:
+   // display login dialog once network settings loaded
+   void onReadyToLogin();
+
    void InitTransactionsView();
    void ArmoryIsOffline();
    void SignerReady();
-   void onPasswordRequested(std::string walletId, std::string prompt
-      , std::vector<bs::wallet::EncryptionType>, std::vector<SecureBinaryData> encKeys
-      , bs::wallet::KeyRank);
+   void onPasswordRequested(const bs::hd::WalletInfo &walletInfo, std::string prompt);
    void showInfo(const QString &title, const QString &text);
    void showError(const QString &title, const QString &text);
+   void onSignerConnError(SignContainer::ConnectionError error, const QString &details);
 
    void CompleteUIOnlineView();
    void CompleteDBConnection();
 
-   void OnOTPSyncCompleted();
-
    bool createWallet(bool primary, bool reportSuccess = true);
 
    void acceptMDAgreement();
+   void updateControlEnabledState();
+   void onButtonUserClicked();
+   void showArmoryServerPrompt(const BinaryData& srvPubKey, const std::string& srvIPPort, std::shared_ptr<std::promise<bool> > promiseObj);
+
+   void onArmoryNeedsReconnect();
 
 private:
-   QAction *action_send_;
-   QAction *action_receive_;
-   QAction *action_login_;
-   QAction *action_logout_;
-
-private:
-   std::unique_ptr<Ui::BSTerminalMainWindow> ui;
+   std::unique_ptr<Ui::BSTerminalMainWindow> ui_;
+   QAction *action_send_ = nullptr;
+   QAction *action_receive_ = nullptr;
+   QAction *action_login_ = nullptr;
+   QAction *action_logout_ = nullptr;
 
    std::shared_ptr<bs::LogManager>        logMgr_;
    std::shared_ptr<ApplicationSettings>   applicationSettings_;
-   std::shared_ptr<WalletsManager>        walletsManager_;
+   std::shared_ptr<bs::sync::WalletsManager> walletsMgr_;
+   std::shared_ptr<ArmoryServersProvider> armoryServersProvider_;
+   std::shared_ptr<SignersProvider>       signersProvider_;
    std::shared_ptr<AuthAddressManager>    authManager_;
-   std::shared_ptr<ArmoryConnection>      armory_;
+   std::shared_ptr<AuthSignManager>       authSignManager_;
+   std::shared_ptr<ArmoryObject>          armory_;
+
+   std::shared_ptr<RequestReplyCommand>   cmdPuBSettings_;
 
    std::shared_ptr<StatusBarView>            statusBarView_;
    std::shared_ptr<QSystemTrayIcon>          sysTrayIcon_;
@@ -117,30 +146,36 @@ private:
    std::shared_ptr<CCPortfolioModel>         portfolioModel_;
    std::shared_ptr<ConnectionManager>        connectionManager_;
    std::shared_ptr<CelerClient>              celerConnection_;
-   std::shared_ptr<CelerMarketDataProvider>  mdProvider_;
+   std::shared_ptr<BSMarketDataProvider>     mdProvider_;
    std::shared_ptr<AssetManager>             assetManager_;
-   std::shared_ptr<OTPManager>               otpManager_;
    std::shared_ptr<CCFileManager>            ccFileManager_;
    std::shared_ptr<AuthAddressDialog>        authAddrDlg_;
    std::shared_ptr<AboutDialog>              aboutDlg_;
    std::shared_ptr<SignContainer>            signContainer_;
-   std::shared_ptr<HeadlessAddressSyncer>    addrSyncer_;
 
    std::shared_ptr<WalletManagementWizard> walletsWizard_;
 
-   bool  widgetsInited_ = false;
+   QString currentUserLogin_;
 
-   struct TxInfo {
-      Tx       tx;
-      uint32_t txTime;
-      int64_t  value;
-      std::shared_ptr<bs::Wallet>   wallet;
-      bs::Transaction::Direction    direction;
-      QString  mainAddress;
+   struct NetworkSettings {
+      struct Connection {
+         std::string host;
+         uint32_t    port;
+      };
+      Connection  celer;
+      Connection  marketData;
+      Connection  mdhs;
+      Connection  chat;
+      bool        isSet = false;
    };
+   void GetNetworkSettingsFromPuB(const std::function<void()> &);
+   void OnNetworkSettingsLoaded();
 
 public slots:
    void onReactivate();
+
+private:
+   struct TxInfo;
 
 private slots:
    void onSend();
@@ -150,11 +185,11 @@ private slots:
    void openAuthDlgVerify(const QString &addrToVerify);
    void openConfigDialog();
    void openAccountInfoDialog();
-   void openOTPDialog();
    void openCCTokenDialog();
-   void showZcNotification(const TxInfo &);
-   void onZCreceived(ArmoryConnection::ReqIdType);
+   void onZCreceived(const std::vector<bs::TXEntry>);
    void onArmoryStateChanged(ArmoryConnection::State);
+
+   void showZcNotification(const TxInfo *);
 
    void onLogin();
    void onLogout();
@@ -165,6 +200,8 @@ private slots:
    void showRunInBackgroundMessage();
    void onAuthMgrConnComplete();
    void onCCInfoMissing();
+
+   void onMDConnectionDetailsRequired();
 
 protected:
    void closeEvent(QCloseEvent* event) override;
@@ -180,6 +217,29 @@ private:
 
    void createAdvancedTxDialog(const std::string &selectedWalletId);
    void createAuthWallet();
+
+   bool isUserLoggedIn() const;
+   bool isArmoryConnected() const;
+
+   void loginToCeler(const std::string& username, const std::string& password);
+
+   bool goOnlineArmory() const;
+
+   void InitWidgets();
+
+private:
+   QString           loginButtonText_;
+   NetworkSettings   networkSettings_;
+   bool readyToRegisterWallets_ = false;
+   bool initialWalletCreateDialogShown_ = false;
+   bool armoryKeyDialogShown_ = false;
+   bool armoryBDVRegistered_ = false;
+   bool walletsSynched_ = false;
+
+   ZmqBIP15XDataConnection::cbNewKey   cbApprovePuB_ = nullptr;
+   ZmqBIP15XDataConnection::cbNewKey   cbApproveChat_ = nullptr;
+
+   SignContainer::ConnectionError lastSignerError_{SignContainer::NoError};
 };
 
 #endif // __BS_TERMINAL_MAIN_WINDOW_H__

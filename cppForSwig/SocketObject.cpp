@@ -7,10 +7,13 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 #include "SocketObject.h"
+#include "SocketWritePayload.h"
 #include <cstring>
 #include <stdexcept>
 
 #include "google/protobuf/text_format.h"
+
+using namespace std;
 
 ///////////////////////////////////////////////////////////////////////////////
 //
@@ -547,6 +550,7 @@ void PersistentSocket::socketService_win()
    }
 
    run_.store(false, memory_order_relaxed);
+   readQueue_.terminate();
 }
 #endif
 
@@ -585,6 +589,9 @@ void PersistentSocket::readService()
 
       respond(payload);
    }
+
+   vector<uint8_t> emptyPacket;
+   respond(emptyPacket);
 }
 
 ///////////////////////////////////////////////////////////////////////////////

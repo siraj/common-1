@@ -1,6 +1,5 @@
 #include "Address.h"
 #include "BlockDataManagerConfig.h"
-#include <QString>
 #include <bech32.h>
 
 
@@ -20,7 +19,7 @@ bs::Address::Address(const BinaryDataRef &data, AddressEntryType aet)
    }
 }
 
-bs::Address::Address(const QByteArray &data, AddressEntryType aet)
+/*!bs::Address::Address(const QByteArray &data, AddressEntryType aet)
    : BinaryData((uint8_t*)(data.data()), data.size()), aet_(aet)
 {
    if (aet == AddressEntryType_Default) {
@@ -28,39 +27,41 @@ bs::Address::Address(const QByteArray &data, AddressEntryType aet)
    }
 }
 
-bs::Address::Address(const QString &data, Format f, AddressEntryType aet)
+bs::Address::Address(const QString &data, const Format &f, AddressEntryType aet)
    : Address(data.toStdString(), f, aet)
-{}
+{}*/
 
-bs::Address::Address(const std::string& data, Format format, AddressEntryType aet)
-   : BinaryData((uint8_t*)(data.data()), data.size()), aet_(aet)
+bs::Address::Address(const std::string& data, const Format &format, AddressEntryType aet)
+   : BinaryData((uint8_t*)(data.data()), data.size()), format_(format), aet_(aet)
 {
    BinaryData parsedData;
-   if (format == Format::Auto) {
+   if (format_ == Format::Auto) {
       if (data.empty()) {
          return;
       }
       const auto &prefix = data.substr(0, 2);
       if ((prefix == SEGWIT_ADDRESS_MAINNET_HEADER) || (prefix == SEGWIT_ADDRESS_TESTNET_HEADER)) {
-         format = Format::Bech32;
+         format_ = Format::Bech32;
       }
       else {
          try {
-            parsedData = BtcUtils::base58toScrAddr(data);
-            format = Format::Base58;
+            BinaryData base58In(data);
+            base58In.append('\0'); // Remove once base58toScrAddr() is fixed.
+            parsedData = BtcUtils::base58toScrAddr(base58In);
+            format_ = Format::Base58;
          }
          catch (const std::exception &) {
             try {
                parsedData = BinaryData::CreateFromHex(data);
                if (!parsedData.isNull()) {
-                  format = Format::Hex;
+                  format_ = Format::Hex;
                }
             }
             catch (const std::exception &) {}
          }
       }
    }
-   if (format == Format::Auto) {
+   if (format_ == Format::Auto) {
       throw std::invalid_argument("can't detect input format");
    }
 
@@ -68,10 +69,12 @@ bs::Address::Address(const std::string& data, Format format, AddressEntryType ae
       copyFrom(parsedData);
    }
    else {
-      switch (format) {
+      switch (format_) {
       case Format::Base58:
          try {
-            copyFrom(BtcUtils::base58toScrAddr(data));
+            BinaryData base58In(data);
+            base58In.append('\0'); // Remove once base58toScrAddr() is fixed.
+            copyFrom(BtcUtils::base58toScrAddr(base58In));
          }
          catch (const std::runtime_error &) {}
          break;
@@ -133,7 +136,7 @@ bs::Address bs::Address::fromHash(const BinaryData &hash, AddressEntryType aet)
 {
    if ((aet == AddressEntryType_P2SH) && (hash.getSize() == 20)) {
       BinaryData binAddr;
-      binAddr.append(BlockDataManagerConfig::getScriptHashPrefix());
+      binAddr.append(NetworkConfig::getScriptHashPrefix());
       binAddr.append(hash);
       return bs::Address(binAddr, aet);
    }
@@ -207,6 +210,12 @@ bool bs::Address::isValid() const
    return true;
 }
 
+void bs::Address::clear()
+{
+   BinaryData::clear();
+   aet_ = AddressEntryType_Default;
+}
+
 bool bs::Address::isProperHash() const
 {
    if (isNull() || ((getSize() != 20) && (getSize() != 21) && (getSize() != 32) && (getSize() != 33))) {
@@ -219,17 +228,20 @@ AddressEntryType bs::Address::guessAddressType(const BinaryData &addr)
 {
    if (addr.getSize() == 21) {
       const auto prefix = addr[0];
-      if (prefix == BlockDataManagerConfig::getPubkeyHashPrefix()) {
+      if (prefix == NetworkConfig::getPubkeyHashPrefix()) {
          return AddressEntryType_P2PKH;
       }
-      else if (prefix == BlockDataManagerConfig::getScriptHashPrefix()) {
+      else if (prefix == NetworkConfig::getScriptHashPrefix()) {
          return AddressEntryType_P2SH;
-      }
-      else if (prefix == SCRIPT_PREFIX_P2WSH) {
-         return AddressEntryType_P2WSH;
       }
       else if (prefix == SCRIPT_PREFIX_P2WPKH) {
          return AddressEntryType_P2WPKH;
+      }
+   }
+   else if (addr.getSize() == 33) {
+      const auto prefix = addr[0];
+      if (prefix == SCRIPT_PREFIX_P2WSH) {
+         return AddressEntryType_P2WSH;
       }
    }
    else if (addr.getSize() >= 32) {
@@ -241,69 +253,73 @@ AddressEntryType bs::Address::guessAddressType(const BinaryData &addr)
    return AddressEntryType_Default;
 }
 
-namespace bs {
-   template<> std::string Address::display(Format format) const
+std::string bs::Address::display(Format format) const
+{
+   if (!isProperHash()) {
+      return {};
+   }
+
+   const auto fullAddress = prefixed();
+   std::string result;
+
+   switch (format)
    {
-      if (!isProperHash()) {
+   case Base58:
+      try {
+         result = BtcUtils::scrAddrToBase58(fullAddress).toBinStr();
+         break;
+      }
+      catch (const std::exception &) {
          return {};
       }
 
-      const auto &fullAddress = prefixed();
+   case Hex:
+      return fullAddress.toHexStr();
 
-      switch (format)
-      {
-      case Base58:
-         try {
-            return BtcUtils::scrAddrToBase58(fullAddress).toBinStr();
-         }
-         catch (const std::exception &) {
-            return {};
-         }
+   case Bech32:
+      try {
+         result = BtcUtils::scrAddrToSegWitAddress(unprefixed()).toBinStr();
+         break;
+      }
+      catch (const std::exception &) {
+         return {};
+      }
 
-      case Hex:
-         return fullAddress.toHexStr();
+   case Auto:
+      switch (aet_) {
+      case AddressEntryType_P2SH:
+      case AddressEntryType_P2PKH:
+         result = BtcUtils::scrAddrToBase58(fullAddress).toBinStr();
+         break;
 
-      case Bech32:
-         try {
-            return BtcUtils::scrAddrToSegWitAddress(unprefixed()).toBinStr();
-         }
-         catch (const std::exception &) {
-            return {};
-         }
-
-      case Auto:
-         switch (aet_) {
-         case AddressEntryType_P2SH:
-         case AddressEntryType_P2PKH:
-            return BtcUtils::scrAddrToBase58(fullAddress).toBinStr();
-
-         case AddressEntryType_P2WPKH:
-         case AddressEntryType_P2WSH:
-            return BtcUtils::scrAddrToSegWitAddress(unprefixed()).toBinStr();
-
-         default:
-            return fullAddress.toHexStr();
-         }
+      case AddressEntryType_P2WPKH:
+      case AddressEntryType_P2WSH:
+         result = BtcUtils::scrAddrToSegWitAddress(unprefixed()).toBinStr();
+         break;
 
       default:
-         throw std::logic_error("unsupported address format");
+         return fullAddress.toHexStr();
       }
+      break;
+
+   default:
+      throw std::logic_error("unsupported address format");
    }
 
-   template<> QString Address::display(Format format) const
-   {
-      return QString::fromStdString(display<std::string>(format));
+   if (*result.rbegin() == 0) {
+      result.resize(result.size() - 1);
    }
+   return result;
 }
 
 BinaryData bs::Address::prefixed() const
 {
    if ((getSize() == 20) || (getSize() == 32)) {   // Missing the prefix, we have to add it
       if (prefixed_.isNull()) {
-         auto prefix = BlockDataManagerConfig::getPubkeyHashPrefix();
+         auto prefix = NetworkConfig::getPubkeyHashPrefix();
          switch (aet_) {
          case AddressEntryType_P2SH:
-            prefix = BlockDataManagerConfig::getScriptHashPrefix();
+            prefix = NetworkConfig::getScriptHashPrefix();
             break;
          case AddressEntryType_Multisig:
             prefix = SCRIPT_PREFIX_MULTISIG;
@@ -369,7 +385,7 @@ bool bs::Address::operator==(const bs::Address &addr) const
    return (id() == addr.id());
 }
 
-shared_ptr<ScriptRecipient> bs::Address::getRecipient(uint64_t value) const
+std::shared_ptr<ScriptRecipient> bs::Address::getRecipient(uint64_t value) const
 {
    try {
       switch (getType()) {
@@ -377,7 +393,7 @@ shared_ptr<ScriptRecipient> bs::Address::getRecipient(uint64_t value) const
          return std::make_shared<Recipient_P2PKH>(unprefixed(), value);
 
       case AddressEntryType_P2WSH:
-         return std::make_shared<Recipient_PW2SH>(unprefixed(), value);
+         return std::make_shared<Recipient_P2WSH>(unprefixed(), value);
 
       case AddressEntryType_P2SH:
          return std::make_shared<Recipient_P2SH>(unprefixed(), value);
@@ -413,7 +429,28 @@ BinaryData bs::Address::getWitnessScript() const
    return witnessScr_;
 }
 
-shared_ptr<ScriptRecipient> bs::Address::getRecipient(double amount) const
+std::shared_ptr<ScriptRecipient> bs::Address::getRecipient(double amount) const
 {
    return getRecipient((uint64_t)(amount * BTCNumericTypes::BalanceDivider));
+}
+
+size_t bs::Address::getInputSize() const
+{  //borrowed from Armory's Addresses mainly
+   switch (getType()) {
+   case AddressEntryType_P2PKH:     return 114 + 33;
+   case AddressEntryType_P2WSH:     return 41;
+   case AddressEntryType_P2SH:      return 22 + 40;   //Treat P2SH only as nested P2SH-P2WPKH
+   case AddressEntryType_P2WPKH:    return 40;
+   default:       return 0;
+   }
+}
+
+size_t bs::Address::getWitnessDataSize() const
+{
+   switch (getType()) {
+   case AddressEntryType_P2WSH:     return 34;  //based on getP2WSHOutputScript()
+   case AddressEntryType_P2WPKH:    return 108; // Armory's AddressEntry_P2WPKH
+   case AddressEntryType_P2SH:      return 108; //Treat P2SH only as nested P2SH-P2WPKH
+   default:       return UINT32_MAX;
+   }
 }

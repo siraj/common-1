@@ -7,7 +7,6 @@
 #include "SignContainer.h"
 #include "TransactionData.h"
 #include "UiUtils.h"
-#include "WalletsManager.h"
 #include <CelerClient.h>
 
 #include <spdlog/logger.h>
@@ -17,12 +16,14 @@ XBTSettlementTransactionWidget::XBTSettlementTransactionWidget(const std::shared
    , const std::shared_ptr<CelerClient> &celerClient
    , const std::shared_ptr<ApplicationSettings> &appSettings
    , const std::shared_ptr<ReqXBTSettlementContainer> &settlContainer
+   , const std::shared_ptr<ConnectionManager> &connectionManager
    , QWidget* parent)
    : QWidget(parent)
    , ui_(new Ui::XBTSettlementTransactionWidget())
    , logger_(logger)
    , appSettings_(appSettings)
    , settlContainer_(settlContainer)
+   , connectionManager_(connectionManager)
    , sValid_(tr("<span style=\"color: #22C064;\">Verified</span>"))
    , sInvalid_(tr("<span style=\"color: #CF292E;\">Invalid</span>"))
    , sFailed_(tr("<span style=\"color: #CF292E;\">Failed</span>"))
@@ -82,6 +83,7 @@ void XBTSettlementTransactionWidget::onTimerTick(int msCurrent, int)
 {
    ui_->progressBar->setValue(msCurrent);
    ui_->progressBar->setFormat(tr("%n second(s) remaining", "", msCurrent / 1000));
+   ui_->labelTimeLeft->setText(tr("%n second(s) remaining", "", msCurrent / 1000));
 }
 
 void XBTSettlementTransactionWidget::onTimerExpired()
@@ -118,12 +120,12 @@ void XBTSettlementTransactionWidget::populateDetails()
       }
       else {
          ui_->labelHintAuthPassword->setText(tr("Enter password for \"%1\" wallet to sign revoke Pay-Out")
-            .arg(QString::fromStdString(settlContainer_->authWalletName())));
+            .arg(settlContainer_->walletInfoAuth().name()));
       }
    }
    else {
       ui_->labelHintPassword->setText(tr("Enter password for \"%1\" wallet to sign Pay-Out")
-         .arg(QString::fromStdString(settlContainer_->authWalletName())));
+         .arg(settlContainer_->walletInfoAuth().name()));
       ui_->labelHintAuthPassword->hide();
       ui_->horizontalWidgetAuthPassword->hide();
       ui_->widgetSubmitKeysAuth->suspend();
@@ -136,15 +138,14 @@ void XBTSettlementTransactionWidget::onDealerVerificationStateChanged(AddressVer
    switch (state) {
    case AddressVerificationState::Verified: {
          text = sValid_;
-         ui_->widgetSubmitKeys->init(MobileClientRequest::SettlementTransaction, settlContainer_->walletId()
-            , settlContainer_->keyRank(), settlContainer_->encTypes(), settlContainer_->encKeys(), appSettings_);
+         ui_->widgetSubmitKeys->init(AutheIDClient::SettlementTransaction, settlContainer_->walletInfo()
+            , WalletKeyWidget::UseType::RequestAuthInParent, logger_, appSettings_, connectionManager_);
          ui_->widgetSubmitKeys->setFocus();
          // tr("%1 Settlement %2").arg(QString::fromStdString(rfq_.security)).arg(clientSells_ ? tr("Pay-In") : tr("Pay-Out"))
 
          if (settlContainer_->weSell() && !settlContainer_->isSellFromPrimary()) {
-            ui_->widgetSubmitKeysAuth->init(MobileClientRequest::SettlementTransaction
-               , settlContainer_->authWalletId(), settlContainer_->authKeyRank(), settlContainer_->authEncTypes()
-               , settlContainer_->authEncKeys(), appSettings_);
+            ui_->widgetSubmitKeysAuth->init(AutheIDClient::SettlementTransaction, settlContainer_->walletInfoAuth()
+            , WalletKeyWidget::UseType::RequestAuthInParent, logger_, appSettings_, connectionManager_);
          }
          QApplication::processEvents();
          adjustSize();

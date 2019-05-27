@@ -2,12 +2,57 @@
 #include "ui_TransactionDetailsWidget.h"
 #include "BTCNumericTypes.h"
 #include "BlockObj.h"
+#include "CheckRecipSigner.h"
 #include "UiUtils.h"
+#include "Wallets/SyncWalletsManager.h"
 
 #include <memory>
 #include <QToolTip>
 
 Q_DECLARE_METATYPE(Tx);
+
+BinaryData BinaryTXID::getRPCTXID()
+{
+   BinaryData retVal;
+   if (txidIsRPC_ == true) {
+      retVal = txid_;
+   }
+   else {
+      retVal = txid_.swapEndian();
+   }
+
+   return retVal;
+}
+
+BinaryData BinaryTXID::getInternalTXID()
+{
+   BinaryData retVal;
+   if (txidIsRPC_ == false) {
+      retVal = txid_;
+   }
+   else {
+      retVal = txid_.swapEndian();
+   }
+
+   return retVal;
+}
+
+bool BinaryTXID::operator==(const BinaryTXID& inTXID) const
+{
+   return (txidIsRPC_ == inTXID.getTXIDIsRPC()) &&
+          (txid_ == inTXID.getRawTXID());
+}
+
+bool BinaryTXID::operator<(const BinaryTXID& inTXID) const
+{
+   return txid_ < inTXID.getRawTXID();
+}
+
+bool BinaryTXID::operator>(const BinaryTXID& inTXID) const
+{
+   return txid_ > inTXID.getRawTXID();
+}
+
 
 TransactionDetailsWidget::TransactionDetailsWidget(QWidget *parent) :
     QWidget(parent),
@@ -19,9 +64,10 @@ TransactionDetailsWidget::TransactionDetailsWidget(QWidget *parent) :
    QIcon btcIcon(QLatin1String(":/resources/notification_info.png"));
    ui_->labelTxPopup->setPixmap(btcIcon.pixmap(13, 13));
    ui_->labelTxPopup->setMouseTracking(true);
-   ui_->labelTxPopup->toolTip_ = tr("The Transaction ID (TXID) is in big " \
-                                    "endian notation. It will differ from the " \
-                                    "user input if the input is little endian.");
+   ui_->labelTxPopup->toolTip_ = tr("The Transaction ID (TXID) uses RPC byte "
+                                    "order. It will match the RPC output from "
+                                    "Bitcoin Core, along with the byte order "
+                                    "from the BlockSettle Terminal.");
 
    // set the address column to have hand cursor
    ui_->treeInput->handCursorColumns_.append(colAddressId);
@@ -36,87 +82,110 @@ TransactionDetailsWidget::TransactionDetailsWidget(QWidget *parent) :
       this, &TransactionDetailsWidget::onAddressClicked);
 }
 
-TransactionDetailsWidget::~TransactionDetailsWidget()
-{
-    delete ui_;
-}
+TransactionDetailsWidget::~TransactionDetailsWidget() = default;
 
 // Initialize the widget and related widgets (block, address, Tx)
-void TransactionDetailsWidget::init(const std::shared_ptr<ArmoryConnection> &armory,
-                                    const std::shared_ptr<spdlog::logger> &inLogger)
+void TransactionDetailsWidget::init(
+   const std::shared_ptr<ArmoryObject> &armory
+   , const std::shared_ptr<spdlog::logger> &inLogger
+   , const std::shared_ptr<bs::sync::WalletsManager> &walletsMgr
+   , const CCFileManager::CCSecurities &ccSecurities)
 {
    armory_ = armory;
    logger_ = inLogger;
+   walletsMgr_ = walletsMgr;
+   ccSecurities_ = ccSecurities;
+
+   connect(armory_.get(), &ArmoryObject::newBlock, this
+      , &TransactionDetailsWidget::onNewBlock, Qt::QueuedConnection);
 }
 
-// This function uses getTxByHash() to retrieve info about transaction.
-void TransactionDetailsWidget::populateTransactionWidget(BinaryData inHex,
-                                                         const bool& firstPass) {
-   // get the transaction data from armory
-   const auto &cbTX = [this, &inHex, firstPass](Tx tx) {
-      if (!tx.isInitialized()) {
-         logger_->error("[TransactionDetailsWidget::populateTransactionWidget] TX not " \
-                        "initialized for hash {}.",
-                        inHex.toHexStr());
-         // If failure, try swapping the endian. We want big endian data.
-         if(firstPass == true) {
-            BinaryData inHexBE = inHex.swapEndian();
-            populateTransactionWidget(inHexBE, false);
-         }
-         return;
+// This function uses getTxByHash() to retrieve info about transaction. The
+// incoming TXID must be in RPC order, not internal order.
+void TransactionDetailsWidget::populateTransactionWidget(BinaryTXID rpcTXID,
+                                                         const bool& firstPass)
+{
+   if (!armory_) {
+      if (logger_) {
+         logger_->error("[{}] Armory is not initialized.", __func__);
       }
+      return;
+   }
 
-      // UI changes in a non-main thread will trigger a crash. Invoke a new
-      // thread to handle the received data. (UI changes happen eventually.)
-      QMetaObject::invokeMethod(this, [this, tx] { processTxData(tx); });
+   // In case we've been here earlier, clear all the text.
+   if (firstPass) {
+      clear();
+   }
+   // get the transaction data from armory
+   std::string txidStr = rpcTXID.getRPCTXID().toHexStr();
+   const auto &cbTX = [this, txidStr](const Tx &tx) {
+      if (tx.isInitialized()) {
+         processTxData(tx);
+      }
+      else if (logger_) {
+         logger_->error("[{}] TXID {} is not initialized.", __func__, txidStr);
+      }
    };
-   armory_->getTxByHash(inHex.swapEndian(), cbTX);
+
+   // The TXID passed to Armory *must* be in internal order!
+   if (!armory_->getTxByHash(rpcTXID.getInternalTXID(), cbTX)) {
+      if (logger_) {
+         logger_->error("[{}] - Failed to get TXID {}.", __func__, txidStr);
+      }
+   }
 }
 
 // Used in callback to process the Tx object returned by Armory.
-void TransactionDetailsWidget::processTxData(Tx tx) {
+void TransactionDetailsWidget::processTxData(Tx tx)
+{
    // Save Tx and the prev Tx entries (get input amounts & such)
    curTx_ = tx;
+   ui_->tranID->setText(QString::fromStdString(curTx_.getThisHash().toHexStr(true)));
 
    // Get each Tx object associated with the Tx's TxIn object. Needed to calc
    // the fees.
-   const auto &cbProcessTX = [this](std::vector<Tx> prevTxs) {
+   const auto &cbProcessTX = [this](const std::vector<Tx> &prevTxs) {
       for (const auto &prevTx : prevTxs) {
-         const auto &txHash = prevTx.getThisHash();
-         prevTxHashSet_.erase(txHash); // Can check if empty and do things.
-         prevTxMap_[txHash] = prevTx;
+         BinaryTXID intPrevTXHash(prevTx.getThisHash(), false);
+         prevTxMap_[intPrevTXHash] = prevTx;
       }
 
       // We're ready to display all the transaction-related data in the UI.
       setTxGUIValues();
    };
 
+   std::set<BinaryData> prevTxHashSet; // A Tx's associated prev Tx hashes.
    // While here, we need to get the prev Tx with the UTXO being spent.
    // This is done so that we can calculate fees later.
    for (size_t i = 0; i < tx.getNumTxIn(); i++) {
       TxIn in = tx.getTxInCopy(i);
       OutPoint op = in.getOutPoint();
-      const auto &itTX = prevTxMap_.find(op.getTxHash());
-      if(itTX == prevTxMap_.end()) {
-         prevTxHashSet_.insert(op.getTxHash());
+      BinaryTXID intPrevTXID(op.getTxHash(), false);
+      const auto &itTX = prevTxMap_.find(intPrevTXID);
+      if (itTX == prevTxMap_.end()) {
+         prevTxHashSet.insert(intPrevTXID.getInternalTXID());
       }
    }
 
    // Get the TxIn-associated Tx objects from Armory.
-   if(!prevTxHashSet_.empty()) {
-      armory_->getTXsByHash(prevTxHashSet_, cbProcessTX);
+   if (prevTxHashSet.empty()) {
+      setTxGUIValues();
+   }
+   else {
+      armory_->getTXsByHash(prevTxHashSet, cbProcessTX);
    }
 }
 
-// WARNING: Don't use ClientClasses::BlockHeader. It has parsing capabilities
-// but it's meant to be an internal Armory class, touching things like the DB.
-// Just parse the raw data header here.
+// NB: Don't use ClientClasses::BlockHeader. It has parsing capabilities but
+// it's meant to be an internal Armory class, touching things like the DB. Just
+// parse the raw data header here.
 void TransactionDetailsWidget::getHeaderData(const BinaryData& inHeader)
 {
-   if(inHeader.getSize() != 80)
-   {
-      logger_->error("[TransactionDetailWidgets::getHeaderData] Header is " \
-                     "not the correct size - size = {}", inHeader.getSize());
+   if (inHeader.getSize() != 80) {
+      if (logger_) {
+         logger_->error("[{}] Header is not the correct size - size = {}"
+            , __func__, inHeader.getSize());
+      }
          return;
    }
 
@@ -129,6 +198,7 @@ void TransactionDetailsWidget::getHeaderData(const BinaryData& inHeader)
    curTxNonce = READ_UINT32_LE(inHeader.getPtr() + 76);*/
 }
 
+// The function that will actually populate the GUI with TX data.
 void TransactionDetailsWidget::setTxGUIValues()
 {
    // Get Tx header data. NOT USED FOR NOW.
@@ -137,155 +207,276 @@ void TransactionDetailsWidget::setTxGUIValues()
 
    // Get fees & fee/byte by looping through the prev Tx set and calculating.
    uint64_t totIn = 0;
-   for(size_t r = 0; r < curTx_.getNumTxIn(); ++r) {
+   for (size_t r = 0; r < curTx_.getNumTxIn(); ++r) {
       TxIn in = curTx_.getTxInCopy(r);
       OutPoint op = in.getOutPoint();
-      const auto &prevTx = prevTxMap_[op.getTxHash()];
+      BinaryTXID intPrevTXID(op.getTxHash(), false);
+      const auto &prevTx = prevTxMap_[intPrevTXID];
       if (prevTx.isInitialized()) {
          TxOut prevOut = prevTx.getTxOutCopy(op.getTxOutIndex());
          totIn += prevOut.getValue();
       }
    }
+
+   emit finished();
+
    uint64_t fees = totIn - curTx_.getSumOfOutputs();
-   double feePerByte = (double)fees / (double)curTx_.getSize();
+   float feePerByte = (float)fees / (float)curTx_.getTxWeight();
 
    // NB: Certain data (timestamp, height, and # of confs) can't be obtained
    // from the Tx object. For now, we're leaving placeholders until a solution
-   // can be found. In theory, the timestamp can be obtained from the timestamp.
+   // can be found. In theory, the timestamp can be obtained from the header.
    // The header data retrieved right now seems to be inaccurate, so we're not
    // using that right now.
 
-   // Populate the GUI fields.
-   ui_->tranID->setText(QString::fromStdString(curTx_.getThisHash().toHexStr()));
+   // Populate the GUI fields. (NOTE: Armory's getTxWeight() call needs to be
+   // relabeled getVirtSize().)
+   // Output TXID in RPC byte order by flipping TXID bytes rcv'd by Armory (internal
+   // order).
 //   ui_->tranDate->setText(UiUtils::displayDateTime(QDateTime::fromTime_t(curTxTimestamp)));
-   ui_->tranDate->setText(QString::fromStdString("Timestamp here"));        // FIX ME!!!
-   ui_->tranHeight->setText(QString::fromStdString("Height here"));         // FIX ME!!!
-   ui_->tranConfirmations->setText(QString::fromStdString("# confs here")); // FIX ME!!!
+
    ui_->tranNumInputs->setText(QString::number(curTx_.getNumTxIn()));
    ui_->tranNumOutputs->setText(QString::number(curTx_.getNumTxOut()));
-   ui_->tranOutput->setText(QString::number(curTx_.getSumOfOutputs() / BTCNumericTypes::BalanceDivider,
-                                            'f',
-                                            BTCNumericTypes::default_precision));
-   ui_->tranFees->setText(QString::number(fees / BTCNumericTypes::BalanceDivider,
-                                          'f',
-                                          BTCNumericTypes::default_precision));
+   ui_->tranInput->setText(UiUtils::displayAmount(totIn));
+   ui_->tranOutput->setText(UiUtils::displayAmount(curTx_.getSumOfOutputs()));
+   ui_->tranFees->setText(UiUtils::displayAmount(fees));
    ui_->tranFeePerByte->setText(QString::number(nearbyint(feePerByte)));
-   ui_->tranSize->setText(QString::number(curTx_.getSize()));
+   ui_->tranSize->setText(QString::number(curTx_.getTxWeight()));
 
    loadInputs();
 }
 
-// This function populates the inputs tree with top level and child items.
-// The exact same code applies to ui_->treeOutput.
-void TransactionDetailsWidget::loadInputs() {
-   // for testing purposes i populate both trees with test data
+void TransactionDetailsWidget::onNewBlock(unsigned int)
+{
+   if (curTx_.isInitialized()) {
+      populateTransactionWidget({ curTx_.getThisHash(), true }, false);
+   }
+}
+
+// Load the input and output windows.
+void TransactionDetailsWidget::loadInputs()
+{
    loadTreeIn(ui_->treeInput);
    loadTreeOut(ui_->treeOutput);
 }
 
+void TransactionDetailsWidget::updateTreeCC(QTreeWidget *tree
+   , const bs::network::CCSecurityDef &ccDef)
+{
+   for (int i = 0; i < tree->topLevelItemCount(); ++i) {
+      auto item = tree->topLevelItem(i);
+      const uint64_t amt = item->data(1, Qt::UserRole).toULongLong();
+      if (amt && ((amt % ccDef.nbSatoshis) == 0)) {
+         item->setData(1, Qt::DisplayRole, QString::number(amt / ccDef.nbSatoshis));
+         const auto addrWallet = item->data(2, Qt::DisplayRole).toString();
+         if (addrWallet.isEmpty()) {
+            item->setData(2, Qt::DisplayRole, QString::fromStdString(ccDef.product));
+         }
+         for (int j = 0; j < item->childCount(); ++j) {
+            auto outItem = item->child(j);
+            const uint64_t outAmt = outItem->data(1, Qt::UserRole).toULongLong();
+            outItem->setData(1, Qt::DisplayRole, QString::number(outAmt / ccDef.nbSatoshis));
+            outItem->setData(2, Qt::DisplayRole, QString::fromStdString(ccDef.product));
+         }
+      }
+   }
+}
+
+void TransactionDetailsWidget::updateCCInputs()
+{
+   const auto &cbUpdateCCInput = [this](const BinaryData &txHash
+      , const bs::network::CCSecurityDef &ccDef) {
+   };
+
+   for (size_t i = 0; i < curTx_.getNumTxIn(); ++i) {
+      const OutPoint op = curTx_.getTxInCopy(i).getOutPoint();
+      const auto &prevTx = prevTxMap_[op.getTxHash()];
+      for (const auto &ccSec : ccSecurities_) {
+         auto txChecker = std::make_shared<bs::TxAddressChecker>(ccSec.genesisAddr, armory_);
+         const auto &cbHasGA = [this, txChecker, ccSec](bool found) {
+            if (!found) {
+               return;
+            }
+            QMetaObject::invokeMethod(this, [this, ccSec] {
+               updateTreeCC(ui_->treeInput, ccSec);
+            });
+         };
+         txChecker->containsInputAddress(curTx_, cbHasGA, ccSec.nbSatoshis);
+      }
+   }
+}
+
 // Input widget population.
-void TransactionDetailsWidget::loadTreeIn(CustomTreeWidget *tree) {
+void TransactionDetailsWidget::loadTreeIn(CustomTreeWidget *tree)
+{
    tree->clear();
+
+   std::map<BinaryTXID, unsigned int> hashCounts;
+   for (size_t i = 0; i < curTx_.getNumTxIn(); i++) {
+      TxOut prevOut;
+      const OutPoint op = curTx_.getTxInCopy(i).getOutPoint();
+      const BinaryTXID txID(op.getTxHash(), false);
+      hashCounts[txID]++;
+   }
 
    // here's the code to add data to the Input tree.
    for (size_t i = 0; i < curTx_.getNumTxIn(); i++) {
       TxOut prevOut;
-      TxIn in = curTx_.getTxInCopy(i);
-      OutPoint op = in.getOutPoint();
-      const auto &prevTx = prevTxMap_[op.getTxHash()];
+      const TxIn in = curTx_.getTxInCopy(i);
+      const OutPoint op = in.getOutPoint();
+      const BinaryTXID intPrevTXID(op.getTxHash(), false);
+      const auto &prevTx = prevTxMap_[intPrevTXID];
       if (prevTx.isInitialized()) {
          prevOut = prevTx.getTxOutCopy(op.getTxOutIndex());
       }
+      auto txType = prevOut.getScriptType();
       const auto outAddr = bs::Address::fromTxOut(prevOut);
-      double amtBTC = prevOut.getValue() / BTCNumericTypes::BalanceDivider;
+      const auto addressWallet = walletsMgr_->getWalletByAddress(outAddr);
+      QString addrStr;
+      const QString walletName = addressWallet ? QString::fromStdString(addressWallet->name()) : QString();
+
+      // For now, don't display any data if the TxOut is non-std. Displaying a
+      // hex version of the script is one thing that could be done. This needs
+      // to be discussed before implementing. Non-std could mean many things.
+      if (txType == TXOUT_SCRIPT_NONSTANDARD) {
+         addrStr = tr("<Non-Standard>");
+      }
+      else {
+         addrStr = QString::fromStdString(outAddr.display());
+      }
 
       // create a top level item using type, address, amount, wallet values
-      QTreeWidgetItem *item = createItem(tree,
-                                         tr("Input"),
-                                         outAddr.display(),
-                                         QString::number(amtBTC,
-                                                         'f',
-                                                         BTCNumericTypes::default_precision),
-                                         tr("Settlement"));
-
-      // add several child items to this top level item to crate a new branch in the tree
-/*      item->addChild(createItem(item,
-                                tr("1JSAGsDo56rEqgxf3R1EAiCgwGJCUB31Cr"),
-                                tr("1JSAGsDo56rEqgxf3R1EAiCgwGJCUB31Cr"),
-                                tr("-0.00850000"),
-                                tr("Settlement")));
-      item->setExpanded(true);*/
-
-      // add the item to the tree
-      tree->addTopLevelItem(item);
+      addItem(tree, addrStr, prevOut.getValue(), walletName, prevTx.getThisHash()
+         , (hashCounts[intPrevTXID] > 1) ? op.getTxOutIndex() : -1);
    }
    tree->resizeColumns();
+
+   updateCCInputs();
 }
 
 // Output widget population.
-void TransactionDetailsWidget::loadTreeOut(CustomTreeWidget *tree) {
+void TransactionDetailsWidget::loadTreeOut(CustomTreeWidget *tree)
+{
    tree->clear();
 
    // here's the code to add data to the Input tree.
    for (size_t i = 0; i < curTx_.getNumTxOut(); i++) {
-      const auto outAddr = bs::Address::fromTxOut(curTx_.getTxOutCopy(i));
-      double amtBTC = curTx_.getTxOutCopy(i).getValue() / BTCNumericTypes::BalanceDivider;
+      TxOut txOut = curTx_.getTxOutCopy(i);
+      auto txType = txOut.getScriptType();
+      const auto outAddr = bs::Address::fromTxOut(txOut);
+      const auto addressWallet = walletsMgr_->getWalletByAddress(outAddr);
+      QString addrStr;
+      const QString walletName = addressWallet ? QString::fromStdString(addressWallet->name()) : QString();
 
-      // create a top level item using type, address, amount, wallet values
-      QTreeWidgetItem *item = createItem(tree,
-                                         tr("Output"),
-                                         outAddr.display(),
-                                         QString::number(amtBTC,
-                                                         'f',
-                                                         BTCNumericTypes::default_precision),
-                                         tr("Settlement"));
+      // For now, don't display any data if the TxOut is OP_RETURN or non-std.
+      // Displaying a hex version of the script is one thing that could be done.
+      // This needs to be discussed before implementing. OP_RETURN isn't too bad
+      // (80 bytes max) but non-std could mean just about anything.
+      if (txType == TXOUT_SCRIPT_OPRETURN) {
+         addrStr = tr("<OP_RETURN>");
+      }
+      else if (txType == TXOUT_SCRIPT_NONSTANDARD) {
+         addrStr = tr("<Non-Standard>");
+      }
+      else {
+         addrStr = QString::fromStdString(outAddr.display());
+      }
 
-      // add several child items to this top level item to crate a new branch in the tree
-/*      item->addChild(createItem(item,
-                                tr("1JSAGsDo56rEqgxf3R1EAiCgwGJCUB31Cr"),
-                                tr("1JSAGsDo56rEqgxf3R1EAiCgwGJCUB31Cr"),
-                                tr("-0.00850000"),
-                                tr("Settlement")));
-      item->setExpanded(true);*/
+      addItem(tree, addrStr, txOut.getValue(), walletName, txOut.getScript());
 
       // add the item to the tree
-      tree->addTopLevelItem(item);
    }
    tree->resizeColumns();
-}
 
-QTreeWidgetItem * TransactionDetailsWidget::createItem(QTreeWidget *tree,
-                                                       QString type,
-                                                       QString address,
-                                                       QString amount,
-                                                       QString wallet)
-{
-   QTreeWidgetItem *item = new QTreeWidgetItem(tree);
-   item->setText(colType, type); // type
-   item->setText(colAddressId, address); // address
-   item->setText(colAmount, amount); // amount
-   item->setText(colWallet, wallet); // wallet
-   return item;
-}
-
-QTreeWidgetItem * TransactionDetailsWidget::createItem(QTreeWidgetItem *parentItem,
-                                                       QString type,
-                                                       QString address,
-                                                       QString amount,
-                                                       QString wallet) {
-   QTreeWidgetItem *item = new QTreeWidgetItem(parentItem);
-   item->setFirstColumnSpanned(true);
-   item->setText(colType, type); // type
-   item->setText(colAddressId, address); // address
-   item->setText(colAmount, amount); // amount
-   item->setText(colWallet, wallet); // wallet
-   return item;
-}
-
-void TransactionDetailsWidget::onAddressClicked(QTreeWidgetItem *item, int column) {
-   // user has clicked the address column of the item so
-   // send a signal to ExplorerWidget to open AddressDetailsWidget
-   if (column == colAddressId) {
-      emit(addressClicked(item->text(colAddressId)));
+   for (const auto &ccSec : ccSecurities_) {
+      auto txChecker = std::make_shared<bs::TxAddressChecker>(ccSec.genesisAddr, armory_);
+      const auto &cbHasGA = [this, txChecker, ccSec](bool found) {
+         if (!found) {
+            return;
+         }
+         QMetaObject::invokeMethod(this, [this, ccSec] {
+            updateTreeCC(ui_->treeOutput, ccSec);
+         });
+      };
+      txChecker->containsInputAddress(curTx_, cbHasGA, ccSec.nbSatoshis);
    }
+}
+
+void TransactionDetailsWidget::addItem(QTreeWidget *tree, const QString &address
+   , const uint64_t amount, const QString &wallet, const BinaryData &txHash
+   , const int txIndex)
+{
+   const bool specialAddr = address.startsWith(QLatin1Char('<'));
+   const bool isOutput = (tree == ui_->treeOutput);
+   auto &itemsMap = isOutput ? outputItems_ : inputItems_;
+   auto item = itemsMap[address];
+   if (!item || specialAddr) {
+      QStringList items;
+      const auto amountStr = UiUtils::displayAmount(amount);
+      items << address << amountStr << wallet;
+      item = new QTreeWidgetItem(items);
+      item->setData(0, Qt::UserRole, isOutput);
+      item->setData(1, Qt::UserRole, (qulonglong)amount);
+      tree->addTopLevelItem(item);
+      item->setExpanded(true);
+      if (!specialAddr) {
+         itemsMap[address] = item;
+      }
+   }
+   else {
+      uint64_t prevAmount = item->data(1, Qt::UserRole).toULongLong();
+      prevAmount += amount;
+      item->setData(1, Qt::UserRole, (qulonglong)prevAmount);
+      item->setData(1, Qt::DisplayRole, UiUtils::displayAmount(prevAmount));
+   }
+   if (!specialAddr) {
+      auto txHashStr = QString::fromStdString(txHash.toHexStr(!isOutput));
+      if (txIndex >= 0) {
+         txHashStr += QLatin1String(":") + QString::number(txIndex);
+      }
+      QStringList txItems;
+      txItems << txHashStr << UiUtils::displayAmount(amount);
+      auto txHashItem = new QTreeWidgetItem(txItems);
+      if (!isOutput) {
+         txHashItem->setData(0, Qt::UserRole, QString::fromStdString(txHash.toHexStr(true)));
+      }
+      txHashItem->setData(1, Qt::UserRole, (qulonglong)amount);
+      item->addChild(txHashItem);
+   }
+}
+
+// A function that sends a signal to the explorer widget to open the address
+// details widget for a clicked address. Doesn't apply to OP_RETURN or non-std
+// addresses.
+void TransactionDetailsWidget::onAddressClicked(QTreeWidgetItem *item, int column)
+{
+   if (item->childCount() > 0) {
+      emit addressClicked(item->text(colAddressId));
+   }
+   else {
+      const auto txHashStr = item->data(colAddressId, Qt::UserRole).toString();
+      if (!txHashStr.isEmpty()) {
+         emit txHashClicked(txHashStr);
+      }
+   }
+}
+
+// Clear all the fields.
+void TransactionDetailsWidget::clear()
+{
+   prevTxMap_.clear();
+   curTx_ = Tx();
+   inputItems_.clear();
+   outputItems_.clear();
+
+   ui_->tranID->clear();
+   ui_->tranNumInputs->clear();
+   ui_->tranNumOutputs->clear();
+   ui_->tranInput->clear();
+   ui_->tranOutput->clear();
+   ui_->tranFees->clear();
+   ui_->tranFeePerByte->clear();
+   ui_->tranSize->clear();
+   ui_->treeInput->clear();
+   ui_->treeOutput->clear();
 }

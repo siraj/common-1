@@ -1,8 +1,19 @@
-CMAKE_MINIMUM_REQUIRED( VERSION 3.3 )
+# CMake 3.10 fixes automoc Q_NAMESPACE detection
+CMAKE_MINIMUM_REQUIRED( VERSION 3.10 )
 
 PROJECT( ${BS_NETWORK_LIB_NAME} )
 
-FILE(GLOB SOURCES *.cpp)
+FILE(GLOB SOURCES
+   *.cpp
+   Wallets/*.cpp
+   ChatProtocol/*.cpp
+   ChatProtocol/DataObjects/*.cpp
+   ChatProtocol/RequestObjects/*.cpp
+   ChatProtocol/ResponseObjects/*.cpp
+   ChatClientTree/*.cpp
+   Encryption/*.cpp
+)
+
 IF (DISABLE_CELER)
    list(REMOVE_ITEM SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/AssetManager.cpp)
    list(REMOVE_ITEM SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/AuthAddressManager.cpp)
@@ -35,10 +46,20 @@ IF (DISABLE_CELER)
    list(REMOVE_ITEM SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/MarketDataProvider.cpp)
    list(REMOVE_ITEM SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/QuoteProvider.cpp)
    list(REMOVE_ITEM SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/SingleCelerConnectionListener.cpp)
-   list(REMOVE_ITEM SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/WalletImporter.cpp)
+   list(REMOVE_ITEM SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/AuthSignManager.cpp)
 ENDIF()
 
-FILE(GLOB HEADERS *.h)
+FILE(GLOB HEADERS
+   *.h
+   Wallets/*.h
+   ChatProtocol/*.h
+   ChatProtocol/DataObjects/*.h
+   ChatProtocol/RequestObjects/*.h
+   ChatProtocol/ResponseObjects/*.h
+   ChatClientTree/*.h
+   Encryption/*.cpp
+)
+
 IF (DISABLE_CELER)
    list(REMOVE_ITEM HEADERS ${CMAKE_CURRENT_SOURCE_DIR}/AssetManager.h)
    list(REMOVE_ITEM HEADERS ${CMAKE_CURRENT_SOURCE_DIR}/AuthAddressManager.h)
@@ -70,7 +91,7 @@ IF (DISABLE_CELER)
    list(REMOVE_ITEM HEADERS ${CMAKE_CURRENT_SOURCE_DIR}/MarketDataProvider.h)
    list(REMOVE_ITEM HEADERS ${CMAKE_CURRENT_SOURCE_DIR}/QuoteProvider.h)
    list(REMOVE_ITEM HEADERS ${CMAKE_CURRENT_SOURCE_DIR}/SingleCelerConnectionListener.h)
-   list(REMOVE_ITEM HEADERS ${CMAKE_CURRENT_SOURCE_DIR}/WalletImporter.h)
+   list(REMOVE_ITEM HEADERS ${CMAKE_CURRENT_SOURCE_DIR}/AuthSignManager.h)
 ENDIF()
 
 
@@ -89,7 +110,11 @@ INCLUDE_DIRECTORIES( ${COMMON_LIB_INCLUDE_DIR} )
 
 INCLUDE_DIRECTORIES( ${BOTAN_INCLUDE_DIR} )
 
+SET( SOURCES ${SOURCES} ${BLOCK_SETTLE_ROOT}/AuthAPI/utils/cpp/autheid_utils.cpp )
+
 ADD_LIBRARY( ${BS_NETWORK_LIB_NAME} ${SOURCES} ${HEADERS})
+
+TARGET_INCLUDE_DIRECTORIES(${BS_NETWORK_LIB_NAME} PRIVATE )
 
 TARGET_LINK_LIBRARIES(${BS_NETWORK_LIB_NAME}
    ${OS_SPECIFIC_LIBS}
@@ -104,4 +129,5 @@ TARGET_LINK_LIBRARIES(${BS_NETWORK_LIB_NAME}
    ${PROTO_LIB}
    Qt5::Core
    Qt5::Network
+   Qt5::Sql
 )

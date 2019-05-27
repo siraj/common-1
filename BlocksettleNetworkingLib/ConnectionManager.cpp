@@ -1,5 +1,5 @@
 #include "ConnectionManager.h"
-
+#include <QNetworkAccessManager>
 #include "CelerClientConnection.h"
 #include "CelerStreamServerConnection.h"
 #include "GenoaConnection.h"
@@ -8,8 +8,8 @@
 #include "SubscriberConnection.h"
 #include "ZmqContext.h"
 #include "ZmqDataConnection.h"
-#include "ZmqSecuredDataConnection.h"
-#include "ZmqSecuredServerConnection.h"
+#include "ZMQ_BIP15X_DataConnection.h"
+#include "ZMQ_BIP15X_ServerConnection.h"
 
 #ifdef Q_OS_WIN
    #include <Winsock2.h>
@@ -20,6 +20,22 @@
 
 ConnectionManager::ConnectionManager(const std::shared_ptr<spdlog::logger>& logger)
    : logger_(logger)
+{
+   // init network
+   isInitialized_ = InitNetworkLibs();
+}
+
+ConnectionManager::ConnectionManager(const std::shared_ptr<spdlog::logger>& logger
+   , const std::vector<std::string> &zmqTrustedTerminals)
+   : logger_(logger), zmqTrustedTerminals_(zmqTrustedTerminals)
+{
+   // init network
+   isInitialized_ = InitNetworkLibs();
+}
+
+ConnectionManager::ConnectionManager(const std::shared_ptr<spdlog::logger>& logger
+   , std::shared_ptr<ArmoryServersProvider> armoryServers)
+   : logger_(logger), armoryServers_(armoryServers)
 {
    // init network
    isInitialized_ = InitNetworkLibs();
@@ -87,14 +103,31 @@ std::shared_ptr<DataConnection> ConnectionManager::CreateGenoaClientConnection(b
    return connection;
 }
 
-std::shared_ptr<ZmqSecuredServerConnection> ConnectionManager::CreateSecuredServerConnection() const
+std::shared_ptr<ZmqBIP15XServerConnection> ConnectionManager::CreateZMQBIP15XChatServerConnection(
+   bool ephemeral, const std::string& ownKeyFileDir, const std::string& ownKeyFileName) const
 {
-   return std::make_shared<ZmqSecuredServerConnection>(logger_, zmqContext_);
+   BinaryData bdID = CryptoPRNG::generateRandom(8);
+   auto cbTrustedClients = [this]() -> std::vector<std::string> {
+      return zmqTrustedTerminals_;
+   };
+
+   return std::make_shared<ZmqBIP15XServerConnection>(logger_, zmqContext_
+      , READ_UINT64_LE(bdID.getPtr()), cbTrustedClients, ephemeral
+      , ownKeyFileDir, ownKeyFileName, false);
 }
 
-std::shared_ptr<ZmqSecuredDataConnection> ConnectionManager::CreateSecuredDataConnection(bool monitored) const
+std::shared_ptr<ZmqBIP15XDataConnection> ConnectionManager::CreateZMQBIP15XDataConnection(
+   bool ephemeral, const std::string& ownKeyFileDir, const std::string& ownKeyFileName
+   , bool makeClientCookie, bool readServerCookie, const std::string& cookieName) const
 {
-   auto connection = std::make_shared<ZmqSecuredDataConnection>(logger_, monitored);
+   auto connection = std::make_shared<ZmqBIP15XDataConnection>(logger_
+      , ephemeral
+      , ownKeyFileDir
+      , ownKeyFileName
+      , true  // Monitor the conn. It relies on a connection event.
+      , makeClientCookie
+      , readServerCookie
+      , cookieName);
    connection->SetContext(zmqContext_);
 
    return connection;
@@ -120,4 +153,13 @@ std::shared_ptr<PublisherConnection> ConnectionManager::CreatePublisherConnectio
 std::shared_ptr<SubscriberConnection> ConnectionManager::CreateSubscriberConnection() const
 {
    return std::make_shared<SubscriberConnection>(logger_, zmqContext_);
+}
+
+const std::shared_ptr<QNetworkAccessManager> &ConnectionManager::GetNAM()
+{
+   if (!nam_) {
+      nam_.reset(new QNetworkAccessManager);
+   }
+
+   return nam_;
 }

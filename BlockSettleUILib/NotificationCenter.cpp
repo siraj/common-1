@@ -1,7 +1,7 @@
 #include "NotificationCenter.h"
 #include "ui_BSTerminalMainWindow.h"
 #include "ApplicationSettings.h"
-#include "MessageBoxWarning.h"
+#include "BSMessageBox.h"
 
 #if defined (Q_OS_WIN)
 #include <shellapi.h>
@@ -19,13 +19,18 @@ NotificationCenter::NotificationCenter(const std::shared_ptr<ApplicationSettings
    qRegisterMetaType<bs::ui::NotifyMessage>("NotifyMessage");
 
    addResponder(std::make_shared<NotificationTabResponder>(mainWinUi, appSettings, this));
-   addResponder(std::make_shared<NotificationTrayIconResponder>(trayIcon, appSettings, this));
+   addResponder(std::make_shared<NotificationTrayIconResponder>(mainWinUi, trayIcon, appSettings, this));
 }
 
 void NotificationCenter::createInstance(const std::shared_ptr<ApplicationSettings> &appSettings, const Ui::BSTerminalMainWindow *ui
    , const std::shared_ptr<QSystemTrayIcon> &trayIcon, QObject *parent)
 {
    globalInstance = std::make_shared<NotificationCenter>(appSettings, ui, trayIcon, parent);
+}
+
+NotificationCenter *NotificationCenter::instance()
+{
+   return globalInstance.get();
 }
 
 void NotificationCenter::destroyInstance()
@@ -66,6 +71,10 @@ NotificationTabResponder::NotificationTabResponder(const Ui::BSTerminalMainWindo
 
 void NotificationTabResponder::respond(bs::ui::NotifyType nt, bs::ui::NotifyMessage msg)
 {
+   if (nt == bs::ui::NotifyType::UpdateUnreadMessage) {  
+      return;
+   }
+
    const auto tabAction = getTabActionFor(nt, msg);
    if ((tabAction.index >= 0) && (mainWinUi_->tabWidget->currentIndex() != tabAction.index)) {
       mainWinUi_->tabWidget->setTabIcon(tabAction.index,
@@ -88,26 +97,27 @@ NotificationTabResponder::TabAction NotificationTabResponder::getTabActionFor(bs
 
    default: break;
    }
-   return { -1, false };
+   return { -1, false, false };
 }
 
 
-NotificationTrayIconResponder::NotificationTrayIconResponder(const std::shared_ptr<QSystemTrayIcon> &trayIcon
+NotificationTrayIconResponder::NotificationTrayIconResponder(const Ui::BSTerminalMainWindow *mainWinUi
+   , const std::shared_ptr<QSystemTrayIcon> &trayIcon
    , const std::shared_ptr<ApplicationSettings> &appSettings, QObject *parent)
-   : NotificationResponder(parent), trayIcon_(trayIcon), appSettings_(appSettings)
+   : NotificationResponder(parent), mainWinUi_(mainWinUi), trayIcon_(trayIcon), appSettings_(appSettings)
    , notifMode_(QSystemTray)
 #ifdef BS_USE_DBUS
    , dbus_(new DBusNotification(tr("BlockSettle Terminal"), this))
 #endif
 {
-   connect(trayIcon_.get(), &QSystemTrayIcon::messageClicked, this, &NotificationTrayIconResponder::newVersionMessageClicked);
+   connect(trayIcon_.get(), &QSystemTrayIcon::messageClicked, this, &NotificationTrayIconResponder::messageClicked);
 
 #ifdef BS_USE_DBUS
    if(dbus_->isValid()) {
       notifMode_ = Freedesktop;
 
       disconnect(trayIcon_.get(), &QSystemTrayIcon::messageClicked,
-         this, &NotificationTrayIconResponder::newVersionMessageClicked);
+         this, &NotificationTrayIconResponder::messageClicked);
       connect(dbus_, &DBusNotification::actionInvoked,
          this, &NotificationTrayIconResponder::notificationAction);
    }
@@ -119,9 +129,14 @@ static const QString c_newVersionAction = QLatin1String("BlockSettleNewVersionAc
 void NotificationTrayIconResponder::respond(bs::ui::NotifyType nt, bs::ui::NotifyMessage msg)
 {
    QSystemTrayIcon::MessageIcon icon = QSystemTrayIcon::Information;
-   QString title, text;
+   QString title, text, userId;
    int msecs = 10000;
    newVersionMessage_ = false;
+   newChatMessage_ = false;
+   newChatId_ = QString();
+   
+   const int chatIndex = mainWinUi_->tabWidget->indexOf(mainWinUi_->widgetChat);
+   const bool isChatTab = mainWinUi_->tabWidget->currentIndex() == chatIndex;
 
    switch (nt) {
    case bs::ui::NotifyType::BlockchainTX:
@@ -174,11 +189,51 @@ void NotificationTrayIconResponder::respond(bs::ui::NotifyType nt, bs::ui::Notif
       newVersionMessage_ = true;
       break;
 
+   case bs::ui::NotifyType::UpdateUnreadMessage:
+
+      if (isChatTab && QApplication::activeWindow()) {
+         mainWinUi_->tabWidget->setTabIcon(chatIndex, QIcon());
+         return;
+      }
+
+      if (msg.size() != 3) {
+         return;
+      }
+
+      title = msg[0].toString();
+      text = msg[1].toString();
+      userId = msg[2].toString();
+
+      if (title.isEmpty() || text.isEmpty() || userId.isEmpty()) {
+         return;
+      }
+      
+      newChatMessage_ = true;
+      newChatId_ = userId;
+      mainWinUi_->tabWidget->setTabIcon(chatIndex, QIcon(QLatin1String(":/ICON_DOT")));
+      break;
+
+   case bs::ui::NotifyType::FriendRequest:
+      if (msg.size() != 1) {
+         return;
+      }
+      title = tr("New contact request");
+      text = tr("%1 would like to add you as a contact").arg(msg[0].toString());
+      break;
+
+   case bs::ui::NotifyType::LogOut:
+      // hide icons in all tabs on user logout
+      for (int i=0; i<mainWinUi_->tabWidget->count(); i++) {
+         mainWinUi_->tabWidget->setTabIcon(i, QIcon());
+      }
+      return;
+
    default: return;
    }
 
    if (notifMode_ == QSystemTray) {
-      trayIcon_->showMessage(title, text, icon, msecs);
+      //trayIcon_->showMessage(title, text, icon, msecs);
+      trayIcon_->showMessage(title, text, QIcon(QLatin1String(":/resources/login-logo.png")), msecs);
    }
 #ifdef BS_USE_DBUS
    else {
@@ -189,7 +244,7 @@ void NotificationTrayIconResponder::respond(bs::ui::NotifyType nt, bs::ui::Notif
 #endif // BS_USE_DBUS
 }
 
-void NotificationTrayIconResponder::newVersionMessageClicked()
+void NotificationTrayIconResponder::messageClicked()
 {
    if (newVersionMessage_) {
       const auto url = appSettings_->get<std::string>(ApplicationSettings::Binaries_Dl_Url);
@@ -197,27 +252,37 @@ void NotificationTrayIconResponder::newVersionMessageClicked()
       const auto errDownload = tr("Failed to open download URL");
 #if defined (Q_OS_WIN)
       if ((unsigned int)ShellExecute(NULL, "open", url.c_str(), NULL, NULL, SW_SHOWNORMAL) <= 32) {
-         MessageBoxWarning mb(title, errDownload);
+         BSMessageBox mb(BSMessageBox::warning, title, errDownload);
          mb.exec();
       }
 #elif defined (Q_OS_LINUX)
       char buf[256];
       snprintf(buf, sizeof(buf), "xdg-open '%s'", url.c_str());
       if (system(buf) != 0) {
-         MessageBoxWarning mb(title, errDownload);
+         BSMessageBox mb(BSMessageBox::warning, title, errDownload);
          mb.exec();
       }
 #elif defined (Q_OS_OSX)
       char buf[256];
       snprintf(buf, sizeof(buf), "open '%s'", url.c_str());
       if (system(buf) != 0) {
-         MessageBoxWarning mb(title, errDownload);
+         BSMessageBox mb(BSMessageBox::warning, title, errDownload);
          mb.exec();
    }
 #else
-      MessageBoxWarning mb(title, tr("Shell execution is not supported on this platform, yet"));
+      BSMessageBox mb(BSMessageBox::warning, title, tr("Shell execution is not supported on this platform, yet"));
       mb.exec();
 #endif
+   }
+   else if (newChatMessage_) {
+      if (!newChatId_.isNull() && globalInstance != NULL) {
+         emit globalInstance->newChatMessageClick(newChatId_);
+
+         const int chatIndex = mainWinUi_->tabWidget->indexOf(mainWinUi_->widgetChat);
+         mainWinUi_->tabWidget->setTabIcon(chatIndex, QIcon());
+         mainWinUi_->tabWidget->setCurrentWidget(mainWinUi_->widgetChat);
+         mainWinUi_->tabWidget->activateWindow();
+      }
    }
 }
 
@@ -226,7 +291,7 @@ void NotificationTrayIconResponder::notificationAction(const QString &action)
 {
    if (action == c_newVersionAction) {
       newVersionMessage_ = true;
-      newVersionMessageClicked();
+      messageClicked();
    }
 }
 #endif // BS_USE_DBUS

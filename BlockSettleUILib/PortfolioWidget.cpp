@@ -1,17 +1,16 @@
-#include "PortfolioWidget.h"
-
 #include "ui_PortfolioWidget.h"
+#include "PortfolioWidget.h"
+#include <QSortFilterProxyModel>
+#include <QMenu>
+#include <QClipboard>
 
 #include "ApplicationSettings.h"
 #include "CreateTransactionDialogAdvanced.h"
-#include "MessageBoxCritical.h"
-#include "MetaData.h"
+#include "BSMessageBox.h"
 #include "TransactionDetailDialog.h"
 #include "TransactionsViewModel.h"
-#include "WalletsManager.h"
-
-#include <QSortFilterProxyModel>
-#include <QMenu>
+#include "Wallets/SyncWalletsManager.h"
+#include "Wallets/SyncWallet.h"
 
 
 class UnconfirmedTransactionFilter : public QSortFilterProxyModel
@@ -60,6 +59,16 @@ PortfolioWidget::PortfolioWidget(QWidget* parent)
    connect(ui_->treeViewUnconfirmedTransactions, &QTreeView::activated, this, &PortfolioWidget::showTransactionDetails);
    ui_->treeViewUnconfirmedTransactions->header()->setSectionResizeMode(QHeaderView::ResizeToContents);
 
+   actionCopyAddr_ = new QAction(tr("&Copy Address"));
+   connect(actionCopyAddr_, &QAction::triggered, [this]() {
+      qApp->clipboard()->setText(curAddress_);
+   });
+
+   actionCopyTx_ = new QAction(tr("Copy &Transaction Hash"));
+   connect(actionCopyTx_, &QAction::triggered, [this]() {
+      qApp->clipboard()->setText(curTx_);
+   });
+
    actionRBF_ = new QAction(tr("Replace-By-Fee (RBF)"), this);
    connect(actionRBF_, &QAction::triggered, this, &PortfolioWidget::onCreateRBFDialog);
 
@@ -83,13 +92,17 @@ void PortfolioWidget::SetTransactionsModel(const std::shared_ptr<TransactionsVie
 }
 
 void PortfolioWidget::init(const std::shared_ptr<ApplicationSettings> &appSettings
-   , const std::shared_ptr<MarketDataProvider> &mdProvider, const std::shared_ptr<CCPortfolioModel> &model
-   , const std::shared_ptr<SignContainer> &container, const std::shared_ptr<ArmoryConnection> &armory
-   , const std::shared_ptr<WalletsManager> &walletsMgr)
+   , const std::shared_ptr<MarketDataProvider> &mdProvider
+   , const std::shared_ptr<CCPortfolioModel> &model
+   , const std::shared_ptr<SignContainer> &container
+   , const std::shared_ptr<ArmoryConnection> &armory
+   , const std::shared_ptr<spdlog::logger> &logger
+   , const std::shared_ptr<bs::sync::WalletsManager> &walletsMgr)
 {
    signContainer_ = container;
    armory_ = armory;
    walletsManager_ = walletsMgr;
+   logger_ = logger;
 
    ui_->widgetMarketData->init(appSettings, ApplicationSettings::Filter_MD_RFQ_Portfolio, mdProvider);
    ui_->widgetCCProtfolio->SetPortfolioModel(model);
@@ -100,11 +113,16 @@ void PortfolioWidget::shortcutActivated(ShortcutType s)
 
 }
 
+void PortfolioWidget::setAuthorized(bool authorized)
+{
+   ui_->widgetMarketData->setAuthorized(authorized);
+}
+
 void PortfolioWidget::showTransactionDetails(const QModelIndex& index)
 {
    if (filter_) {
       QModelIndex sourceIndex = filter_->mapToSource(index);
-      auto txItem = model_->getItem(sourceIndex.row());
+      const auto txItem = model_->getItem(sourceIndex);
 
       TransactionDetailDialog transactionDetailDialog(txItem, walletsManager_, armory_, this);
       transactionDetailDialog.exec();
@@ -118,24 +136,36 @@ void PortfolioWidget::showContextMenu(const QPoint &point)
    }
 
    const auto sourceIndex = filter_->mapToSource(ui_->treeViewUnconfirmedTransactions->indexAt(point));
-   const auto txItem = model_->getItem(sourceIndex.row());
+   auto addressIndex = model_->index(sourceIndex.row(), static_cast<int>(TransactionsViewModel::Columns::Address));
+   curAddress_ = model_->data(addressIndex).toString();
+
+   const auto txNode = model_->getNode(sourceIndex);
    contextMenu_.clear();
-   if (!txItem.initialized) {
+   if (!txNode || !txNode->item() || !txNode->item()->initialized) {
       return;
    }
 
-   if (txItem.isRBFeligible()) {
+   if (txNode->item()->isRBFeligible() && (txNode->level() < 2)) {
       contextMenu_.addAction(actionRBF_);
-      actionRBF_->setData(sourceIndex.row());
+      actionRBF_->setData(sourceIndex);
    } else {
       actionRBF_->setData(-1);
    }
 
-   if (txItem.isCPFPeligible()) {
+   if (txNode->item()->isCPFPeligible()) {
       contextMenu_.addAction(actionCPFP_);
-      actionCPFP_->setData(sourceIndex.row());
+      actionCPFP_->setData(sourceIndex);
    } else {
       actionCPFP_->setData(-1);
+   }
+
+   // save transaction id and add context menu for copying it to clipboard
+   curTx_ = QString::fromStdString(txNode->item()->txEntry.txHash.toHexStr(true));
+   contextMenu_.addAction(actionCopyTx_);
+
+   // allow copy address only if there is only 1 address
+   if (txNode->item()->addressCount == 1) {
+      contextMenu_.addAction(actionCopyAddr_);
    }
 
    if (!contextMenu_.isEmpty()) {
@@ -145,18 +175,17 @@ void PortfolioWidget::showContextMenu(const QPoint &point)
 
 void PortfolioWidget::onCreateRBFDialog()
 {
-   auto txItem = model_->getItem(actionRBF_->data().toInt());
+   auto txItem = model_->getItem(actionRBF_->data().toModelIndex());
 
    const auto &cbDialog = [this] (const TransactionsViewItem *txItem) {
       try {
          auto dlg = CreateTransactionDialogAdvanced::CreateForRBF(armory_
-            , walletsManager_, signContainer_
-            , txItem->tx, txItem->wallet
-            , this);
+            , walletsManager_, signContainer_, logger_, txItem->tx
+            , txItem->wallet, this);
          dlg->exec();
       }
       catch (const std::exception &e) {
-         MessageBoxCritical(tr("RBF Transaction"), tr("Failed to create RBF transaction")
+         BSMessageBox(BSMessageBox::critical, tr("RBF Transaction"), tr("Failed to create RBF transaction")
             , QLatin1String(e.what()), this).exec();
       }
    };
@@ -171,18 +200,17 @@ void PortfolioWidget::onCreateRBFDialog()
 
 void PortfolioWidget::onCreateCPFPDialog()
 {
-   auto txItem = model_->getItem(actionCPFP_->data().toInt());
+   auto txItem = model_->getItem(actionCPFP_->data().toModelIndex());
 
    const auto &cbDialog = [this] (const TransactionsViewItem *txItem) {
       try {
          auto dlg = CreateTransactionDialogAdvanced::CreateForCPFP(armory_
-            , walletsManager_, signContainer_
-            , txItem->wallet, txItem->tx
-            , this);
+            , walletsManager_, signContainer_, txItem->wallet, logger_
+            , txItem->tx, this);
          dlg->exec();
       }
       catch (const std::exception &e) {
-         MessageBoxCritical(tr("CPFP Transaction"), tr("Failed to create CPFP transaction")
+         BSMessageBox(BSMessageBox::critical, tr("CPFP Transaction"), tr("Failed to create CPFP transaction")
             , QLatin1String(e.what()), this).exec();
       }
    };

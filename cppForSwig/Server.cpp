@@ -10,293 +10,9 @@
 #include "Server.h"
 #include "BlockDataManagerConfig.h"
 #include "BDM_Server.h"
-#include <google/protobuf/text_format.h>
-#include <google/protobuf/io/zero_copy_stream_impl_lite.h>
 
+using namespace std;
 using namespace ::google::protobuf;
-
-///////////////////////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////
-//// FCGI_Server
-///////////////////////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////
-FCGI_Server::FCGI_Server(
-   BlockDataManagerThread* bdmT, string port, bool listen_all) :
-   ip_(listen_all ? "" : "127.0.0.1"), port_(port)
-{
-   clients_ = make_unique<Clients>(bdmT, getShutdownCallback());
-
-   LOGINFO << "Listening on port " << port;
-   if (listen_all)
-      LOGWARN << "Listening to all incoming connections";
-
-   liveThreads_.store(0, memory_order_relaxed);
-}
-
-///////////////////////////////////////////////////////////////////////////////
-void FCGI_Server::init()
-{
-   run_.store(true, memory_order_relaxed);
-
-   stringstream ss;
-#ifdef _WIN32
-   if (ip_ == "127.0.0.1" || ip_ == "localhost")
-      ss << "localhost:" << port_;
-   else
-      ss << ip_ << ":" << port_;
-#else
-   ss << ip_ << ":" << port_;
-#endif
-
-   auto socketStr = ss.str();
-   sockfd_ = FCGX_OpenSocket(socketStr.c_str(), 10);
-   if (sockfd_ == -1)
-      throw runtime_error("failed to create FCGI listen socket");
-
-   keepAliveService_.startService();
-}
-
-///////////////////////////////////////////////////////////////////////////////
-void FCGI_Server::haltFcgiLoop()
-{
-   /*** to exit the FCGI loop we need to shutdown the FCGI lib as a whole
-   (otherwise accept will keep on blocking until a new fcgi request is
-   received. Shutting down the lib calls WSACleanUp in Windows, which will
-   terminate all networking capacity for the process.
-
-   This means the node P2P connection will crash if it isn't cleaned up first.
-   ***/
-
-   //shutdown loop
-   run_.store(false, memory_order_relaxed);
-
-   //connect to own listen to trigger thread exit
-   SimpleSocket sock("127.0.0.1", port_);
-   if(!sock.connectToRemote())
-      return;
-
-   BinaryData bd;
-   auto&& fcgiMsg = FcgiMessage::makePacket(bd.getRef());
-   auto serdata = fcgiMsg.serialize();
-
-   auto payload = make_unique<WritePayload_Raw>();
-   payload->data_ = move(serdata);
-   sock.pushPayload(move(payload), nullptr);
-   sock.shutdown();
-}
-
-///////////////////////////////////////////////////////////////////////////////
-void FCGI_Server::enterLoop()
-{
-   while (run_.load(memory_order_relaxed))
-   {
-      auto request = make_shared<FCGX_Request>();
-      FCGX_InitRequest(request.get(), sockfd_, 0);
-      int rc = FCGX_Accept_r(request.get());
-
-      if (rc != 0)
-      {
-#ifdef _WIN32
-         auto err_i = WSAGetLastError();
-#else
-         auto err_i = errno;
-#endif
-         LOGERR << "Accept failed with error number: " << err_i;
-         LOGERR << "error message is: " << strerror(err_i);
-         throw runtime_error("accept error");
-      }
-
-      auto processRequestLambda = [this](shared_ptr<FCGX_Request> req)->void
-      {
-         this->processRequest(req);
-      };
-
-      liveThreads_.fetch_add(1, memory_order_relaxed);
-      thread thr(processRequestLambda, request);
-      if (thr.joinable())
-         thr.detach();
-
-      //TODO: implement thread recycling
-   }
-}
-
-///////////////////////////////////////////////////////////////////////////////
-void FCGI_Server::processRequest(shared_ptr<FCGX_Request> req)
-{
-   //extract the string command from the fgci request
-  /* stringstream ss;
-   stringstream retStream;
-   char* content = nullptr;
-
-   //pass to clients_
-   char* content_length = FCGX_GetParam("CONTENT_LENGTH", req->envp);
-   if (content_length != nullptr)
-   {
-      auto a = atoi(content_length);
-      if (a == 0)
-      {
-         FCGX_Finish_r(req.get());
-         return;
-      }
-
-      content = new char[a + 1];
-      FCGX_GetStr(content, a, req->in);
-      content[a] = 0;
-
-      string contentStr(content + 4);
-      io::ArrayInputStream ais(content + 4, a - 4);
-      auto message = make_shared<::Codec_BDVCommand::BDVCommand>();
-      TextFormat::Parse(&ais, message.get());
-
-      //print HTML header
-      ss << "HTTP/1.1 200 OK\r\n";
-      ss << "Content-Type: text/html; charset=UTF-8\r\n";
-
-      try
-      {
-         auto&& retVal = clients_->runCommand_FCGI(message);
-         content[4] = 0;
-         if (retVal != nullptr)
-         {
-            retStream << content;
-            string ser_str;
-            TextFormat::PrintToString(*retVal.get(), &ser_str);
-            retStream << ser_str;
-         }
-      }
-      catch (exception& e)
-      {
-         ::Codec_NodeStatus::BDV_Error errorMsg;
-         errorMsg.set_error(e.what());
-         string err_str;
-         TextFormat::PrintToString(errorMsg, &err_str);
-         retStream << err_str;
-      }
-      catch (DbErrorMsg &e)
-      {
-         ::Codec_NodeStatus::BDV_Error errorMsg;
-         errorMsg.set_error(e.what());
-         string err_str;
-         TextFormat::PrintToString(errorMsg, &err_str);
-         retStream << err_str;
-      }
-      catch (...)
-      {
-         ::Codec_NodeStatus::BDV_Error errorMsg;
-         errorMsg.set_error("unknown error processing message");
-         string err_str;
-         TextFormat::PrintToString(errorMsg, &err_str);
-         retStream << err_str;
-      }
-
-      //complete HTML header
-      ss << "Content-Length: " << retStream.str().size();
-      ss << "\r\n\r\n";
-   }
-   else
-   {
-      LOGERR << "empty content_length";
-      FCGX_Finish_r(req.get());
-
-      liveThreads_.fetch_sub(1, memory_order_relaxed);
-      return;
-   }
-
-   delete[] content;
-
-   if (retStream.str().size() > 0)
-   {
-      //print serialized retVal
-      ss << retStream.str();
-
-      auto&& retStr = ss.str();
-      vector<pair<size_t, size_t>> msgOffsetVec;
-      auto totalsize = retStr.size();
-      //8192 (one memory page) - 8 (1 fcgi header), also a multiple of 8
-      size_t delim = 8184;
-      size_t start = 0;
-
-      while (totalsize > 0)
-      {
-         auto chunk = delim;
-         if (chunk > totalsize)
-            chunk = totalsize;
-
-         msgOffsetVec.push_back(make_pair(start, chunk));
-         start += chunk;
-         totalsize -= chunk;
-      }
-
-      //get non const ptr of the message string since we will set temp null bytes
-      //for the purpose of breaking down the string into FCGI sized packets
-      char* ptr = const_cast<char*>(retStr.c_str());
-
-      //complete FCGI request
-      for (auto& offsetPair : msgOffsetVec)
-         FCGX_PutStr(ptr + offsetPair.first, offsetPair.second, req->out);
-   }
-
-   FCGX_Finish_r(req.get());
-
-   if (req->ipcFd != -1)
-      passToKeepAliveService(req);
-
-   liveThreads_.fetch_sub(1, memory_order_relaxed);*/
-}
-
-///////////////////////////////////////////////////////////////////////////////
-void FCGI_Server::shutdown()
-{
-   keepAliveService_.shutdown();
-   clients_->shutdown();
-}
-
-///////////////////////////////////////////////////////////////////////////////
-void FCGI_Server::passToKeepAliveService(shared_ptr<FCGX_Request> req)
-{
-   auto serviceRead = [this, req](void)->void
-   {
-      if (!run_.load(memory_order_relaxed))
-         return;
-
-      int rc = FCGX_Accept_r(req.get());
-
-      if (rc != 0)
-      {
-#ifdef _WIN32
-         auto err_i = WSAGetLastError();
-#else
-         auto err_i = errno;
-#endif
-         LOGERR << "Accept failed with error number: " << err_i;
-         LOGERR << "error message is: " << strerror(err_i);
-         throw runtime_error("accept error");
-      }
-
-      auto processRequestLambda = [this](shared_ptr<FCGX_Request> req)->void
-      {
-         this->processRequest(req);
-      };
-
-      liveThreads_.fetch_add(1, memory_order_relaxed);
-      thread thr(processRequestLambda, req);
-      if (thr.joinable())
-         thr.detach();
-   };
-
-   SocketStruct keepAliveStruct;
-
-   keepAliveStruct.serviceRead_ = serviceRead;
-   keepAliveStruct.singleUse_ = true;
-
-   SOCKET sockfd = req->ipcFd;
-#ifdef _WIN32
-   sockfd = Win32GetFDForDescriptor(req->ipcFd);
-#endif
-   keepAliveStruct.sockfd_ = sockfd;
-
-   keepAliveService_.addSocket(keepAliveStruct);
-}
 
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
@@ -311,7 +27,7 @@ shared_future<bool> WebSocketServer::shutdownFuture_;
 ///////////////////////////////////////////////////////////////////////////////
 WebSocketServer::WebSocketServer()
 {
-   clients_ = make_unique<Clients>();
+   clients_ = make_shared<Clients>();
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -361,11 +77,16 @@ int WebSocketServer::callback(
 
    case LWS_CALLBACK_ESTABLISHED:
    {
-      auto&& bdid = SecureBinaryData().GenerateRandom(8);
+      auto&& bdid = CryptoPRNG::generateRandom(8);
       session_data->id_ = *(uint64_t*)bdid.getPtr();
 
       auto instance = WebSocketServer::getInstance();
       instance->addId(session_data->id_, wsi);
+
+      auto packetPtr = make_shared<BDV_packet>(session_data->id_);
+      packetPtr->data_ = instance->encInitPacket_;
+      instance->packetQueue_.push_back(move(packetPtr));
+
       break;
    }
 
@@ -381,7 +102,7 @@ int WebSocketServer::callback(
 
    case LWS_CALLBACK_RECEIVE:
    {
-      auto packetPtr = make_shared<BDV_packet>(session_data->id_, wsi);
+      auto packetPtr = make_shared<BDV_packet>(session_data->id_);
       packetPtr->data_.resize(len);
       memcpy(packetPtr->data_.getPtr(), (uint8_t*)in, len);
 
@@ -393,17 +114,27 @@ int WebSocketServer::callback(
    case LWS_CALLBACK_SERVER_WRITEABLE:
    {
       auto wsPtr = WebSocketServer::getInstance();
-      auto writeMap = wsPtr->getWriteMap();
-      auto iter = writeMap->find(session_data->id_);
-      if (iter == writeMap->end())
-         break;
+      auto stateMap = wsPtr->getConnectionStateMap();
+      auto iter = stateMap->find(session_data->id_);
+      if (iter == stateMap->end())
+      {
+         //no client object, kill this connection
+         return -1;
+      }
 
-      if (iter->second.currentMsg_.isDone())
+      if (iter->second.run_->load(memory_order_relaxed) == -1)
+      {
+         //connection flagged for closing
+         return -1;
+      }
+
+      auto& stateObj = iter->second;
+      if (stateObj.currentWriteMsg_.isDone())
       {
          try
          {
-            iter->second.currentMsg_ = 
-               move(iter->second.stack_->pop_front());
+            stateObj.currentWriteMsg_ =
+               move(stateObj.serializedStack_->pop_front());
          }
          catch (IsEmpty&)
          {
@@ -414,7 +145,7 @@ int WebSocketServer::callback(
          }
       }
       
-      auto& ws_msg = iter->second.currentMsg_;
+      auto& ws_msg = stateObj.currentWriteMsg_;
 
       auto& packet = ws_msg.getNextPacket();
       auto body = (uint8_t*)packet.getPtr() + LWS_PRE;
@@ -423,15 +154,15 @@ int WebSocketServer::callback(
          body, packet.getSize() - LWS_PRE,
          LWS_WRITE_BINARY);
 
-      if (m != packet.getSize() - LWS_PRE)
+      if (m != (int)packet.getSize() - (int)LWS_PRE)
       {
          LOGERR << "failed to send packet of size";
          LOGERR << "packet is " << packet.getSize() <<
             " bytes, sent " << m << " bytes";
       }
 
-      if (iter->second.currentMsg_.isDone())
-         iter->second.count_->fetch_sub(1, memory_order_relaxed);
+      if (stateObj.currentWriteMsg_.isDone())
+         stateObj.count_->fetch_sub(1, memory_order_relaxed);
       /***
       In case several threads are trying to write to the same socket, it's
       possible their calls to callback_on_writeable may overlap, resulting 
@@ -454,11 +185,27 @@ int WebSocketServer::callback(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-void WebSocketServer::start(BlockDataManagerThread* bdmT, bool async)
+void WebSocketServer::start(BlockDataManagerThread* bdmT,
+   const string& datadir, const bool& ephemeralPeers, const bool& async)
 {
    shutdownPromise_ = promise<bool>();
    shutdownFuture_ = shutdownPromise_.get_future();
    auto instance = getInstance();
+
+   //init auth peer object
+   if (!ephemeralPeers)
+   {
+      string peerFilename(SERVER_AUTH_PEER_FILENAME);
+      instance->authorizedPeers_ = make_shared<AuthorizedPeers>(
+         datadir, peerFilename);
+   }
+   else
+   {
+      instance->authorizedPeers_ = make_shared<AuthorizedPeers>();
+   }
+
+   //setup encinit and pubkey present packet
+   instance->encInitPacket_ = READHEX("010000000B");
 
    //init Clients object
    auto shutdownLbd = [](void)->void
@@ -475,6 +222,27 @@ void WebSocketServer::start(BlockDataManagerThread* bdmT, bool async)
    };
 
    instance->threads_.push_back(thread(commandThr));
+
+   //read & write threads
+   auto writeProcessThread = [instance](void)->void
+   {
+      instance->prepareWriteThread();
+   };
+
+   auto readProcessThread = [instance](void)->void
+   {
+      instance->clientInterruptThread();
+   };
+
+   unsigned parserThreads = thread::hardware_concurrency() / 4;
+   if (parserThreads == 0)
+      parserThreads = 1;
+   for (unsigned i = 0; i < parserThreads; i++)
+   {
+      instance->threads_.push_back(thread(writeProcessThread));
+      instance->threads_.push_back(thread(readProcessThread));
+   }
+
    auto port = stoi(bdmT->bdm()->config().listenPort_);
    if (port == 0)
       port = WEBSOCKET_PORT;
@@ -512,6 +280,8 @@ void WebSocketServer::shutdown()
    if (instance->run_.load(memory_order_relaxed) == 0)
       return;
 
+   instance->msgQueue_.terminate();
+   instance->clientConnectionInterruptQueue_.terminate();
    instance->clients_->shutdown();
    instance->run_.store(0, memory_order_relaxed);
    instance->packetQueue_.terminate();
@@ -536,6 +306,15 @@ void WebSocketServer::shutdown()
    }
    catch (future_error)
    {}
+}
+
+///////////////////////////////////////////////////////////////////////////////
+SecureBinaryData WebSocketServer::getPublicKey()
+{
+   auto instance = getInstance();
+   auto& pubkey = instance->authorizedPeers_->getOwnPublicKey();
+   SecureBinaryData keySbd(pubkey.pubkey, BIP151PUBKEYSIZE);
+   return keySbd;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -644,51 +423,53 @@ void WebSocketServer::commandThread()
          continue;
       }
 
-      //check wsi is valid
-      if (packetPtr->wsiPtr_ == nullptr)
+      //get connection state object
+      auto stateMap = getConnectionStateMap();
+      auto iter = stateMap->find(packetPtr->bdvID_);
+      if (iter == stateMap->end())
       {
-         LOGWARN << "null wsi";
+         //missing state map, kill connection
          continue;
       }
 
-      BinaryDataRef bdr((uint8_t*)&packetPtr->bdvID_, 8);
-      auto&& hexID = bdr.toHexStr();
-      auto bdvPtr = clients_->get(hexID);
-
-      if (bdvPtr != nullptr)
-      {
-         //create payload
-         auto bdv_payload = make_shared<BDV_Payload>();
-         bdv_payload->bdvPtr_ = bdvPtr;
-         bdv_payload->packet_ = packetPtr;
-         bdv_payload->packetID_ = bdvPtr->getNextPacketId(); 
-  
-         //queue for clients thread pool to process
-         clients_->queuePayload(bdv_payload);
-      }
-      else
-      {
-         //unregistered command
-         auto&& messageRef = 
-            WebSocketMessageCodec::getSingleMessage(packetPtr->data_);
-         if (messageRef.getSize() == 0)
-            continue;
-
-         //process command 
-         auto message = make_shared<::Codec_BDVCommand::StaticCommand>();
-         if (!message->ParseFromArray(messageRef.getPtr(), messageRef.getSize()))
-            continue;
-
-         auto&& reply = clients_->processUnregisteredCommand(
-            packetPtr->bdvID_, message);
-
-         //reply
-         write(packetPtr->bdvID_, 
-            WebSocketMessageCodec::getMessageId(packetPtr->data_), reply);
-      }
+      iter->second.readQueue_->push_back(move(packetPtr->data_));
+      clientConnectionInterruptQueue_.push_back(move(packetPtr->bdvID_));
    }
 
    DatabaseContainer_Sharded::clearThreadShardTx(this_thread::get_id());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+void WebSocketServer::clientInterruptThread()
+{
+   while (true)
+   {
+      uint64_t clientId;
+      try
+      {
+         clientId = clientConnectionInterruptQueue_.pop_front();
+      }
+      catch(StopBlockingLoop&)
+      {
+         break;
+      }
+
+      auto clientMap = clientStateMap_.get();
+      auto iter = clientMap->find(clientId);
+      if (iter == clientMap->end())
+         continue;
+
+      auto& ccs = iter->second;
+      unsigned zero = 0;
+      if (!ccs.readLock_->compare_exchange_weak(zero, 1))
+      {
+         clientConnectionInterruptQueue_.push_back(move(clientId));
+         continue;
+      }
+
+      ccs.processReadQueue(clients_);
+      ccs.readLock_->store(0);
+   }
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -698,37 +479,118 @@ void WebSocketServer::write(const uint64_t& id, const uint32_t& msgid,
    if (message == nullptr)
       return;
 
+   auto msg = make_unique<PendingMessage>(id, msgid, message);
    auto instance = getInstance();
-   
-   //serialize arg
-   vector<uint8_t> serializedData;
-   if (message->ByteSize() > 0)
+   instance->msgQueue_.push_back(move(msg));
+}
+
+///////////////////////////////////////////////////////////////////////////////
+void WebSocketServer::prepareWriteThread()
+{
+   while (true)
    {
-      serializedData.resize(message->ByteSize());
-      auto result = message->SerializeToArray(
-         &serializedData[0], serializedData.size());
-      if (!result)
+      unique_ptr<PendingMessage> msg;
+      try
       {
-         LOGWARN << "failed to serialize message";
+         msg = msgQueue_.pop_front();
+      }
+      catch (StopBlockingLoop&)
+      {
+         break;
+      }
+
+      if (msg == nullptr)
+         continue;
+
+      auto statemap = getConnectionStateMap();
+      auto stateIter = statemap->find(msg->id_);
+      if (stateIter == statemap->end())
+         continue;
+      auto statePtr = &stateIter->second;
+
+      //grab state object lock
+      unsigned zero = 0;
+      if(!statePtr->writeLock_->compare_exchange_weak(zero, 1))
+      { 
+         msgQueue_.push_back(move(msg));
+         continue;
+      }
+
+      if (!statePtr->bip151Connection_->connectionComplete())
+      {
+         //aead session uninitialized, kill connection
          return;
       }
+
+      //check for rekey
+      {
+         bool needs_rekey = false;
+         auto rightnow = chrono::system_clock::now();
+
+         if (statePtr->bip151Connection_->rekeyNeeded(msg->message_->ByteSize()))
+         {
+            needs_rekey = true;
+         }
+         else
+         {
+            auto time_sec = chrono::duration_cast<chrono::seconds>(
+               rightnow - statePtr->outKeyTimePoint_);
+            if (time_sec.count() >= AEAD_REKEY_INVERVAL_SECONDS)
+               needs_rekey = true;
+         }
+         
+         if (needs_rekey)
+         {
+            //create rekey packet
+            BinaryData rekeyPacket(BIP151PUBKEYSIZE);
+            memset(rekeyPacket.getPtr(), 0, BIP151PUBKEYSIZE);
+            
+            SerializedMessage ws_msg;
+            ws_msg.construct(
+               rekeyPacket.getDataVector(), 
+               statePtr->bip151Connection_.get(),
+               WS_MSGTYPE_AEAD_REKEY);
+
+            //push to write map
+            statePtr->serializedStack_->push_back(move(ws_msg));
+
+            //rekey outer bip151 channel
+            statePtr->bip151Connection_->rekeyOuterSession();
+
+            //set outkey timepoint to rightnow
+            statePtr->outKeyTimePoint_ = rightnow;
+         }
+      }
+
+      //serialize arg
+      vector<uint8_t> serializedData;
+      if (msg->message_->ByteSize() > 0)
+      {
+         serializedData.resize(msg->message_->ByteSize());
+         auto result = msg->message_->SerializeToArray(
+            &serializedData[0], serializedData.size());
+         if (!result)
+         {
+            LOGWARN << "failed to serialize message";
+            return;
+         }
+      }
+
+      SerializedMessage ws_msg;
+      ws_msg.construct(
+         serializedData, statePtr->bip151Connection_.get(), 
+         WS_MSGTYPE_FRAGMENTEDPACKET_HEADER, msg->msgid_);
+
+      //push to write map
+      statePtr->serializedStack_->push_back(move(ws_msg));
+      statePtr->count_->fetch_add(1, memory_order_relaxed);
+
+      //reset lock
+      statePtr->writeLock_->store(0);
+
+      //call write callback
+      lws_callback_on_writable(statePtr->wsiPtr_);
    }
-
-   WebSocketMessage ws_msg; 
-   ws_msg.construct(msgid, serializedData);
-
-   //push to write map
-   auto writemap = instance->writeMap_.get();
-
-   auto wsi_iter = writemap->find(id);
-   if (wsi_iter == writemap->end())
-      return;
-
-   wsi_iter->second.stack_->push_back(move(ws_msg));
-   wsi_iter->second.count_->fetch_add(1, memory_order_relaxed);
-
-   //call write callback
-   lws_callback_on_writable(wsi_iter->second.wsiPtr_);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -743,20 +605,437 @@ void WebSocketServer::waitOnShutdown()
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-shared_ptr<map<uint64_t, WriteStack>> WebSocketServer::getWriteMap(void)
+shared_ptr<map<uint64_t, ClientConnection>> 
+   WebSocketServer::getConnectionStateMap() const
 {
-   return writeMap_.get();
+   return clientStateMap_.get();
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 void WebSocketServer::addId(const uint64_t& id, struct lws* ptr)
 {
-   auto&& write_pair = make_pair(id, WriteStack(ptr));
-   writeMap_.insert(move(write_pair));
+   auto&& lbds = getAuthPeerLambda();
+   auto&& write_pair = make_pair(id, ClientConnection(ptr, id, lbds));
+   clientStateMap_.insert(move(write_pair));
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 void WebSocketServer::eraseId(const uint64_t& id)
 {
-   writeMap_.erase(id);
+   clientStateMap_.erase(id);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+AuthPeersLambdas WebSocketServer::getAuthPeerLambda(void) const
+{
+   auto authPeerPtr = authorizedPeers_;
+
+   auto getMap = [authPeerPtr](void)->const map<string, btc_pubkey>&
+   {
+      return authPeerPtr->getPeerNameMap();
+   };
+
+   auto getPrivKey = [authPeerPtr](
+      const BinaryDataRef& pubkey)->const SecureBinaryData&
+   {
+      return authPeerPtr->getPrivateKey(pubkey);
+   };
+
+   auto getAuthSet = [authPeerPtr](void)->const set<SecureBinaryData>&
+   {
+      return authPeerPtr->getPublicKeySet();
+   };
+
+   return AuthPeersLambdas(getMap, getPrivKey, getAuthSet);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+void WebSocketServer::closeClientConnection(uint64_t id)
+{
+   auto clientStateMap = getConnectionStateMap();
+   auto iter = clientStateMap->find(id);
+   if (iter == clientStateMap->end())
+   {
+      //invalid client id, return
+      return;
+   }
+
+   iter->second.closeConnection();
+}
+
+///////////////////////////////////////////////////////////////////////////////
+//
+// ClientConnection
+//
+///////////////////////////////////////////////////////////////////////////////
+void ClientConnection::processReadQueue(shared_ptr<Clients> clients)
+{
+   while (run_->load(memory_order_relaxed) != -1)
+   {
+      BinaryData packetData;
+      try
+      {
+         packetData = move(readQueue_->pop_front());
+      }
+      catch (IsEmpty&)
+      {
+         //end loop condition
+         return;
+      }
+
+      if (packetData.getSize() == 0)
+      {
+         LOGWARN << "empty command packet";
+         continue;
+      }
+
+      if (readLeftOverData_.getSize() != 0)
+      {
+         readLeftOverData_.append(packetData);
+         packetData = move(readLeftOverData_);
+         readLeftOverData_.clear();
+      }
+
+      if (bip151Connection_->connectionComplete())
+      {
+         if(packetData.getSize() < POLY1305MACLEN + 4)
+         { 
+            //append to the leftover data until we have a packet that's at least
+            //as large as the MAC length + the encrypted packet size
+            readLeftOverData_ = move(packetData);
+            continue;
+         }
+
+         //decrypt packet
+         size_t plainTextSize = packetData.getSize() - POLY1305MACLEN;
+         auto result = bip151Connection_->decryptPacket(
+            packetData.getPtr(), packetData.getSize(),
+            (uint8_t*)packetData.getPtr(), packetData.getSize());
+
+         if (result != 0)
+         {
+            if (result <= WEBSOCKET_MESSAGE_PACKET_SIZE && result > -1)
+            {
+               /*
+               lws receives packet in the order the counterpart sent them, but
+               it may break down a packet into several payloads, dependent on the
+               write buffer fillrate.
+
+               The AEAD layer requires full packets to verify the attached MAC,
+               meaning we cannot distinguish between packets with invalid encryption
+               and partially transmitted packets with valid encryption until we have
+               as many bytes as the advertized chacha20 size available to us.
+
+               At same time we can reject packets that advertize a size superior to
+               our expected maximum packet size (WEBSOCKET_MESSAGE_PACKET_SIZE),
+               which is often the case when deciphering the length of an invalidly
+               encrypted packet.
+
+               Since lws does not spill packets onto one another, there is no risk
+               that the data we receive carries the head of another packet at its tail.
+               Reconstruction is therefor a simple case of appending the incoming data
+               to the previous left over until we have enough data to decrypt for the
+               advertized packet size.
+               */
+               readLeftOverData_ = move(packetData);
+               continue;
+            }
+
+            //failed to decrypt, kill connection
+            closeConnection();
+            continue;
+         }
+
+         packetData.resize(plainTextSize);
+      }
+
+      uint8_t msgType =
+         WebSocketMessagePartial::getPacketType(packetData.getRef());
+
+      if (msgType > WS_MSGTYPE_AEAD_THESHOLD)
+      {
+         processAEADHandshake(move(packetData));
+         continue;
+      }
+
+      if (bip151Connection_->getBIP150State() != BIP150State::SUCCESS)
+      {
+         //can't get this far without fully setup AEAD
+         closeConnection();
+         continue;
+      }
+
+      BinaryDataRef bdr((uint8_t*)&id_, 8);
+      auto&& hexID = bdr.toHexStr();
+      auto bdvPtr = clients->get(hexID);
+
+      if (bdvPtr != nullptr)
+      {
+         //create payload
+         auto bdv_payload = make_shared<BDV_Payload>();
+         bdv_payload->bdvPtr_ = bdvPtr;
+         bdv_payload->packetData_ = move(packetData);
+         bdv_payload->bdvID_ = id_;
+
+         //queue for clients thread pool to process
+         clients->queuePayload(bdv_payload);
+      }
+      else
+      {
+         //unregistered command
+         WebSocketMessagePartial msgObj;
+         msgObj.parsePacket(packetData);
+         if (msgObj.getType() != WS_MSGTYPE_SINGLEPACKET)
+         {
+            //invalid msg type, kill connection
+            continue;
+         }
+
+         auto&& messageRef = msgObj.getSingleBinaryMessage();
+
+         if (messageRef.getSize() == 0)
+         {
+            //invalid msg, kill connection
+            continue;
+         }
+
+         //process command 
+         auto message = make_shared<::Codec_BDVCommand::StaticCommand>();
+         if (!message->ParseFromArray(messageRef.getPtr(), messageRef.getSize()))
+         {
+            //invalid msg, kill connection
+            continue;
+         }
+
+         auto&& reply = clients->processUnregisteredCommand(
+            id_, message);
+
+         //reply
+         WebSocketServer::write(id_, msgObj.getId(), reply);
+      }
+   }
+}
+
+///////////////////////////////////////////////////////////////////////////////
+void ClientConnection::processAEADHandshake(BinaryData msg)
+{
+   auto writeToClient = [this](uint8_t type,
+      const BinaryDataRef& msg, bool encrypt)->void
+   {
+      BIP151Connection* connPtr = nullptr;
+      if (encrypt)
+         connPtr = bip151Connection_.get();
+      SerializedMessage aeadMsg;
+      aeadMsg.construct(msg, connPtr, type);
+      serializedStack_->push_back(move(aeadMsg));
+      count_->fetch_add(1, memory_order_relaxed);
+
+      //call write callback
+      lws_callback_on_writable(wsiPtr_);
+   };
+
+   auto processHandshake = [this, &writeToClient](const BinaryData& msgdata)->bool
+   {
+      WebSocketMessagePartial wsMsg;
+
+      if (!wsMsg.parsePacket(msgdata.getRef()) || !wsMsg.isReady())
+      {
+         //invalid packet
+         return false;
+      }
+
+      auto dataBdr = wsMsg.getSingleBinaryMessage();
+      switch (wsMsg.getType())
+      {
+      case WS_MSGTYPE_AEAD_SETUP:
+      {
+         //send pubkey message
+         writeToClient(
+            WS_MSGTYPE_AEAD_PRESENT_PUBKEY, 
+            bip151Connection_->getOwnPubKey(), 
+            false);
+
+         //init bip151 handshake
+         BinaryData encinitData(ENCINITMSGSIZE);
+         if (bip151Connection_->getEncinitData(
+            encinitData.getPtr(), ENCINITMSGSIZE,
+            BIP151SymCiphers::CHACHA20POLY1305_OPENSSH) != 0)
+         {
+            //failed to init handshake, kill connection
+            return false;
+         }
+
+         writeToClient(WS_MSGTYPE_AEAD_ENCINIT, encinitData.getRef(), false);
+         break;
+      }
+
+      case WS_MSGTYPE_AEAD_ENCACK:
+      {
+         //process client encack
+         if (bip151Connection_->processEncack(
+            dataBdr.getPtr(), dataBdr.getSize(), true) != 0)
+         {
+            //failed to init handshake, kill connection
+            return false;
+         }
+
+         break;
+      }
+
+      case WS_MSGTYPE_AEAD_REKEY:
+      {
+         if (bip151Connection_->getBIP150State() !=
+            BIP150State::SUCCESS)
+         {
+            //can't rekey before auth, kill connection
+            return false;
+         }
+
+         //process rekey
+         if (bip151Connection_->processEncack(
+            dataBdr.getPtr(), dataBdr.getSize(), false) != 0)
+         {
+            //failed to init handshake, kill connection
+            LOGWARN << "failed to process rekey";
+            return false;
+         }
+
+         break;
+      }
+
+      case WS_MSGTYPE_AEAD_ENCINIT:
+      {
+         //process client encinit
+         if (bip151Connection_->processEncinit(
+            dataBdr.getPtr(), dataBdr.getSize(), false) != 0)
+         {
+            //failed to init handshake, kill connection
+            return false;
+         }
+
+         //return encack
+         BinaryData encackData(BIP151PUBKEYSIZE);
+         if (bip151Connection_->getEncackData(
+            encackData.getPtr(), BIP151PUBKEYSIZE) != 0)
+         {
+            //failed to init handshake, kill connection
+            return false;
+         }
+
+         writeToClient(WS_MSGTYPE_AEAD_ENCACK, encackData.getRef(), false);
+
+         break;
+      }
+
+      case WS_MSGTYPE_AUTH_CHALLENGE:
+      {
+         bool goodChallenge = true;
+         auto challengeResult =
+            bip151Connection_->processAuthchallenge(
+               dataBdr.getPtr(),
+               dataBdr.getSize(),
+               true); //true: step #1 of 6
+
+         if (challengeResult == -1)
+         {
+            //auth fail, kill connection
+            return false;
+         }
+         else if (challengeResult == 1)
+         {
+            goodChallenge = false;
+         }
+
+         BinaryData authreplyBuf(BIP151PRVKEYSIZE * 2);
+         if (bip151Connection_->getAuthreplyData(
+            authreplyBuf.getPtr(),
+            authreplyBuf.getSize(),
+            true, //true: step #2 of 6
+            goodChallenge) == -1)
+         {
+            //auth setup failure, kill connection
+            return false;
+         }
+
+         writeToClient(WS_MSGTYPE_AUTH_REPLY,
+            authreplyBuf.getRef(), true);
+
+         break;
+      }
+
+      case WS_MSGTYPE_AUTH_PROPOSE:
+      {
+         bool goodPropose = true;
+         auto proposeResult = bip151Connection_->processAuthpropose(
+            dataBdr.getPtr(),
+            dataBdr.getSize());
+
+         if (proposeResult == -1)
+         {
+            //auth setup failure, kill connection
+            return false;
+         }
+         else if (proposeResult == 1)
+         {
+            goodPropose = false;
+         }
+         else
+         {
+            //keep track of the propose check state
+            bip151Connection_->setGoodPropose();
+         }
+
+         BinaryData authchallengeBuf(BIP151PRVKEYSIZE);
+         if (bip151Connection_->getAuthchallengeData(
+            authchallengeBuf.getPtr(),
+            authchallengeBuf.getSize(),
+            "", //empty string, use chosen key from processing auth propose
+            false, //false: step #4 of 6
+            goodPropose) == -1)
+         {
+            //auth setup failure, kill connection
+            return false;
+         }
+
+         writeToClient(WS_MSGTYPE_AUTH_CHALLENGE,
+            authchallengeBuf.getRef(), true);
+
+         break;
+      }
+
+      case WS_MSGTYPE_AUTH_REPLY:
+      {
+         if (bip151Connection_->processAuthreply(
+            dataBdr.getPtr(),
+            dataBdr.getSize(),
+            false,
+            bip151Connection_->getProposeFlag()) != 0)
+         {
+            //invalid auth setup, kill connection
+            return false;
+         }
+
+         //rekey after succesful BIP150 handshake
+         bip151Connection_->bip150HandshakeRekey();
+         outKeyTimePoint_ = chrono::system_clock::now();
+
+         break;
+      }
+
+      default:
+         //unexpected msg id, kill connection
+         return false;
+      }
+
+      return true;
+   };
+
+   if (!processHandshake(msg))
+      closeConnection();
+}
+
+///////////////////////////////////////////////////////////////////////////////
+void ClientConnection::closeConnection()
+{
+   run_->store(-1, memory_order_relaxed);
 }

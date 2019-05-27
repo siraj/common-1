@@ -31,6 +31,8 @@ public:
 
    TreeViewWithEnterKey* view() const;
 
+   void setAuthorized(bool authorized);
+
 signals:
    void CurrencySelected(const QString& productGroup, const QString& currencyPair
       , const QString& bidPrice, const QString& offerPrice);
@@ -46,6 +48,8 @@ private slots:
    void onMDRejected(const std::string &security, const std::string &reason);
    void onEnterKeyPressed(const QModelIndex &index);
 
+   void onLoadingNetworkSettings();
+
    void OnMDConnecting();
    void OnMDConnected();
    void OnMDDisconnecting();
@@ -54,7 +58,7 @@ private slots:
    void ChangeMDSubscriptionState();
 
 private:
-   std::unique_ptr<Ui::MarketDataWidget> ui;
+   std::unique_ptr<Ui::MarketDataWidget> ui_;
    MarketDataModel         *              marketDataModel_;
    MDSortFilterProxyModel  *              mdSortFilterModel_;
    std::shared_ptr<ApplicationSettings>   appSettings_;
@@ -62,6 +66,7 @@ private:
    std::shared_ptr<MDHeader>              mdHeader_;
    bool  filteredView_ = true;
    std::shared_ptr<MarketDataProvider>    mdProvider_;
+   bool authorized_{ false };
 };
 
 #include <QPainter>

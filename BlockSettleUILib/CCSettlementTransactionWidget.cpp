@@ -23,12 +23,14 @@ CCSettlementTransactionWidget::CCSettlementTransactionWidget(
    , const std::shared_ptr<CelerClient> &celerClient
    , const std::shared_ptr<ApplicationSettings> &appSettings
    , const std::shared_ptr<ReqCCSettlementContainer> &settlContainer
+   , const std::shared_ptr<ConnectionManager> &connectionManager
    , QWidget* parent)
    : QWidget(parent)
    , ui_(new Ui::CCSettlementTransactionWidget())
    , logger_(logger)
    , appSettings_(appSettings)
    , settlContainer_(settlContainer)
+   , connectionManager_(connectionManager)
    , sValid_(tr("<span style=\"color: #22C064;\">Verified</span>"))
    , sInvalid_(tr("<span style=\"color: #CF292E;\">Invalid</span>"))
 {
@@ -97,7 +99,7 @@ void CCSettlementTransactionWidget::populateDetails()
    ui_->labelGenesisAddress->setText(tr("Verifying"));
 
    ui_->labelPasswordHint->setText(tr("Enter \"%1\" wallet password to accept")
-      .arg(QString::fromStdString(settlContainer_->walletName())));
+      .arg(settlContainer_->walletInfo().name()));
 
    updateAcceptButton();
 }
@@ -118,22 +120,14 @@ void CCSettlementTransactionWidget::onGenAddrVerified(bool result, QString error
 
 void CCSettlementTransactionWidget::initSigning()
 {
-   if (settlContainer_->encTypes().empty() || !settlContainer_->keyRank().first
+   if (settlContainer_->walletInfo().encTypes().empty() || !settlContainer_->walletInfo().keyRank().first
       || !settlContainer_->isAcceptable()) {
       return;
    }
-   ui_->widgetSubmitKeys->setFlags(WalletKeysSubmitWidget::NoFlag
-      | WalletKeysSubmitWidget::HideAuthConnectButton
-      | WalletKeysSubmitWidget::HideAuthCombobox
-      | WalletKeysSubmitWidget::HideGroupboxCaption
-      | WalletKeysSubmitWidget::AuthIdVisible
-      | WalletKeysSubmitWidget::HideAuthEmailLabel
-      | WalletKeysSubmitWidget::HidePubKeyFingerprint
-      | WalletKeysSubmitWidget::HideProgressBar
-   );
-   ui_->widgetSubmitKeys->init(MobileClientRequest::SettlementTransaction, settlContainer_->walletId()
-      , settlContainer_->keyRank(), settlContainer_->encTypes(), settlContainer_->encKeys()
-      , appSettings_);
+
+   ui_->widgetSubmitKeys->init(AutheIDClient::SettlementTransaction, settlContainer_->walletInfo()
+      , WalletKeyWidget::UseType::RequestAuthInParent, logger_, appSettings_, connectionManager_);
+
    ui_->widgetSubmitKeys->setFocus();
    ui_->widgetSubmitKeys->resume();
 }

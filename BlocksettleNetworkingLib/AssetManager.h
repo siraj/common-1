@@ -1,20 +1,25 @@
 #ifndef __ASSET__MANAGER_H__
 #define __ASSET__MANAGER_H__
 
+#include "CommonTypes.h"
+
 #include <memory>
 #include <unordered_map>
-#include <QObject>
+
+#include <QDateTime>
 #include <QMutex>
-#include "CommonTypes.h"
-#include "MetaData.h"
+#include <QObject>
 
-
-namespace spdlog
-{
+namespace spdlog {
    class logger;
 }
+namespace bs {
+   namespace sync {
+      class Wallet;
+      class WalletsManager;
+   }
+}
 
-class WalletsManager;
 class MarketDataProvider;
 class CelerClient;
 
@@ -24,7 +29,7 @@ class AssetManager : public QObject
 
 public:
    AssetManager(const std::shared_ptr<spdlog::logger>& logger
-      , const std::shared_ptr<WalletsManager>& walletsManager
+      , const std::shared_ptr<bs::sync::WalletsManager> &
       , const std::shared_ptr<MarketDataProvider>& mdProvider
       , const std::shared_ptr<CelerClient>& celerClient);
    ~AssetManager() = default;
@@ -34,7 +39,7 @@ public:
 public:
    std::vector<std::string> currencies();
    virtual std::vector<std::string> privateShares(bool forceExternal = false);
-   virtual double getBalance(const std::string& currency, const std::shared_ptr<bs::Wallet> &wallet = nullptr) const;
+   virtual double getBalance(const std::string& currency, const std::shared_ptr<bs::sync::Wallet> &wallet = nullptr) const;
    bool checkBalance(const std::string &currency, double amount) const;
    double getPrice(const std::string& currency) const;
    double getTotalAssets();
@@ -52,12 +57,15 @@ public:
    std::string GetAssignedAccount() const { return assignedAccount_; }
 
 signals:
-   void priceChanged(const std::string& currency);
-   void balanceChanged(const std::string& currency);
+   void ccPriceChanged(const std::string& currency);
+   void xbtPriceChanged(const std::string& currency);
+
    void fxBalanceLoaded();
+   void fxBalanceCleared();
+
+   void balanceChanged(const std::string& currency);
 
    void totalChanged();
-   void securitiesReceived();
    void securitiesChanged();
 
  public slots:
@@ -76,9 +84,12 @@ protected:
    bool onAccountBalanceUpdatedEvent(const std::string& data);
    bool securityDef(const std::string &security, bs::network::SecurityDef &) const;
 
+private:
+  void sendUpdatesOnXBTPrice(const std::string& ccy);
+
 protected:
    std::shared_ptr<spdlog::logger>        logger_;
-   std::shared_ptr<WalletsManager>        walletsManager_;
+   std::shared_ptr<bs::sync::WalletsManager> walletsManager_;
    std::shared_ptr<MarketDataProvider>    mdProvider_;
    std::shared_ptr<CelerClient>           celerClient_;
 
@@ -92,7 +103,7 @@ protected:
 
    std::string assignedAccount_;
 
-   double xbtUsdPrice;
+   std::unordered_map<std::string, QDateTime>  xbtPriceUpdateTimes_;
 };
 
 #endif // __ASSET__MANAGER_H__

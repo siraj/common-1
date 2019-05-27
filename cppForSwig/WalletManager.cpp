@@ -14,6 +14,8 @@
 #include "dirent.h"
 #endif
 
+using namespace std;
+
 PythonSigner::~PythonSigner()
 {}
 
@@ -182,7 +184,7 @@ int WalletContainer::detectHighestUsedIndex()
    {
       auto& addr = addrCountPair.first;
       auto& ID = wallet_->getAssetIDForAddr(addr);
-      auto asset = wallet_->getAssetForID(ID);
+      auto asset = wallet_->getAssetForID(ID.first);
       if (asset->getIndex() > topIndex)
          topIndex = asset->getIndex();
    }
@@ -198,19 +200,29 @@ int WalletContainer::detectHighestUsedIndex()
 CoinSelectionInstance::CoinSelectionInstance(
    WalletContainer* const walletContainer, 
    const vector<AddressBookEntry>& addrBook, unsigned topHeight) :
-   walletContainer_(walletContainer),
    cs_(getFetchLambdaFromWalletContainer(walletContainer), addrBook,
       walletContainer->spendableBalance_, topHeight),
+   walletPtr_(walletContainer->wallet_),
    spendableBalance_(walletContainer->spendableBalance_)
+{}
+
+////////////////////////////////////////////////////////////////////////////////
+CoinSelectionInstance::CoinSelectionInstance(
+   std::shared_ptr<AssetWallet> const walletPtr,
+   std::function<std::vector<UTXO>(uint64_t)> getUtxoLbd,
+   const vector<AddressBookEntry>& addrBook, 
+   uint64_t spendableBalance, unsigned topHeight) :
+   cs_(getFetchLambdaFromWallet(walletPtr, getUtxoLbd), addrBook, spendableBalance, topHeight),
+   walletPtr_(walletPtr), spendableBalance_(spendableBalance)
 {}
 
 ////////////////////////////////////////////////////////////////////////////////
 CoinSelectionInstance::CoinSelectionInstance(
    SwigClient::Lockbox* const lockbox, 
    unsigned M, unsigned N, uint64_t balance, unsigned topHeight) :
-   walletContainer_(nullptr),
    cs_(getFetchLambdaFromLockbox(lockbox, M, N), 
       vector<AddressBookEntry>(), balance, topHeight),
+   walletPtr_(nullptr),
    spendableBalance_(balance)
 {}
 
@@ -224,7 +236,26 @@ function<vector<UTXO>(uint64_t)> CoinSelectionInstance
    auto fetchLbd = [walletContainer](uint64_t val)->vector<UTXO>
    {
       auto&& vecUtxo = walletContainer->getSpendableTxOutListForValue(val);
-      decorateUTXOs(walletContainer, vecUtxo);
+      decorateUTXOs(walletContainer->wallet_, vecUtxo);
+
+      return vecUtxo;
+   };
+
+   return fetchLbd;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+function<vector<UTXO>(uint64_t)> CoinSelectionInstance
+::getFetchLambdaFromWallet(shared_ptr<AssetWallet> const walletPtr,
+   function<vector<UTXO>(uint64_t)> lbd)
+{
+   if (walletPtr == nullptr)
+      throw runtime_error("null wallet ptr");
+
+   auto fetchLbd = [walletPtr, lbd](uint64_t val)->vector<UTXO>
+   {
+      auto&& vecUtxo = lbd(val);
+      decorateUTXOs(walletPtr, vecUtxo);
 
       return vecUtxo;
    };
@@ -266,27 +297,39 @@ function<vector<UTXO>(uint64_t)> CoinSelectionInstance
 
 ////////////////////////////////////////////////////////////////////////////////
 void CoinSelectionInstance::decorateUTXOs(
-   WalletContainer* const walletContainer, vector<UTXO>& vecUtxo)
+   shared_ptr<AssetWallet> const walletPtr, vector<UTXO>& vecUtxo)
 {
-   if (walletContainer == nullptr)
-      throw runtime_error("null wallet container ptr");
+   if (walletPtr == nullptr)
+      throw runtime_error("nullptr wallet");
 
-   auto walletPtr = walletContainer->getWalletPtr();
    for (auto& utxo : vecUtxo)
    {
       auto&& scrAddr = utxo.getRecipientScrAddr();
       auto& ID = walletPtr->getAssetIDForAddr(scrAddr);
-      auto addrPtr = walletPtr->getAddressEntryForID(ID);
+      auto addrPtr = walletPtr->getAddressEntryForID(ID.first);
 
-      utxo.txinRedeemSizeBytes_ = addrPtr->getInputSize();
+      utxo.txinRedeemSizeBytes_ = 0;
+      utxo.witnessDataSizeBytes_ = 0;
+      utxo.isInputSW_ = false;
 
-      try
+      while (true)
       {
-         utxo.witnessDataSizeBytes_ = addrPtr->getWitnessDataSize();
-         utxo.isInputSW_ = true;
+         utxo.txinRedeemSizeBytes_ += addrPtr->getInputSize();
+
+         try
+         {
+            utxo.witnessDataSizeBytes_ += addrPtr->getWitnessDataSize();
+            utxo.isInputSW_ = true;
+         }
+         catch (runtime_error&)
+         {}
+
+         auto addrNested = dynamic_pointer_cast<AddressEntry_Nested>(addrPtr);
+         if (addrNested == nullptr)
+            break;
+
+         addrPtr = addrNested->getPredecessor();
       }
-      catch (runtime_error&)
-      { }
    }
 }
 
@@ -302,7 +345,7 @@ void CoinSelectionInstance::selectUTXOs(vector<UTXO>& vecUtxo,
    checkSpendVal(spendableVal);
 
    //decorate coin control selection
-   decorateUTXOs(walletContainer_, vecUtxo);
+   decorateUTXOs(walletPtr_, vecUtxo);
 
    state_utxoVec_ = vecUtxo;
 
@@ -365,8 +408,8 @@ shared_ptr<ScriptRecipient> CoinSelectionInstance::createRecipient(
    shared_ptr<ScriptRecipient> rec;
    auto scrType = *hash.getPtr();
 
-   const auto p2pkh_byte = BlockDataManagerConfig::getPubkeyHashPrefix();
-   const auto p2sh_byte = BlockDataManagerConfig::getScriptHashPrefix();
+   const auto p2pkh_byte = NetworkConfig::getPubkeyHashPrefix();
+   const auto p2sh_byte = NetworkConfig::getScriptHashPrefix();
 
    if (scrType == p2pkh_byte)
    {
@@ -378,8 +421,22 @@ shared_ptr<ScriptRecipient> CoinSelectionInstance::createRecipient(
       rec = make_shared<Recipient_P2SH>(
          hash.getSliceRef(1, hash.getSize() - 1), value);
    }
+   else if(scrType == SCRIPT_PREFIX_P2WPKH)
+   {
+      auto&& hashVal = hash.getSliceCopy(1, hash.getSize() - 1);
+      rec = make_shared<Recipient_P2WPKH>(
+         hashVal, value);
+   }
+   else if (scrType == SCRIPT_PREFIX_P2WSH)
+   {
+      auto&& hashVal = hash.getSliceCopy(1, hash.getSize() - 1);
+      rec = make_shared<Recipient_P2WSH>(
+         hashVal, value);
+   }
    else
-      throw CoinSelectionException("unexpected recipient script type");
+   {
+      throw ScriptRecipientException("unexpected script type");
+   }
 
    return rec;
 }
@@ -475,7 +532,7 @@ uint64_t CoinSelectionInstance::getFeeForMaxValUtxoVector(
       }
 
       //decorate coin control selection
-      decorateUTXOs(walletContainer_, utxoVec);
+      decorateUTXOs(walletPtr_, utxoVec);
    }
 
    return cs_.getFeeForMaxVal(txoutsize, fee_byte, utxoVec);

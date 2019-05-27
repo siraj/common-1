@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>350</width>
-    <height>577</height>
+    <height>596</height>
    </rect>
   </property>
   <property name="sizePolicy">
@@ -54,7 +54,7 @@
      </property>
      <layout class="QVBoxLayout" name="verticalLayout_11">
       <property name="spacing">
-       <number>5</number>
+       <number>0</number>
       </property>
       <property name="leftMargin">
        <number>0</number>
@@ -82,6 +82,15 @@
           <height>16777215</height>
          </size>
         </property>
+        <property name="frameShape">
+         <enum>QFrame::NoFrame</enum>
+        </property>
+        <property name="frameShadow">
+         <enum>QFrame::Plain</enum>
+        </property>
+        <property name="lineWidth">
+         <number>0</number>
+        </property>
         <property name="verticalScrollBarPolicy">
          <enum>Qt::ScrollBarAsNeeded</enum>
         </property>
@@ -100,7 +109,7 @@
            <x>0</x>
            <y>0</y>
            <width>348</width>
-           <height>400</height>
+           <height>420</height>
           </rect>
          </property>
          <property name="sizePolicy">
@@ -118,7 +127,7 @@
          <property name="maximumSize">
           <size>
            <width>16777215</width>
-           <height>400</height>
+           <height>420</height>
           </size>
          </property>
          <property name="toggleTabs" stdset="0">
@@ -1444,7 +1453,7 @@
                         <verstretch>0</verstretch>
                        </sizepolicy>
                       </property>
-                      <layout class="QHBoxLayout" name="horizontalLayout_11" stretch="8,16,0">
+                      <layout class="QHBoxLayout" name="horizontalLayout_11" stretch="7,14">
                        <property name="spacing">
                         <number>5</number>
                        </property>
@@ -1465,37 +1474,10 @@
                          <property name="text">
                           <string>Auto Quoting Script</string>
                          </property>
-                         <property name="scaledContents">
-                          <bool>false</bool>
-                         </property>
-                         <property name="wordWrap">
-                          <bool>true</bool>
-                         </property>
                         </widget>
                        </item>
                        <item alignment="Qt::AlignVCenter">
                         <widget class="QComboBox" name="comboBoxAQScript"/>
-                       </item>
-                       <item>
-                        <widget class="QPushButton" name="pushButtonAQScript">
-                         <property name="enabled">
-                          <bool>false</bool>
-                         </property>
-                         <property name="maximumSize">
-                          <size>
-                           <width>0</width>
-                           <height>16777215</height>
-                          </size>
-                         </property>
-                         <property name="font">
-                          <font>
-                           <pointsize>12</pointsize>
-                          </font>
-                         </property>
-                         <property name="text">
-                          <string>Load auto-quoting script</string>
-                         </property>
-                        </widget>
                        </item>
                       </layout>
                      </widget>
@@ -1596,12 +1578,15 @@
                 <bool>false</bool>
                </property>
                <property name="title">
-                <string>AUTO SIGN</string>
+                <string>AUTO-SIGN</string>
                </property>
                <property name="wellGroupBox" stdset="0">
                 <bool>true</bool>
                </property>
                <layout class="QVBoxLayout" name="verticalLayout">
+                <property name="spacing">
+                 <number>5</number>
+                </property>
                 <item>
                  <widget class="QWidget" name="widget_4" native="true">
                   <layout class="QHBoxLayout" name="horizontalLayout_18" stretch="3,6">
@@ -1743,7 +1728,7 @@
           <number>0</number>
          </property>
          <property name="topMargin">
-          <number>10</number>
+          <number>5</number>
          </property>
          <property name="rightMargin">
           <number>0</number>
@@ -1799,10 +1784,7 @@
             </property>
             <item>
              <widget class="QWidget" name="verticalWidget8" native="true">
-              <layout class="QHBoxLayout" name="horizontalLayout_16" stretch="7,13">
-               <property name="spacing">
-                <number>5</number>
-               </property>
+              <layout class="QGridLayout" name="horizontalLayout_16" columnstretch="7,13">
                <property name="leftMargin">
                 <number>0</number>
                </property>
@@ -1815,7 +1797,13 @@
                <property name="bottomMargin">
                 <number>0</number>
                </property>
-               <item alignment="Qt::AlignLeft">
+               <property name="horizontalSpacing">
+                <number>5</number>
+               </property>
+               <property name="verticalSpacing">
+                <number>16</number>
+               </property>
+               <item row="0" column="0" alignment="Qt::AlignLeft">
                 <widget class="QLabel" name="labelRecvAddr">
                  <property name="text">
                   <string>Receiving Address</string>
@@ -1825,37 +1813,10 @@
                  </property>
                 </widget>
                </item>
-               <item>
+               <item row="0" column="1">
                 <widget class="QComboBox" name="comboBoxRecvAddr"/>
                </item>
-              </layout>
-             </widget>
-            </item>
-            <item>
-             <widget class="QWidget" name="address" native="true">
-              <property name="minimumSize">
-               <size>
-                <width>0</width>
-                <height>0</height>
-               </size>
-              </property>
-              <layout class="QHBoxLayout" name="horizontalLayout_17" stretch="7,13">
-               <property name="spacing">
-                <number>5</number>
-               </property>
-               <property name="leftMargin">
-                <number>0</number>
-               </property>
-               <property name="topMargin">
-                <number>0</number>
-               </property>
-               <property name="rightMargin">
-                <number>0</number>
-               </property>
-               <property name="bottomMargin">
-                <number>0</number>
-               </property>
-               <item>
+               <item row="1" column="0">
                 <widget class="QLabel" name="authenticationAddressLabel">
                  <property name="text">
                   <string>Auth Address</string>
@@ -1865,7 +1826,7 @@
                  </property>
                 </widget>
                </item>
-               <item>
+               <item row="1" column="1">
                 <widget class="QComboBox" name="authenticationAddressComboBox"/>
                </item>
               </layout>

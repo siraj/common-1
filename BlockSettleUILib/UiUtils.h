@@ -16,7 +16,11 @@ QT_BEGIN_NAMESPACE
 class QAbstractItemModel;
 QT_END_NAMESPACE
 
-
+namespace bs {
+   namespace sync {
+      class WalletsManager;
+   }
+}
 class AuthAddressManager;
 class BinaryData;
 class PyBlockDataManager;
@@ -25,7 +29,6 @@ class QDateTime;
 class QPixmap;
 class SignContainer;
 class Tx;
-class WalletsManager;
 
 namespace UiUtils
 {
@@ -58,15 +61,7 @@ namespace UiUtils
 
    QValidator::State ValidateDoubleString(QString &input, int &pos, const int decimals);
 
-   template <typename T>
-   QString displayAmount(T value)
-   {
-      if (static_cast<int>(value) == -1) {
-         return CommonUiUtilsText::tr("Loading...");
-      }
-
-      return UnifyValueString(QLocale().toString(amountToBtc(value), 'f', GetAmountPrecisionXBT()));
-   }
+   template <typename T> QString displayAmount(T value);
 
    double parseAmountBtc(const QString& text);
 
@@ -80,6 +75,7 @@ namespace UiUtils
    QString displayValue(double qty, const std::string &security, const std::string &product, bs::network::Asset::Type);
 
    QString displayPriceForAssetType(double price, bs::network::Asset::Type at);
+   double  truncatePriceForAsset(double price, bs::network::Asset::Type at);
 
    QString displayPriceFX(double price);
    QString displayPriceXBT(double price);
@@ -102,9 +98,9 @@ namespace UiUtils
       WalletBalanceRole
    };
 
-   int fillWalletsComboBox(QComboBox* comboBox, const std::shared_ptr<WalletsManager>& walletsManager
+   int fillWalletsComboBox(QComboBox* comboBox, const std::shared_ptr<bs::sync::WalletsManager>& walletsManager
       , const std::shared_ptr<SignContainer> &container = nullptr, const std::string& selectedWalletId = std::string());
-   int fillHDWalletsComboBox(QComboBox* comboBox, const std::shared_ptr<WalletsManager>& walletsManager);
+   int fillHDWalletsComboBox(QComboBox* comboBox, const std::shared_ptr<bs::sync::WalletsManager>& walletsManager);
    void fillAuthAddressesComboBox(QComboBox* comboBox, const std::shared_ptr<AuthAddressManager>& authAddressManager);
 
    int selectWalletInCombobox(QComboBox* comboBox, const std::string& walletId);

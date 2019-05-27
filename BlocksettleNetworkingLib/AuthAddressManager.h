@@ -11,8 +11,8 @@
 #include <QObject>
 #include <QThreadPool>
 #include "CommonTypes.h"
-#include "OTPManager.h"
 #include "WalletEncryption.h"
+#include "ZMQ_BIP15X_DataConnection.h"
 
 #include "bs_communication.pb.h"
 
@@ -21,23 +21,24 @@ namespace spdlog {
    class logger;
 }
 namespace bs {
-   class Wallet;
+   namespace sync {
+      namespace hd {
+         class Leaf;
+      }
+      class Wallet;
+      class WalletsManager;
+   }
 }
 class AddressVerificator;
 class ApplicationSettings;
 class ArmoryConnection;
 class CelerClient;
 class ConnectionManager;
-class OTPManager;
+class AuthSignManager;
 class RequestReplyCommand;
 class ResolverFeed_AuthAddress;
 class SignContainer;
-class WalletsManager;
 
-namespace SwigClient
-{
-   class BtcWallet;
-};
 
 class AuthAddressManager : public QObject
 {
@@ -45,7 +46,8 @@ class AuthAddressManager : public QObject
 
 public:
    AuthAddressManager(const std::shared_ptr<spdlog::logger> &
-      , const std::shared_ptr<ArmoryConnection> &);
+      , const std::shared_ptr<ArmoryConnection> &
+      , const ZmqBIP15XDataConnection::cbNewKey &);
    ~AuthAddressManager() noexcept;
 
    AuthAddressManager(const AuthAddressManager&) = delete;
@@ -53,10 +55,10 @@ public:
    AuthAddressManager(AuthAddressManager&&) = delete;
    AuthAddressManager& operator = (AuthAddressManager&&) = delete;
 
-   void init(const std::shared_ptr<ApplicationSettings>& appSettings
-      , const std::shared_ptr<WalletsManager>& walletsManager
-      , const std::shared_ptr<OTPManager>& otpManager);
-   void SetSigningContainer(const std::shared_ptr<SignContainer> &);
+   void init(const std::shared_ptr<ApplicationSettings> &
+      , const std::shared_ptr<bs::sync::WalletsManager> &
+      , const std::shared_ptr<AuthSignManager> &
+      , const std::shared_ptr<SignContainer> &);
    void ConnectToPublicBridge(const std::shared_ptr<ConnectionManager> &
       , const std::shared_ptr<CelerClient> &);
 
@@ -73,19 +75,17 @@ public:
 
    virtual bool HaveAuthWallet() const;
    virtual bool HasAuthAddr() const;
-   virtual bool HaveOTP() const;
 
    void CreateAuthWallet(const std::vector<bs::wallet::PasswordData> &pwdData = {}, bool signal = true);
    virtual bool CreateNewAuthAddress();
 
    virtual bool SubmitForVerification(const bs::Address &address);
-   virtual bool ConfirmSubmitForVerification(const bs::Address &address, const SecureBinaryData &otpPassword);
+   virtual bool ConfirmSubmitForVerification(const bs::Address &address, int expireTimeoutSeconds);
    virtual bool CancelSubmitForVerification(const bs::Address &address);
 
    virtual bool Verify(const bs::Address &address);
    virtual bool RevokeAddress(const bs::Address &address);
 
-   virtual bool needsOTPpassword() const;
    virtual bool IsReady() const;
 
    virtual void OnDisconnectedFromCeler();
@@ -101,7 +101,7 @@ private slots:
    void onAuthWalletChanged();
    void authAddressAdded();
    void onTXSigned(unsigned int id, BinaryData signedTX, std::string error, bool cancelledByUser);
-   void onWalletCreated(unsigned int id, BinaryData pubKey, BinaryData chainCode, std::string walletId);
+   void onWalletCreated(unsigned int id, const std::shared_ptr<bs::sync::hd::Leaf> &);
    void onWalletFailed(unsigned int id, std::string errMsg);
 
 signals:
@@ -115,12 +115,14 @@ signals:
    void Error(const QString &errorText);
    void Info(const QString &info);
    void AuthAddrSubmitError(const QString &address, const QString &error);
+   void AuthConfirmSubmitError(const QString &address, const QString &error);
    void AuthAddrSubmitSuccess(const QString &address);
+   void AuthAddressSubmitCancelled(const QString &address);
    void AuthVerifyTxSent();
    void AuthRevokeTxSent();
 
    void AuthAddressConfirmationRequired(float validationAmount);
-   void OtpSignFailed();
+   void SignFailed(const QString &text);
 
 private:
    void SetAuthWallet();
@@ -137,10 +139,11 @@ private:
    void ProcessConfirmAuthAddressSubmit(const std::string &response, bool sigVerified);
    void ProcessBSAddressListResponse(const std::string& response, bool sigVerified);
 
+   void ProcessCancelAuthSubmitResponse(const std::string& response);
+
    void ProcessErrorResponse(const std::string& response) const;
 
    bool HaveBSAddressList() const;
-   bool ConnectedToArmory() const;
 
    void VerifyWalletAddressesFunction();
    bool WalletAddressesLoaded();
@@ -162,15 +165,16 @@ private:
 protected:
    std::shared_ptr<spdlog::logger>        logger_;
    std::shared_ptr<ArmoryConnection>      armory_;
+   ZmqBIP15XDataConnection::cbNewKey      cbApproveConn_ = nullptr;
    std::shared_ptr<ApplicationSettings>   settings_;
-   std::shared_ptr<WalletsManager>        walletsManager_;
-   std::shared_ptr<OTPManager>            otpManager_;
+   std::shared_ptr<bs::sync::WalletsManager> walletsManager_;
+   std::shared_ptr<AuthSignManager>       authSignManager_;
    std::shared_ptr<ConnectionManager>     connectionManager_;
    std::shared_ptr<CelerClient>           celerClient_;
    std::shared_ptr<AddressVerificator>    addressVerificator_;
 
-   std::atomic_flag                                lockCommands_ = ATOMIC_FLAG_INIT;
-   std::set<std::shared_ptr<RequestReplyCommand>>  activeCommands_;
+   std::map<int, std::unique_ptr<RequestReplyCommand>>  activeCommands_;
+   int requestId_{};
 
    mutable std::atomic_flag                  lockList_ = ATOMIC_FLAG_INIT;
    std::vector<bs::Address>                  addresses_;
@@ -181,7 +185,7 @@ protected:
    bs::Address                               defaultAddr_;
 
    std::unordered_set<std::string>           bsAddressList_;
-   std::shared_ptr<bs::Wallet>               authWallet_;
+   std::shared_ptr<bs::sync::Wallet>         authWallet_;
 
    std::shared_ptr<SignContainer>      signingContainer_;
    std::unordered_set<unsigned int>    signIdsVerify_;

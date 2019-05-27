@@ -5,7 +5,9 @@
 #include <QString>
 #include <QPixmap>
 
+QT_BEGIN_NAMESPACE
 class QPrinter;
+QT_END_NAMESPACE
 
 //
 // WalletBackupPdfWriter
@@ -28,8 +30,6 @@ public:
 
    //! Print on selected printer using printer's page size (A4 and letter only supported at the moment).
    void print(QPrinter *printer);
-
-private:
    //! Draw backup.
    void draw(QPainter &p, qreal width, qreal height);
 

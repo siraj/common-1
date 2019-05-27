@@ -13,6 +13,8 @@
 #include <sys/mman.h>
 #endif
 
+using namespace std;
+
 ////////////////////////////////////////////////////////////////////////////////
 void BlockData::deserialize(const uint8_t* data, size_t size,
    const shared_ptr<BlockHeader> blockHeader,
@@ -154,6 +156,15 @@ void BlockFiles::detectAllBlockFiles()
       totalBlockchainBytes_ += filesize;
       numBlkFiles++;
    }
+}
+
+/////////////////////////////////////////////////////////////////////////////
+const string& BlockFiles::getLastFileName(void) const
+{
+   if (filePaths_.size() == 0)
+      throw runtime_error("empty path map");
+
+   return filePaths_.rbegin()->second;
 }
 
 /////////////////////////////////////////////////////////////////////////////

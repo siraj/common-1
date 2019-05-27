@@ -7,15 +7,15 @@
 #include "CelerGetAssignedAccountsListSequence.h"
 #include "CommonTypes.h"
 #include "CurrencyPair.h"
-#include "HDWallet.h"
 #include "MarketDataProvider.h"
-#include "WalletsManager.h"
+#include "Wallets/SyncHDWallet.h"
+#include "Wallets/SyncWalletsManager.h"
 
 #include "com/celertech/piggybank/api/subledger/DownstreamSubLedgerProto.pb.h"
 
 
 AssetManager::AssetManager(const std::shared_ptr<spdlog::logger>& logger
-      , const std::shared_ptr<WalletsManager>& walletsManager
+      , const std::shared_ptr<bs::sync::WalletsManager>& walletsManager
       , const std::shared_ptr<MarketDataProvider>& mdProvider
       , const std::shared_ptr<CelerClient>& celerClient)
  : logger_(logger)
@@ -23,7 +23,8 @@ AssetManager::AssetManager(const std::shared_ptr<spdlog::logger>& logger
  , mdProvider_(mdProvider)
  , celerClient_(celerClient)
 {
-   connect(this, &AssetManager::priceChanged, [this] { emit totalChanged(); });
+   connect(this, &AssetManager::ccPriceChanged, [this] { emit totalChanged(); });
+   connect(this, &AssetManager::xbtPriceChanged, [this] { emit totalChanged(); });
    connect(this, &AssetManager::balanceChanged, [this] { emit totalChanged(); });
 }
 
@@ -32,9 +33,9 @@ void AssetManager::init()
    connect(mdProvider_.get(), &MarketDataProvider::MDSecurityReceived, this, &AssetManager::onMDSecurityReceived);
    connect(mdProvider_.get(), &MarketDataProvider::MDSecuritiesReceived, this, &AssetManager::onMDSecuritiesReceived);
 
-   connect(walletsManager_.get(), &WalletsManager::walletChanged, this, &AssetManager::onWalletChanged);
-   connect(walletsManager_.get(), &WalletsManager::walletsReady, this, &AssetManager::onWalletChanged);
-   connect(walletsManager_.get(), &WalletsManager::blockchainEvent, this, &AssetManager::onWalletChanged);
+   connect(walletsManager_.get(), &bs::sync::WalletsManager::walletChanged, this, &AssetManager::onWalletChanged);
+   connect(walletsManager_.get(), &bs::sync::WalletsManager::walletsReady, this, &AssetManager::onWalletChanged);
+   connect(walletsManager_.get(), &bs::sync::WalletsManager::blockchainEvent, this, &AssetManager::onWalletChanged);
 
    connect(celerClient_.get(), &CelerClient::OnConnectedToServer, this, &AssetManager::onCelerConnected);
    connect(celerClient_.get(), &CelerClient::OnConnectionClosed, this, &AssetManager::onCelerDisconnected);
@@ -42,24 +43,24 @@ void AssetManager::init()
    celerClient_->RegisterHandler(CelerAPI::SubLedgerSnapshotDownstreamEventType, [this](const std::string& data) { return onAccountBalanceUpdatedEvent(data); });
 }
 
-double AssetManager::getBalance(const std::string& currency, const std::shared_ptr<bs::Wallet> &wallet) const
+double AssetManager::getBalance(const std::string& currency, const std::shared_ptr<bs::sync::Wallet> &wallet) const
 {
    if (currency == bs::network::XbtCurrency) {
       if (wallet == nullptr) {
-         return walletsManager_->GetSpendableBalance();
+         return walletsManager_->getSpendableBalance();
       }
-      return wallet->GetSpendableBalance();
+      return wallet->getSpendableBalance();
    }
 
    const auto itCC = ccSecurities_.find(currency);
    if (itCC != ccSecurities_.end()) {
-      const auto &priWallet = walletsManager_->GetPrimaryWallet();
+      const auto &priWallet = walletsManager_->getPrimaryWallet();
       if (priWallet) {
          const auto &group = priWallet->getGroup(bs::hd::BlockSettle_CC);
          if (group) {
             const auto &wallet = group->getLeaf(currency);
             if (wallet) {
-               return wallet->GetTotalBalance();
+               return wallet->getTotalBalance();
             }
          }
       }
@@ -114,14 +115,14 @@ std::vector<std::string> AssetManager::privateShares(bool forceExternal)
 {
    std::vector<std::string> result;
 
-   const auto &priWallet = walletsManager_->GetPrimaryWallet();
+   const auto &priWallet = walletsManager_->getPrimaryWallet();
    if (!forceExternal && priWallet) {
       const auto &group = priWallet->getGroup(bs::hd::BlockSettle_CC);
       if (group) {
          const auto &leaves = group->getAllLeaves();
          for (const auto &leaf : leaves) {
-            if (leaf->GetSpendableBalance() > 0) {
-               result.push_back(leaf->GetShortName());
+            if (leaf->getSpendableBalance() > 0) {
+               result.push_back(leaf->shortName());
             }
          }
       }
@@ -180,13 +181,11 @@ void AssetManager::onMDSecurityReceived(const std::string &security, const bs::n
 void AssetManager::onMDSecuritiesReceived()
 {
    securitiesReceived_ = true;
-   emit securitiesReceived();
 }
 
 void AssetManager::onCCSecurityReceived(bs::network::CCSecurityDef ccSD)
 {
    ccSecurities_[ccSD.product] = ccSD;
-   prices_[ccSD.product] = ccSD.nbSatoshis / BTCNumericTypes::BalanceDivider;
 
    bs::network::SecurityDef sd = { bs::network::Asset::PrivateMarket};
    securities_[ccSD.securityId] = sd;
@@ -235,7 +234,11 @@ void AssetManager::onMDUpdate(bs::network::Asset::Type at, const QString &securi
          productPrice = 1 / productPrice;
       }
       prices_[ccy] = productPrice;
-      emit priceChanged(ccy);
+      if (at == bs::network::Asset::PrivateMarket) {
+         emit ccPriceChanged(ccy);
+      } else {
+         sendUpdatesOnXBTPrice(ccy);
+      }
    }
 }
 
@@ -262,7 +265,7 @@ double AssetManager::getCCTotal()
 
 double AssetManager::getTotalAssets()
 {
-   return walletsManager_->GetSpendableBalance() + getCashTotal() + getCCTotal();
+   return walletsManager_->getSpendableBalance() + getCashTotal() + getCCTotal();
 }
 
 uint64_t AssetManager::getCCLotSize(const std::string &cc) const
@@ -329,10 +332,11 @@ void AssetManager::onCelerDisconnected()
    balances_.clear();
    currencies_.clear();
    emit securitiesChanged();
+   emit fxBalanceCleared();
    emit totalChanged();
 }
 
-bool AssetManager::onAccountBalanceUpdatedEvent(const string &data)
+bool AssetManager::onAccountBalanceUpdatedEvent(const std::string &data)
 {
    com::celertech::piggybank::api::subledger::SubLedgerSnapshotDownstreamEvent snapshot;
    if (!snapshot.ParseFromString(data)) {
@@ -352,4 +356,26 @@ void AssetManager::onAccountBalanceLoaded(const std::string& currency, double va
    }
    balances_[currency] = value;
    emit balanceChanged(currency);
+}
+
+void AssetManager::sendUpdatesOnXBTPrice(const std::string& ccy)
+{
+   auto currentTime = QDateTime::currentDateTimeUtc();
+   bool emitUpdate = false;
+
+   auto it = xbtPriceUpdateTimes_.find(ccy);
+
+   if (it == xbtPriceUpdateTimes_.end()) {
+      emitUpdate = true;
+      xbtPriceUpdateTimes_.emplace(ccy, currentTime);
+   } else {
+      if (it->second.secsTo(currentTime) >= 30) {
+         it->second = currentTime;
+         emitUpdate = true;
+      }
+   }
+
+   if (emitUpdate) {
+      emit xbtPriceChanged(ccy);
+   }
 }

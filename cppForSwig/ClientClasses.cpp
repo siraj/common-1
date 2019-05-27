@@ -9,16 +9,27 @@
 #include "ClientClasses.h"
 #include "WebSocketClient.h"
 #include "protobuf/BDVCommand.pb.h"
+#include "btc/ecc.h"
 
+using namespace std;
 using namespace ClientClasses;
 using namespace ::Codec_BDVCommand;
+
+
+///////////////////////////////////////////////////////////////////////////////
+void ClientClasses::initLibrary()
+{
+   startupBIP150CTX(4, false);
+   startupBIP151CTX();
+   btc_ecc_start();
+}
 
 ///////////////////////////////////////////////////////////////////////////////
 //
 // BlockHeader
 //
 ///////////////////////////////////////////////////////////////////////////////
-BlockHeader::BlockHeader(
+ClientClasses::BlockHeader::BlockHeader(
    const BinaryData& rawheader, unsigned height)
 {
    unserialize(rawheader.getRef());
@@ -26,7 +37,7 @@ BlockHeader::BlockHeader(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void BlockHeader::unserialize(uint8_t const * ptr, uint32_t size)
+void ClientClasses::BlockHeader::unserialize(uint8_t const * ptr, uint32_t size)
 {
    if (size < HEADER_SIZE)
       throw BlockDeserializingException();
@@ -234,6 +245,27 @@ bool RemoteCallback::processNotifications(
          }
 
          run(BDMAction::BDMAction_ZC, &leVec, 0);
+
+         break;
+      }
+
+      case NotificationType::invalidated_zc:
+      {
+
+         if (!notif.has_ids())
+            break;
+
+         auto& ids = notif.ids();
+         set<BinaryData> idSet;
+
+         for (int y = 0; y < ids.value_size(); y++)
+         {
+            auto& id_str = ids.value(y).data();
+            BinaryData id_bd((uint8_t*)id_str.c_str(), id_str.size());
+            idSet.emplace(id_bd);
+         }
+
+         run(BDMAction::BDMAction_InvalidatedZC, &idSet, 0);
 
          break;
       }
@@ -455,7 +487,7 @@ unsigned ClientClasses::ProgressData::numericProgress() const
 vector<string> ClientClasses::ProgressData::wltIDs() const
 {
    vector<string> vec;
-   for (unsigned i = 0; i < ptr_->id_size(); i++)
+   for (int i = 0; i < ptr_->id_size(); i++)
       vec.push_back(ptr_->id(i));
 
    return vec;

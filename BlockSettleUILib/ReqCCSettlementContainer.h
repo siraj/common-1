@@ -3,20 +3,24 @@
 
 #include <memory>
 #include "CheckRecipSigner.h"
-#include "MetaData.h"
 #include "SettlementContainer.h"
+#include "CommonTypes.h"
+#include "CoreWallet.h"
+#include "QWalletInfo.h"
+#include "UtxoReservation.h"
 
 namespace spdlog {
    class logger;
 }
 namespace bs {
-   class UtxoReservation;
+   namespace sync {
+      class WalletsManager;
+   }
 }
-class ArmoryConnection;
+class ArmoryObject;
 class AssetManager;
 class SignContainer;
 class TransactionData;
-class WalletsManager;
 
 
 class ReqCCSettlementContainer : public bs::SettlementContainer
@@ -25,9 +29,9 @@ class ReqCCSettlementContainer : public bs::SettlementContainer
 public:
    ReqCCSettlementContainer(const std::shared_ptr<spdlog::logger> &
       , const std::shared_ptr<SignContainer> &
-      , const std::shared_ptr<ArmoryConnection> &
+      , const std::shared_ptr<ArmoryObject> &
       , const std::shared_ptr<AssetManager> &
-      , const std::shared_ptr<WalletsManager> &
+      , const std::shared_ptr<bs::sync::WalletsManager> &
       , const bs::network::RFQ &, const bs::network::Quote &
       , const std::shared_ptr<TransactionData> &);
    ~ReqCCSettlementContainer() override;
@@ -49,13 +53,7 @@ public:
    double price() const override { return quote_.price; }
    double amount() const override { return quantity() * price(); }
 
-   std::string walletName() const { return walletName_; }
-   std::string walletId() const { return walletId_; }
-
-   std::vector<bs::wallet::EncryptionType> encTypes() const { return encTypes_; }
-   std::vector<SecureBinaryData> encKeys() const { return encKeys_; }
-   bs::wallet::KeyRank keyRank() const { return keyRank_; }
-
+   bs::hd::WalletInfo walletInfo() const { return walletInfo_; }
    std::string txData() const;
    std::string txSignedData() const { return ccTxSigned_; }
 
@@ -68,9 +66,8 @@ signals:
    void walletInfoReceived();
 
 private slots:
-   void onHDWalletInfo(unsigned int id, std::vector<bs::wallet::EncryptionType>
-      , std::vector<SecureBinaryData> encKeys, bs::wallet::KeyRank);
-   void onTXSigned(unsigned int id, BinaryData signedTX, std::string error, bool cancelledByUser);
+   void onWalletInfo(unsigned int reqId, const bs::hd::WalletInfo& walletInfo);
+   void onTXSigned(unsigned int reqId, BinaryData signedTX, std::string error, bool cancelledByUser);
 
 private:
    bool createCCUnsignedTXdata();
@@ -81,15 +78,13 @@ private:
    std::shared_ptr<SignContainer>      signingContainer_;
    std::shared_ptr<TransactionData>    transactionData_;
    std::shared_ptr<AssetManager>       assetMgr_;
-   std::shared_ptr<WalletsManager>     walletsMgr_;
+   std::shared_ptr<bs::sync::WalletsManager> walletsMgr_;
    bs::network::RFQ           rfq_;
    bs::network::Quote         quote_;
    const bs::Address          genAddress_;
    const std::string          dealerAddress_;
    bs::CheckRecipSigner       signer_;
 
-   std::string    walletName_;
-   std::string    walletId_;
    uint64_t       lotSize_;
    unsigned int   ccSignId_ = 0;
    unsigned int   infoReqId_ = 0;
@@ -97,14 +92,11 @@ private:
 
    BinaryData                 dealerTx_;
    BinaryData                 requesterTx_;
-   bs::wallet::TXSignRequest  ccTxData_;
+   bs::core::wallet::TXSignRequest  ccTxData_;
    std::string                ccTxSigned_;
 
    std::shared_ptr<bs::UtxoReservation::Adapter>   utxoAdapter_;
-
-   std::vector<bs::wallet::EncryptionType>   encTypes_;
-   std::vector<SecureBinaryData>             encKeys_;
-   bs::wallet::KeyRank                       keyRank_;
+   bs::hd::WalletInfo walletInfo_;
 };
 
 #endif // __REQ_CC_SETTLEMENT_CONTAINER_H__

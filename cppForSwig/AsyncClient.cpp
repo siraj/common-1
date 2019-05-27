@@ -13,6 +13,7 @@
 #include "google/protobuf/io/zero_copy_stream_impl_lite.h"
 #include "google/protobuf/text_format.h"
 
+using namespace std;
 using namespace AsyncClient;
 using namespace ::Codec_BDVCommand;
 
@@ -27,9 +28,6 @@ unique_ptr<WritePayload_Protobuf> BlockDataViewer::make_payload(
    auto payload = make_unique<WritePayload_Protobuf>();
    auto message = make_unique<BDVCommand>();
    message->set_method(method);
-
-   if (AsyncClient::textSerialization_ && bdvid.size() > 0)
-      message->set_bdvid(bdvid);
 
    payload->message_ = move(message);
    return move(payload);
@@ -60,11 +58,26 @@ bool BlockDataViewer::connectToRemote(void)
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+void BlockDataViewer::addPublicKey(const SecureBinaryData& pubkey)
+{
+   auto wsSock = dynamic_pointer_cast<WebSocketClient>(sock_);
+   if (wsSock == nullptr)
+   {
+      LOGERR << "invalid socket type for auth peer management";
+      return;
+   }
+
+   wsSock->addPublicKey(pubkey);
+}
+
+///////////////////////////////////////////////////////////////////////////////
 shared_ptr<BlockDataViewer> BlockDataViewer::getNewBDV(const string& addr,
-   const string& port, shared_ptr<RemoteCallback> callbackPtr)
+   const string& port, const string& datadir, const bool& ephemeralPeers,
+   shared_ptr<RemoteCallback> callbackPtr)
 {
    //create socket object
-   auto sockptr = make_shared<WebSocketClient>(addr, port, callbackPtr);
+   auto sockptr = make_shared<WebSocketClient>(addr, port, datadir,
+      ephemeralPeers, callbackPtr);
 
    //instantiate bdv object
    BlockDataViewer* bdvPtr = new BlockDataViewer(sockptr);
@@ -93,9 +106,17 @@ void BlockDataViewer::registerWithDB(BinaryData magic_word)
 
       auto promPtr = make_shared<promise<string>>();
       auto fut = promPtr->get_future();
-      auto getResult = [promPtr](string result)->void
+      auto getResult = [promPtr](ReturnMessage<string> result)->void
       {
-         promPtr->set_value(move(result));
+         try
+         {
+            promPtr->set_value(move(result.get()));
+         }
+         catch (exception&)
+         {
+            auto eptr = current_exception();
+            promPtr->set_exception(eptr);
+         }
       };
 
       auto read_payload = make_shared<Socket_ReadPayload>();
@@ -191,7 +212,7 @@ Lockbox BlockDataViewer::instantiateLockbox(const string& id)
 
 ///////////////////////////////////////////////////////////////////////////////
 void BlockDataViewer::getLedgerDelegateForWallets(
-   function<void(LedgerDelegate)> callback)
+   function<void(ReturnMessage<LedgerDelegate>)> callback)
 {
    auto payload = make_payload(Methods::getLedgerDelegateForWallets, bdvID_);
    auto read_payload = make_shared<Socket_ReadPayload>();
@@ -202,7 +223,7 @@ void BlockDataViewer::getLedgerDelegateForWallets(
 
 ///////////////////////////////////////////////////////////////////////////////
 void BlockDataViewer::getLedgerDelegateForLockboxes(
-   function<void(LedgerDelegate)> callback)
+   function<void(ReturnMessage<LedgerDelegate>)> callback)
 {
    auto payload = make_payload(Methods::getLedgerDelegateForLockboxes, bdvID_);
    auto read_payload = make_shared<Socket_ReadPayload>();
@@ -233,7 +254,7 @@ void BlockDataViewer::broadcastZC(const BinaryData& rawTx)
 
 ///////////////////////////////////////////////////////////////////////////////
 void BlockDataViewer::getTxByHash(const BinaryData& txHash, 
-   function<void(Tx)> callback)
+   function<void(ReturnMessage<Tx>)> callback)
 {
    BinaryDataRef bdRef(txHash);
    BinaryData hash;
@@ -251,7 +272,8 @@ void BlockDataViewer::getTxByHash(const BinaryData& txHash,
    try
    {
       auto& tx = cache_->getTx(bdRef);
-      callback(tx);
+      ReturnMessage<Tx> rm(tx);
+      callback(move(rm));
       return;
    }
    catch(NoMatch&)
@@ -269,7 +291,7 @@ void BlockDataViewer::getTxByHash(const BinaryData& txHash,
 
 ///////////////////////////////////////////////////////////////////////////////
 void BlockDataViewer::getRawHeaderForTxHash(const BinaryData& txHash,
-   function<void(BinaryData)> callback)
+   function<void(ReturnMessage<BinaryData>)> callback)
 {
    BinaryDataRef bdRef(txHash);
    BinaryData hash;
@@ -307,7 +329,7 @@ void BlockDataViewer::getRawHeaderForTxHash(const BinaryData& txHash,
 
 ///////////////////////////////////////////////////////////////////////////////
 void BlockDataViewer::getHeaderByHeight(unsigned height,
-   function<void(BinaryData)> callback)
+   function<void(ReturnMessage<BinaryData>)> callback)
 {
    try
    {
@@ -333,7 +355,7 @@ void BlockDataViewer::getHeaderByHeight(unsigned height,
 ///////////////////////////////////////////////////////////////////////////////
 void BlockDataViewer::getLedgerDelegateForScrAddr(
    const string& walletID, const BinaryData& scrAddr,
-   function<void(LedgerDelegate)> callback)
+   function<void(ReturnMessage<LedgerDelegate>)> callback)
 {
    auto payload = make_payload(Methods::getLedgerDelegateForScrAddr, bdvID_);
    auto command = dynamic_cast<BDVCommand*>(payload->message_.get());
@@ -360,7 +382,8 @@ void BlockDataViewer::updateWalletsLedgerFilter(
 
 ///////////////////////////////////////////////////////////////////////////////
 void BlockDataViewer::getNodeStatus(
-   function<void(shared_ptr<::ClientClasses::NodeStatusStruct>)> callback)
+   function<void(
+      ReturnMessage<shared_ptr<::ClientClasses::NodeStatusStruct>>)> callback)
 {
    auto payload = make_payload(Methods::getNodeStatus, bdvID_);
    auto read_payload = make_shared<Socket_ReadPayload>();
@@ -372,7 +395,7 @@ void BlockDataViewer::getNodeStatus(
 ///////////////////////////////////////////////////////////////////////////////
 void BlockDataViewer::estimateFee(unsigned blocksToConfirm, 
    const string& strategy, 
-   function<void(ClientClasses::FeeEstimateStruct)> callback)
+   function<void(ReturnMessage<ClientClasses::FeeEstimateStruct>)> callback)
 {
    auto payload = make_payload(Methods::estimateFee, bdvID_);
    auto command = dynamic_cast<BDVCommand*>(payload->message_.get());
@@ -386,9 +409,24 @@ void BlockDataViewer::estimateFee(unsigned blocksToConfirm,
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+void BlockDataViewer::getFeeSchedule(const string& strategy, function<void(
+   ReturnMessage<map<unsigned, ClientClasses::FeeEstimateStruct>>)> callback)
+{
+   auto payload = make_payload(Methods::getFeeSchedule, bdvID_);
+   auto command = dynamic_cast<BDVCommand*>(payload->message_.get());
+   command->add_bindata(strategy);
+
+   auto read_payload = make_shared<Socket_ReadPayload>();
+   read_payload->callbackReturn_ =
+      make_unique<CallbackReturn_FeeSchedule>(callback);
+   sock_->pushPayload(move(payload), read_payload);
+}
+
+
+///////////////////////////////////////////////////////////////////////////////
 void BlockDataViewer::getHistoryForWalletSelection(
    const vector<string>& wldIDs, const string& orderingStr,
-   function<void(vector<::ClientClasses::LedgerEntry>)> callback)
+   function<void(ReturnMessage<vector<::ClientClasses::LedgerEntry>>)> callback)
 {
    auto payload = make_payload(Methods::getHistoryForWalletSelection, bdvID_);
    auto command = dynamic_cast<BDVCommand*>(payload->message_.get());
@@ -410,7 +448,7 @@ void BlockDataViewer::getHistoryForWalletSelection(
 
 ///////////////////////////////////////////////////////////////////////////////
 void BlockDataViewer::broadcastThroughRPC(const BinaryData& rawTx,
-   function<void(string)> callback)
+   function<void(ReturnMessage<string>)> callback)
 {
    auto payload = make_payload(Methods::broadcastThroughRPC, bdvID_);
    auto command = dynamic_cast<BDVCommand*>(payload->message_.get());
@@ -424,7 +462,7 @@ void BlockDataViewer::broadcastThroughRPC(const BinaryData& rawTx,
 
 ///////////////////////////////////////////////////////////////////////////////
 void BlockDataViewer::getUtxosForAddrVec(const vector<BinaryData>& addrVec,
-   function<void(vector<UTXO>)> callback)
+   function<void(ReturnMessage<vector<UTXO>>)> callback)
 {
    auto payload = make_payload(Methods::getUTXOsForAddrList, bdvID_);
    auto command = dynamic_cast<BDVCommand*>(payload->message_.get());
@@ -438,18 +476,29 @@ void BlockDataViewer::getUtxosForAddrVec(const vector<BinaryData>& addrVec,
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+void BlockDataViewer::setCheckServerKeyPromptLambda(
+   function<bool(const BinaryData&, const string&)> lbd)
+{
+   auto wsSock = dynamic_pointer_cast<WebSocketClient>(sock_);
+   if (wsSock == nullptr)
+      return;
+
+   wsSock->setPubkeyPromptLambda(lbd);
+}
+
+///////////////////////////////////////////////////////////////////////////////
 //
 // LedgerDelegate
 //
 ///////////////////////////////////////////////////////////////////////////////
 LedgerDelegate::LedgerDelegate(shared_ptr<SocketPrototype> sock,
    const string& bdvid, const string& ldid) :
-   sock_(sock), delegateID_(ldid), bdvID_(bdvid)
+   delegateID_(ldid), bdvID_(bdvid), sock_(sock)
 {}
 
 ///////////////////////////////////////////////////////////////////////////////
 void LedgerDelegate::getHistoryPage(uint32_t id, 
-   function<void(vector<::ClientClasses::LedgerEntry>)> callback)
+   function<void(ReturnMessage<vector<::ClientClasses::LedgerEntry>>)> callback)
 {
    auto payload = BlockDataViewer::make_payload(
       Methods::getHistoryPage, bdvID_);
@@ -464,7 +513,8 @@ void LedgerDelegate::getHistoryPage(uint32_t id,
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-void LedgerDelegate::getPageCount(function<void(uint64_t)> callback) const
+void LedgerDelegate::getPageCount(
+   function<void(ReturnMessage<uint64_t>)> callback) const
 {
    auto payload = BlockDataViewer::make_payload(
       Methods::getPageCountForLedgerDelegate, bdvID_);
@@ -483,7 +533,7 @@ void LedgerDelegate::getPageCount(function<void(uint64_t)> callback) const
 //
 ///////////////////////////////////////////////////////////////////////////////
 AsyncClient::BtcWallet::BtcWallet(const BlockDataViewer& bdv, const string& id) :
-   sock_(bdv.sock_), walletID_(id), bdvID_(bdv.bdvID_)
+   walletID_(id), bdvID_(bdv.bdvID_), sock_(bdv.sock_)
 {}
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -496,7 +546,7 @@ string AsyncClient::BtcWallet::registerAddresses(
    command->set_flag(isNew);
    command->set_walletid(walletID_);
 
-   auto&& registrationId = SecureBinaryData().GenerateRandom(5).toHexStr();
+   auto&& registrationId = CryptoPRNG::generateRandom(5).toHexStr();
    command->set_hash(registrationId);
 
    for (auto& addr : addrVec)
@@ -507,8 +557,24 @@ string AsyncClient::BtcWallet::registerAddresses(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+string AsyncClient::BtcWallet::setUnconfirmedTarget(unsigned confTarget)
+{
+   auto payload = BlockDataViewer::make_payload(
+      Methods::setWalletConfTarget, bdvID_);
+   auto command = dynamic_cast<BDVCommand*>(payload->message_.get());
+   command->set_walletid(walletID_);
+
+   auto&& registrationId = CryptoPRNG::generateRandom(5).toHexStr();
+   command->set_hash(registrationId);
+   command->set_height(confTarget);
+
+   sock_->pushPayload(move(payload), nullptr);
+   return registrationId;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 void AsyncClient::BtcWallet::getBalancesAndCount(uint32_t blockheight, 
-   function<void(vector<uint64_t>)> callback)
+   function<void(ReturnMessage<vector<uint64_t>>)> callback)
 {
    auto payload = BlockDataViewer::make_payload(
       Methods::getBalancesAndCount, bdvID_);
@@ -524,7 +590,7 @@ void AsyncClient::BtcWallet::getBalancesAndCount(uint32_t blockheight,
 
 ///////////////////////////////////////////////////////////////////////////////
 void AsyncClient::BtcWallet::getSpendableTxOutListForValue(uint64_t val,
-   function<void(vector<UTXO>)> callback)
+   function<void(ReturnMessage<vector<UTXO>>)> callback)
 {
    auto payload = BlockDataViewer::make_payload(
       Methods::getSpendableTxOutListForValue, bdvID_);
@@ -540,7 +606,7 @@ void AsyncClient::BtcWallet::getSpendableTxOutListForValue(uint64_t val,
 
 ///////////////////////////////////////////////////////////////////////////////
 void AsyncClient::BtcWallet::getSpendableZCList(
-   function<void(vector<UTXO>)> callback)
+   function<void(ReturnMessage<vector<UTXO>>)> callback)
 {
    auto payload = BlockDataViewer::make_payload(
       Methods::getSpendableZCList, bdvID_);
@@ -555,7 +621,7 @@ void AsyncClient::BtcWallet::getSpendableZCList(
 
 ///////////////////////////////////////////////////////////////////////////////
 void AsyncClient::BtcWallet::getRBFTxOutList(
-   function<void(vector<UTXO>)> callback)
+   function<void(ReturnMessage<vector<UTXO>>)> callback)
 {
    auto payload = BlockDataViewer::make_payload(
       Methods::getRBFTxOutList, bdvID_);
@@ -570,7 +636,7 @@ void AsyncClient::BtcWallet::getRBFTxOutList(
 
 ///////////////////////////////////////////////////////////////////////////////
 void AsyncClient::BtcWallet::getAddrTxnCountsFromDB(
-   function<void(map<BinaryData, uint32_t>)> callback)
+   function<void(ReturnMessage<map<BinaryData, uint32_t>>)> callback)
 {
    auto payload = BlockDataViewer::make_payload(
       Methods::getAddrTxnCounts, bdvID_);
@@ -585,7 +651,7 @@ void AsyncClient::BtcWallet::getAddrTxnCountsFromDB(
 
 ///////////////////////////////////////////////////////////////////////////////
 void AsyncClient::BtcWallet::getAddrBalancesFromDB(
-   function<void(map<BinaryData, vector<uint64_t>>)> callback)
+   function<void(ReturnMessage<map<BinaryData, vector<uint64_t>>>)> callback)
 {
    auto payload = BlockDataViewer::make_payload(
       Methods::getAddrBalances, bdvID_);
@@ -600,7 +666,7 @@ void AsyncClient::BtcWallet::getAddrBalancesFromDB(
 
 ///////////////////////////////////////////////////////////////////////////////
 void AsyncClient::BtcWallet::getHistoryPage(uint32_t id,
-   function<void(vector<::ClientClasses::LedgerEntry>)> callback)
+   function<void(ReturnMessage<vector<::ClientClasses::LedgerEntry>>)> callback)
 {
    auto payload = BlockDataViewer::make_payload(
       Methods::getHistoryPage, bdvID_);
@@ -617,7 +683,7 @@ void AsyncClient::BtcWallet::getHistoryPage(uint32_t id,
 ///////////////////////////////////////////////////////////////////////////////
 void AsyncClient::BtcWallet::getLedgerEntryForTxHash(
    const BinaryData& txhash, 
-   function<void(shared_ptr<::ClientClasses::LedgerEntry>)> callback)
+   function<void(ReturnMessage<shared_ptr<::ClientClasses::LedgerEntry>>)> callback)
 {  
    //get history page with a hash as argument instead of an int will return 
    //the ledger entry for the tx instead of a page
@@ -644,7 +710,7 @@ ScrAddrObj AsyncClient::BtcWallet::getScrAddrObjByKey(const BinaryData& scrAddr,
 
 ///////////////////////////////////////////////////////////////////////////////
 void AsyncClient::BtcWallet::createAddressBook(
-   function<void(vector<AddressBookEntry>)> callback) const
+   function<void(ReturnMessage<vector<AddressBookEntry>>)> callback) const
 {
    auto payload = BlockDataViewer::make_payload(
       Methods::createAddressBook, bdvID_);
@@ -664,16 +730,17 @@ void AsyncClient::BtcWallet::createAddressBook(
 ///////////////////////////////////////////////////////////////////////////////
 void Lockbox::getBalancesAndCountFromDB(uint32_t topBlockHeight)
 {
-   auto setValue = [this](vector<uint64_t> int_vec)->void
+   auto setValue = [this](ReturnMessage<vector<uint64_t>> int_vec)->void
    {
-      if (int_vec.size() != 4)
+      auto v = move(int_vec.get());
+      if (v.size() != 4)
          throw runtime_error("unexpected vector size");
 
-      fullBalance_ = int_vec[0];
-      spendableBalance_ = int_vec[1];
-      unconfirmedBalance_ = int_vec[2];
+      fullBalance_ = v[0];
+      spendableBalance_ = v[1];
+      unconfirmedBalance_ = v[2];
 
-      txnCount_ = int_vec[3];
+      txnCount_ = v[3];
    };
 
    BtcWallet::getBalancesAndCount(topBlockHeight, setValue);
@@ -689,7 +756,7 @@ string AsyncClient::Lockbox::registerAddresses(
    command->set_flag(isNew);
    command->set_walletid(walletID_);
    
-   auto&& registrationId = SecureBinaryData().GenerateRandom(5).toHexStr();
+   auto&& registrationId = CryptoPRNG::generateRandom(5).toHexStr();
    command->set_hash(registrationId);
 
    for (auto& addr : addrVec)
@@ -707,23 +774,22 @@ string AsyncClient::Lockbox::registerAddresses(
 ScrAddrObj::ScrAddrObj(shared_ptr<SocketPrototype> sock, const string& bdvId,
    const string& walletID, const BinaryData& scrAddr, int index,
    uint64_t full, uint64_t spendabe, uint64_t unconf, uint32_t count) :
-   sock_(sock), bdvID_(bdvId), walletID_(walletID), scrAddr_(scrAddr),
-   index_(index), fullBalance_(full), spendableBalance_(spendabe),
-   unconfirmedBalance_(unconf), count_(count)
+   bdvID_(bdvId), walletID_(walletID), scrAddr_(scrAddr), sock_(sock),
+   fullBalance_(full), spendableBalance_(spendabe),
+   unconfirmedBalance_(unconf), count_(count), index_(index)
 {}
 
 ///////////////////////////////////////////////////////////////////////////////
 ScrAddrObj::ScrAddrObj(AsyncClient::BtcWallet* wlt, const BinaryData& scrAddr,
    int index, uint64_t full, uint64_t spendabe, uint64_t unconf, uint32_t count) :
-   sock_(wlt->sock_), bdvID_(wlt->bdvID_), walletID_(wlt->walletID_),
-   scrAddr_(scrAddr), index_(index),
+   bdvID_(wlt->bdvID_), walletID_(wlt->walletID_), scrAddr_(scrAddr), sock_(wlt->sock_),
    fullBalance_(full), spendableBalance_(spendabe),
-   unconfirmedBalance_(unconf), count_(count)
+   unconfirmedBalance_(unconf), count_(count), index_(index)
 {}
 
 ///////////////////////////////////////////////////////////////////////////////
 void ScrAddrObj::getSpendableTxOutList(bool ignoreZC, 
-   function<void(vector<UTXO>)> callback)
+   function<void(ReturnMessage<vector<UTXO>>)> callback)
 {
    auto payload = BlockDataViewer::make_payload(
       Methods::getSpendableTxOutListForAddr, bdvID_);
@@ -748,7 +814,7 @@ AsyncClient::Blockchain::Blockchain(const BlockDataViewer& bdv) :
 
 ///////////////////////////////////////////////////////////////////////////////
 void AsyncClient::Blockchain::getHeaderByHash(const BinaryData& hash,
-   function<void(ClientClasses::BlockHeader)> callback)
+   function<void(ReturnMessage<ClientClasses::BlockHeader>)> callback)
 {
    auto payload = BlockDataViewer::make_payload(
       Methods::getHeaderByHash, bdvID_);
@@ -763,7 +829,7 @@ void AsyncClient::Blockchain::getHeaderByHash(const BinaryData& hash,
 
 ///////////////////////////////////////////////////////////////////////////////
 void AsyncClient::Blockchain::getHeaderByHeight(unsigned height,
-   function<void(ClientClasses::BlockHeader)> callback)
+   function<void(ReturnMessage<ClientClasses::BlockHeader>)> callback)
 {
    auto payload = BlockDataViewer::make_payload(
       Methods::getHeaderByHeight, bdvID_);
@@ -773,6 +839,72 @@ void AsyncClient::Blockchain::getHeaderByHeight(unsigned height,
    auto read_payload = make_shared<Socket_ReadPayload>();
    read_payload->callbackReturn_ =
       make_unique<CallbackReturn_BlockHeader>(height, callback);
+   sock_->pushPayload(move(payload), read_payload);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+pair<unsigned, unsigned> AsyncClient::BlockDataViewer::getRekeyCount() const
+{
+   auto wsSocket = dynamic_pointer_cast<WebSocketClient>(sock_);
+   if (wsSocket == nullptr)
+      return make_pair(0, 0);
+
+   return wsSocket->getRekeyCount();
+}
+
+///////////////////////////////////////////////////////////////////////////////
+void AsyncClient::BlockDataViewer::getCombinedBalances(
+   const vector<string>& wltIDs,
+   function<void(ReturnMessage<set<CombinedBalances>>)> callback)
+{
+   auto payload = BlockDataViewer::make_payload(
+      Methods::getCombinedBalances, bdvID_);
+   auto command = dynamic_cast<BDVCommand*>(payload->message_.get());
+
+   for (auto& id : wltIDs)
+      command->add_bindata(id);
+
+   auto read_payload = make_shared<Socket_ReadPayload>();
+   read_payload->callbackReturn_ = 
+      make_unique<CallbackReturn_CombinedBalances>(callback);   
+   sock_->pushPayload(move(payload), read_payload);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+void AsyncClient::BlockDataViewer::getCombinedAddrTxnCounts(
+   const vector<string>& wltIDs,
+   function<void(ReturnMessage<set<CombinedCounts>>)> callback)
+{
+   auto payload = BlockDataViewer::make_payload(
+      Methods::getCombinedBalances, bdvID_);
+   auto command = dynamic_cast<BDVCommand*>(payload->message_.get());
+
+   for (auto& id : wltIDs)
+      command->add_bindata(id);
+
+   auto read_payload = make_shared<Socket_ReadPayload>();
+   read_payload->callbackReturn_ = 
+      make_unique<CallbackReturn_CombinedCounts>(callback);   
+   sock_->pushPayload(move(payload), read_payload);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+void AsyncClient::BlockDataViewer::getCombinedSpendableTxOutListForValue(
+   const vector<string>& wltIDs, uint64_t value,
+   function<void(ReturnMessage<vector<UTXO>>)> callback)
+{
+   auto payload = BlockDataViewer::make_payload(
+      Methods::getCombinedBalances, bdvID_);
+   auto command = dynamic_cast<BDVCommand*>(payload->message_.get());
+
+   for (auto& id : wltIDs)
+      command->add_bindata(id);
+
+   command->set_value(value);
+
+   auto read_payload = make_shared<Socket_ReadPayload>();
+   read_payload->callbackReturn_ = 
+      make_unique<CallbackReturn_VectorUTXO>(callback);   
    sock_->pushPayload(move(payload), read_payload);
 }
 
@@ -798,283 +930,648 @@ void AsyncClient::deserialize(
 void CallbackReturn_BinaryDataRef::callback(
    const WebSocketMessagePartial& partialMsg)
 {
-   ::Codec_CommonTypes::BinaryData msg;
-   AsyncClient::deserialize(&msg, partialMsg);
+   auto msg = make_shared<::Codec_CommonTypes::BinaryData>();
+   AsyncClient::deserialize(msg.get(), partialMsg);
 
-   auto str = msg.data();
-   BinaryDataRef ref;
-   ref.setRef(str);
+   auto lbd = [this, msg](void)->void
+   {
+      auto str = msg->data();
+      BinaryDataRef ref;
+      ref.setRef(str);
+      userCallbackLambda_(ref);
+   };
 
-   userCallbackLambda_(ref);
+   if (runInCaller())
+   {
+      lbd();
+   }
+   else
+   {
+      thread thr(lbd);
+      if (thr.joinable())
+         thr.detach();
+   }
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 void CallbackReturn_String::callback(
    const WebSocketMessagePartial& partialMsg)
 {
-   ::Codec_CommonTypes::Strings msg;
-   AsyncClient::deserialize(&msg, partialMsg);
+   try
+   {
+      ::Codec_CommonTypes::Strings msg;
+      AsyncClient::deserialize(&msg, partialMsg);
 
-   if (msg.data_size() != 1)
-      throw runtime_error("invalid message in CallbackReturn_String");
+      if (msg.data_size() != 1)
+         throw ClientMessageError("invalid message in CallbackReturn_String");
 
-   auto& str = msg.data(0);
-   userCallbackLambda_(move(str));
+      auto str = msg.data(0);
+      ReturnMessage<string> rm(str);
+
+      if (runInCaller())
+      {
+         userCallbackLambda_(move(rm));
+      }
+      else
+      {
+         thread thr(userCallbackLambda_, move(rm));
+         if (thr.joinable())
+            thr.detach();
+      }
+   }
+   catch (ClientMessageError& e)
+   {
+      ReturnMessage<string> rm(e);
+      userCallbackLambda_(move(rm));
+   }
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 void CallbackReturn_LedgerDelegate::callback(
    const WebSocketMessagePartial& partialMsg)
 {
-   ::Codec_CommonTypes::Strings msg;
-   AsyncClient::deserialize(&msg, partialMsg);
+   try
+   {
+      ::Codec_CommonTypes::Strings msg;
+      AsyncClient::deserialize(&msg, partialMsg);
 
-   if (msg.data_size() != 1)
-      throw runtime_error("invalid message in CallbackReturn_LedgerDelegate");
+      if (msg.data_size() != 1)
+         throw ClientMessageError("invalid message in CallbackReturn_LedgerDelegate");
 
-   auto& str = msg.data(0);
+      auto& str = msg.data(0);
 
-   LedgerDelegate ld(sockPtr_, bdvID_, str);
-   userCallbackLambda_(move(ld));
+      LedgerDelegate ld(sockPtr_, bdvID_, str);
+      ReturnMessage<LedgerDelegate> rm(ld);
+
+      if (runInCaller())
+      {
+         userCallbackLambda_(move(rm));
+      }
+      else
+      {
+         thread thr(userCallbackLambda_, move(rm));
+         if (thr.joinable())
+            thr.detach();
+      }
+   }
+   catch (ClientMessageError& e)
+   {
+      ReturnMessage<LedgerDelegate> rm(e);
+      userCallbackLambda_(move(rm));
+   }
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 void CallbackReturn_Tx::callback(
    const WebSocketMessagePartial& partialMsg)
 {
-   ::Codec_CommonTypes::TxWithMetaData msg;
-   AsyncClient::deserialize(&msg, partialMsg);
+   try
+   {
+      ::Codec_CommonTypes::TxWithMetaData msg;
+      AsyncClient::deserialize(&msg, partialMsg);
 
-   auto& rawtx = msg.rawtx();
-   BinaryDataRef ref;
-   ref.setRef(rawtx);
+      auto& rawtx = msg.rawtx();
+      BinaryDataRef ref;
+      ref.setRef(rawtx);
 
-   Tx tx(ref);
-   tx.setChainedZC(msg.ischainedzc());
-   tx.setRBF(msg.isrbf());
+      Tx tx(ref);
+      tx.setChainedZC(msg.ischainedzc());
+      tx.setRBF(msg.isrbf());
+      cache_->insertTx(txHash_, tx);
+      
+      ReturnMessage<Tx> rm(tx);
 
-   cache_->insertTx(txHash_, tx);
-   userCallbackLambda_(move(tx));
+      if (runInCaller())
+      {
+         userCallbackLambda_(move(rm));
+      }
+      else
+      {
+         thread thr(userCallbackLambda_, move(rm));
+         if (thr.joinable())
+            thr.detach();
+      }
+   }
+   catch (ClientMessageError& e)
+   {
+      ReturnMessage<Tx> rm(e);
+      userCallbackLambda_(move(rm));
+   }
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 void CallbackReturn_RawHeader::callback(
    const WebSocketMessagePartial& partialMsg)
 {
-   ::Codec_CommonTypes::BinaryData msg;
-   AsyncClient::deserialize(&msg, partialMsg);
+   try
+   {
+      ::Codec_CommonTypes::BinaryData msg;
+      AsyncClient::deserialize(&msg, partialMsg);
 
-   auto& rawheader = msg.data();
-   BinaryDataRef ref; ref.setRef(rawheader);
-   BinaryRefReader brr(ref);
-   auto headerRef = brr.get_BinaryDataRef(HEADER_SIZE);
+      auto& rawheader = msg.data();
+      BinaryDataRef ref; ref.setRef(rawheader);
+      BinaryRefReader brr(ref);
+      auto&& header = brr.get_BinaryData(HEADER_SIZE);
 
-   if (height_ == UINT32_MAX)
-      height_ = brr.get_uint32_t();
+      if (height_ == UINT32_MAX)
+         height_ = brr.get_uint32_t();
 
-   if (txHash_.getSize() != 0)
-      cache_->insertHeightForTxHash(txHash_, height_);
-   cache_->insertRawHeader(height_, headerRef);
+      if (txHash_.getSize() != 0)
+         cache_->insertHeightForTxHash(txHash_, height_);
+      cache_->insertRawHeader(height_, header);
 
-   userCallbackLambda_(headerRef);
+      ReturnMessage<BinaryData> rm(header);
+
+      if (runInCaller())
+      {
+         userCallbackLambda_(move(rm));
+      }
+      else
+      {
+         thread thr(userCallbackLambda_, move(rm));
+         if (thr.joinable())
+            thr.detach();
+      }
+   }
+   catch (ClientMessageError& e)
+   {
+      ReturnMessage<BinaryData> rm(e);
+      userCallbackLambda_(move(rm));
+   }
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 void CallbackReturn_NodeStatusStruct::callback(
    const WebSocketMessagePartial& partialMsg)
 {
-   auto msg = make_shared<::Codec_NodeStatus::NodeStatus>();
-   AsyncClient::deserialize(msg.get(), partialMsg);
+   try
+   {
+      auto msg = make_shared<::Codec_NodeStatus::NodeStatus>();
+      AsyncClient::deserialize(msg.get(), partialMsg);
 
-   auto nss = make_shared<::ClientClasses::NodeStatusStruct>(msg);
-   userCallbackLambda_(move(nss));
+      auto nss = make_shared<::ClientClasses::NodeStatusStruct>(msg);
+      
+      ReturnMessage<shared_ptr<::ClientClasses::NodeStatusStruct>> rm(nss);
+
+      if (runInCaller())
+      {
+         userCallbackLambda_(move(rm));
+      }
+      else
+      {
+         thread thr(userCallbackLambda_, move(rm));
+         if (thr.joinable())
+            thr.detach();
+      }
+   }
+   catch (ClientMessageError& e)
+   {
+      ReturnMessage<shared_ptr<::ClientClasses::NodeStatusStruct>> rm(e);
+      userCallbackLambda_(rm);
+   }
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 void CallbackReturn_FeeEstimateStruct::callback(
    const WebSocketMessagePartial& partialMsg)
 {
-   ::Codec_FeeEstimate::FeeEstimate msg;
-   AsyncClient::deserialize(&msg, partialMsg);
+   try
+   {
+      ::Codec_FeeEstimate::FeeEstimate msg;
+      AsyncClient::deserialize(&msg, partialMsg);
 
-   ClientClasses::FeeEstimateStruct fes(
-      msg.feebyte(), msg.smartfee(), msg.error());
+      ClientClasses::FeeEstimateStruct fes(
+         msg.feebyte(), msg.smartfee(), msg.error());
 
-   userCallbackLambda_(move(fes));
+      ReturnMessage<ClientClasses::FeeEstimateStruct> rm(fes);
+
+      if (runInCaller())
+      {
+         userCallbackLambda_(move(rm));
+      }
+      else
+      {
+         thread thr(userCallbackLambda_, move(rm));
+         if (thr.joinable())
+            thr.detach();
+      }
+   }
+   catch (ClientMessageError& e)
+   {
+      ReturnMessage<ClientClasses::FeeEstimateStruct> rm(e);
+      userCallbackLambda_(rm);
+   }
+}
+
+///////////////////////////////////////////////////////////////////////////////
+void CallbackReturn_FeeSchedule::callback(
+   const WebSocketMessagePartial& partialMsg)
+{
+   try
+   {
+      ::Codec_FeeEstimate::FeeSchedule msg;
+      AsyncClient::deserialize(&msg, partialMsg);
+
+      map<unsigned, ClientClasses::FeeEstimateStruct> result;
+
+      for (int i = 0; i < msg.estimate_size(); i++)
+      {
+         auto& feeByte = msg.estimate(i);
+         ClientClasses::FeeEstimateStruct fes(
+            feeByte.feebyte(), feeByte.smartfee(), feeByte.error());
+
+         auto target = msg.target(i);
+         result.insert(make_pair(target, move(fes)));
+      }
+
+      ReturnMessage<map<unsigned, ClientClasses::FeeEstimateStruct>> rm(result);
+
+      if (runInCaller())
+      {
+         userCallbackLambda_(move(rm));
+      }
+      else
+      {
+         thread thr(userCallbackLambda_, move(rm));
+         if (thr.joinable())
+            thr.detach();
+      }
+   }
+   catch (ClientMessageError& e)
+   {
+      ReturnMessage<map<unsigned, ClientClasses::FeeEstimateStruct>> rm(e);
+      userCallbackLambda_(move(rm));
+   }
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 void CallbackReturn_VectorLedgerEntry::callback(
    const WebSocketMessagePartial& partialMsg)
 {
-   auto msg = make_shared<::Codec_LedgerEntry::ManyLedgerEntry>();
-   AsyncClient::deserialize(msg.get(), partialMsg);
-
-   vector <::ClientClasses::LedgerEntry> lev;
-   for (int i = 0; i < msg->values_size(); i++)
+   try
    {
-      ::ClientClasses::LedgerEntry le(msg, i);
-      lev.push_back(move(le));
-   }
+      auto msg = make_shared<::Codec_LedgerEntry::ManyLedgerEntry>();
+      AsyncClient::deserialize(msg.get(), partialMsg);
 
-   userCallbackLambda_(move(lev));
+
+      vector<::ClientClasses::LedgerEntry> lev;
+
+      for (int i = 0; i < msg->values_size(); i++)
+      {
+         ::ClientClasses::LedgerEntry le(msg, i);
+         lev.push_back(move(le));
+      }
+
+      ReturnMessage<vector<::ClientClasses::LedgerEntry>> rm(lev);
+
+      if (runInCaller())
+      {
+         userCallbackLambda_(move(rm));
+      }
+      else
+      {
+         thread thr(userCallbackLambda_, move(rm));
+         if (thr.joinable())
+            thr.detach();
+      }
+   }
+   catch (ClientMessageError& e)
+   {
+      ReturnMessage<vector<::ClientClasses::LedgerEntry>> rm(e);
+      userCallbackLambda_(move(rm));
+   }
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 void CallbackReturn_UINT64::callback(
    const WebSocketMessagePartial& partialMsg)
 {
-   ::Codec_CommonTypes::OneUnsigned msg;
-   AsyncClient::deserialize(&msg, partialMsg);
+   try
+   {
+      ::Codec_CommonTypes::OneUnsigned msg;
+      AsyncClient::deserialize(&msg, partialMsg);
 
-   userCallbackLambda_(msg.value());
+      uint64_t result = msg.value();
+
+      ReturnMessage<uint64_t> rm(result);
+
+      if (runInCaller())
+      {
+         userCallbackLambda_(move(rm));
+      }
+      else
+      {
+         thread thr(userCallbackLambda_, move(rm));
+         if (thr.joinable())
+            thr.detach();
+      }
+   }
+   catch (ClientMessageError& e)
+   {
+      ReturnMessage<uint64_t> rm(e);
+      userCallbackLambda_(move(rm));
+   }
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 void CallbackReturn_VectorUTXO::callback(
    const WebSocketMessagePartial& partialMsg)
 {
-   ::Codec_Utxo::ManyUtxo utxos;
-   AsyncClient::deserialize(&utxos, partialMsg);
-
-   vector<UTXO> utxovec(utxos.value_size());
-   for (int i = 0; i < utxos.value_size(); i++)
+   try
    {
-      auto& proto_utxo = utxos.value(i);
-      auto& utxo = utxovec[i];
-      
-      utxo.value_ = proto_utxo.value();
-      utxo.script_.copyFrom(proto_utxo.script());
-      utxo.txHeight_ = proto_utxo.txheight();
-      utxo.txIndex_ = proto_utxo.txindex();
-      utxo.txOutIndex_ = proto_utxo.txoutindex();
-      utxo.txHash_.copyFrom(proto_utxo.txhash());
-   }
+      ::Codec_Utxo::ManyUtxo utxos;
+      AsyncClient::deserialize(&utxos, partialMsg);
 
-   userCallbackLambda_(move(utxovec));
+      vector<UTXO> utxovec(utxos.value_size());
+      for (int i = 0; i < utxos.value_size(); i++)
+      {
+         auto& proto_utxo = utxos.value(i);
+         auto& utxo = utxovec[i];
+
+         utxo.value_ = proto_utxo.value();
+         utxo.script_.copyFrom(proto_utxo.script());
+         utxo.txHeight_ = proto_utxo.txheight();
+         utxo.txIndex_ = proto_utxo.txindex();
+         utxo.txOutIndex_ = proto_utxo.txoutindex();
+         utxo.txHash_.copyFrom(proto_utxo.txhash());
+      }
+
+      ReturnMessage<vector<UTXO>> rm(utxovec);
+
+      if (runInCaller())
+      {
+         userCallbackLambda_(move(rm));
+      }
+      else
+      {
+         thread thr(userCallbackLambda_, move(rm));
+         if (thr.joinable())
+            thr.detach();
+      }
+   }
+   catch (ClientMessageError& e)
+   {
+      ReturnMessage<vector<UTXO>> rm(e);
+      userCallbackLambda_(move(rm));
+   }
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 void CallbackReturn_VectorUINT64::callback(
    const WebSocketMessagePartial& partialMsg)
 {
-   ::Codec_CommonTypes::ManyUnsigned msg;
-   AsyncClient::deserialize(&msg, partialMsg);
+   try
+   {
+      ::Codec_CommonTypes::ManyUnsigned msg;
+      AsyncClient::deserialize(&msg, partialMsg);
 
-   vector<uint64_t> intvec(msg.value_size());
-   for (int i = 0; i < msg.value_size(); i++)
-      intvec[i] = msg.value(i);
+      vector<uint64_t> intvec(msg.value_size());
+      for (int i = 0; i < msg.value_size(); i++)
+         intvec[i] = msg.value(i);
 
-   userCallbackLambda_(move(intvec));
+      ReturnMessage<vector<uint64_t>> rm(intvec);
+
+      if (runInCaller())
+      {
+         userCallbackLambda_(move(rm));
+      }
+      else
+      {
+         thread thr(userCallbackLambda_, move(rm));
+         if (thr.joinable())
+            thr.detach();
+      }
+   }
+   catch (ClientMessageError& e)
+   {
+      ReturnMessage<vector<uint64_t>> rm(e);
+      userCallbackLambda_(move(rm));
+   }
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 void CallbackReturn_Map_BD_U32::callback(
    const WebSocketMessagePartial& partialMsg)
 {
-   ::Codec_AddressData::ManyAddressData msg;
-   AsyncClient::deserialize(&msg, partialMsg);
-
-   map<BinaryData, uint32_t> bdmap;
-
-   for (int i = 0; i < msg.scraddrdata_size(); i++)
+   try
    {
-      auto& addrData = msg.scraddrdata(i);
-      auto& addr = addrData.scraddr();
-      BinaryDataRef addrRef;
-      addrRef.setRef(addr);
+      ::Codec_AddressData::ManyAddressData msg;
+      AsyncClient::deserialize(&msg, partialMsg);
 
-      if (addrData.value_size() != 1)
-         throw runtime_error("invalid msg for CallbackReturn_Map_BD_U32");
+      map<BinaryData, uint32_t> bdmap;
 
-      bdmap[addrRef] = addrData.value(0);
+      for (int i = 0; i < msg.scraddrdata_size(); i++)
+      {
+         auto& addrData = msg.scraddrdata(i);
+         auto& addr = addrData.scraddr();
+         BinaryDataRef addrRef;
+         addrRef.setRef(addr);
+
+         if (addrData.value_size() != 1)
+            throw runtime_error("invalid msg for CallbackReturn_Map_BD_U32");
+
+         bdmap[addrRef] = addrData.value(0);
+      }
+
+      ReturnMessage<map<BinaryData, uint32_t>> rm(bdmap);
+
+      if (runInCaller())
+      {
+         userCallbackLambda_(move(rm));
+      }
+      else
+      {
+         thread thr(userCallbackLambda_, move(rm));
+         if (thr.joinable())
+            thr.detach();
+      }
    }
-
-   userCallbackLambda_(move(bdmap));
+   catch (ClientMessageError& e)
+   {
+      ReturnMessage<map<BinaryData, uint32_t>> rm(e);
+      userCallbackLambda_(move(rm));
+   }
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 void CallbackReturn_Map_BD_VecU64::callback(
    const WebSocketMessagePartial& partialMsg)
 {
-   ::Codec_AddressData::ManyAddressData msg;
-   AsyncClient::deserialize(&msg, partialMsg);
-
-   map<BinaryData, vector<uint64_t>> bdMap;
-   for (int i = 0; i < msg.scraddrdata_size(); i++)
+   try
    {
-      auto& addrData = msg.scraddrdata(i);
-      auto& addr = addrData.scraddr();
-      BinaryDataRef addrRef;
-      addrRef.setRef(addr);
-      auto& vec = bdMap[addrRef];
+      ::Codec_AddressData::ManyAddressData msg;
+      AsyncClient::deserialize(&msg, partialMsg);
 
-      for (int y = 0; y < addrData.value_size(); y++)
-         vec.push_back(addrData.value(y));
+      map<BinaryData, vector<uint64_t>> bdMap;
+      for (int i = 0; i < msg.scraddrdata_size(); i++)
+      {
+         auto& addrData = msg.scraddrdata(i);
+         auto& addr = addrData.scraddr();
+         BinaryDataRef addrRef;
+         addrRef.setRef(addr);
+         auto& vec = bdMap[addrRef];
+
+         for (int y = 0; y < addrData.value_size(); y++)
+            vec.push_back(addrData.value(y));
+      }
+
+      ReturnMessage<map<BinaryData, vector<uint64_t>>> rm(bdMap);
+
+      if (runInCaller())
+      {
+         userCallbackLambda_(move(rm));
+      }
+      else
+      {
+         thread thr(userCallbackLambda_, move(rm));
+         if (thr.joinable())
+            thr.detach();
+      }
    }
-
-   userCallbackLambda_(move(bdMap));
+   catch (ClientMessageError& e)
+   {
+      ReturnMessage<map<BinaryData, vector<uint64_t>>> rm(e);
+      userCallbackLambda_(move(rm));
+   }
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 void CallbackReturn_LedgerEntry::callback(
    const WebSocketMessagePartial& partialMsg)
 {
-   auto msg = make_shared<::Codec_LedgerEntry::LedgerEntry>();
-   AsyncClient::deserialize(msg.get(), partialMsg);
+   try
+   {
+      auto msg = make_shared<::Codec_LedgerEntry::LedgerEntry>();
+      AsyncClient::deserialize(msg.get(), partialMsg);
 
-   auto le = make_shared<::ClientClasses::LedgerEntry>(msg);
-   userCallbackLambda_(le);
+      auto le = make_shared<::ClientClasses::LedgerEntry>(msg);
+
+      ReturnMessage<shared_ptr<::ClientClasses::LedgerEntry>> rm(le);
+
+      if (runInCaller())
+      {
+         userCallbackLambda_(move(rm));
+      }
+      else
+      {
+         thread thr(userCallbackLambda_, move(rm));
+         if (thr.joinable())
+            thr.detach();
+      }
+   }
+   catch (ClientMessageError& e)
+   {
+      ReturnMessage<shared_ptr<::ClientClasses::LedgerEntry>> rm(e);
+      userCallbackLambda_(move(rm));
+   }
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 void CallbackReturn_VectorAddressBookEntry::callback(
    const WebSocketMessagePartial& partialMsg)
 {
-   ::Codec_AddressBook::AddressBook addressBook;
-   AsyncClient::deserialize(&addressBook, partialMsg);
-
-   vector<AddressBookEntry> abVec;
-   for (int i = 0; i < addressBook.entry_size(); i++)
+   try
    {
-      auto& entry = addressBook.entry(i);
-      AddressBookEntry abe;
-      abe.scrAddr_.copyFrom(entry.scraddr());
+      ::Codec_AddressBook::AddressBook addressBook;
+      AsyncClient::deserialize(&addressBook, partialMsg);
 
-      for (int y = 0; y < entry.txhash_size(); y++)
+      vector<AddressBookEntry> abVec;
+      for (int i = 0; i < addressBook.entry_size(); i++)
       {
-         BinaryData bd(entry.txhash(y));
-         abe.txHashList_.push_back(move(bd));
-      }
-         
-      abVec.push_back(move(abe));
-   }
+         auto& entry = addressBook.entry(i);
+         AddressBookEntry abe;
+         abe.scrAddr_.copyFrom(entry.scraddr());
 
-   userCallbackLambda_(move(abVec));
+         for (int y = 0; y < entry.txhash_size(); y++)
+         {
+            BinaryData bd(entry.txhash(y));
+            abe.txHashList_.push_back(move(bd));
+         }
+
+         abVec.push_back(move(abe));
+      }
+
+      ReturnMessage<vector<AddressBookEntry>> rm(abVec);
+
+      if (runInCaller())
+      {
+         userCallbackLambda_(move(rm));
+      }
+      else
+      {
+         thread thr(userCallbackLambda_, move(rm));
+         if (thr.joinable())
+            thr.detach();
+      }
+   }
+   catch (ClientMessageError& e)
+   {
+      ReturnMessage<vector<AddressBookEntry>> rm(e);
+      userCallbackLambda_(move(rm));
+   }
 }
 ///////////////////////////////////////////////////////////////////////////////
 void CallbackReturn_Bool::callback(
    const WebSocketMessagePartial& partialMsg)
 {
-   ::Codec_CommonTypes::OneUnsigned msg;
-   AsyncClient::deserialize(&msg, partialMsg);
+   try
+   {
+      ::Codec_CommonTypes::OneUnsigned msg;
+      AsyncClient::deserialize(&msg, partialMsg);
 
-   userCallbackLambda_(bool(msg.value()));
+      ReturnMessage<bool> rm(msg.value());
+
+      if (runInCaller())
+      {
+         userCallbackLambda_(move(rm));
+      }
+      else
+      {
+         thread thr(userCallbackLambda_, move(rm));
+         if (thr.joinable())
+            thr.detach();
+      }
+   }
+   catch (ClientMessageError& e)
+   {
+      ReturnMessage<bool> rm(e);
+      userCallbackLambda_(move(rm));
+   }
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 void CallbackReturn_BlockHeader::callback(
    const WebSocketMessagePartial& partialMsg)
 {
-   ::Codec_CommonTypes::BinaryData msg;
-   AsyncClient::deserialize(&msg, partialMsg);
+   try
+   {
+      ::Codec_CommonTypes::BinaryData msg;
+      AsyncClient::deserialize(&msg, partialMsg);
 
-   auto& str = msg.data();
-   BinaryDataRef ref;
-   ref.setRef(str);
+      auto& str = msg.data();
+      BinaryDataRef ref;
+      ref.setRef(str);
 
-   ClientClasses::BlockHeader bh(ref, height_);
-   userCallbackLambda_(move(bh));
+      ClientClasses::BlockHeader bh(ref, height_);
+
+      ReturnMessage<ClientClasses::BlockHeader> rm(bh);
+
+      if (runInCaller())
+      {
+         userCallbackLambda_(move(rm));
+      }
+      else
+      {
+         thread thr(userCallbackLambda_, move(rm));
+         if (thr.joinable())
+            thr.detach();
+      }
+   }
+   catch (ClientMessageError& e)
+   {
+      ReturnMessage<ClientClasses::BlockHeader> rm(e);
+      userCallbackLambda_(move(rm));
+   }
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1085,6 +1582,114 @@ void CallbackReturn_BDVCallback::callback(
    AsyncClient::deserialize(msg.get(), partialMsg);
 
    userCallbackLambda_(msg);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+void CallbackReturn_CombinedBalances::callback(
+   const WebSocketMessagePartial& partialMsg)
+{
+   try
+   {
+      ::Codec_AddressData::ManyCombinedData msg;
+      AsyncClient::deserialize(&msg, partialMsg);
+
+      set<CombinedBalances> result;
+
+      for (unsigned i=0; i<msg.packedbalance_size(); i++)
+      {
+         auto wltVals = msg.packedbalance(i);
+
+         CombinedBalances cbal;
+         cbal.walletId_ = wltVals.id();
+
+         for (unsigned y=0; y<wltVals.idbalances_size(); y++)
+            cbal.walletBalanceAndCount_.push_back(wltVals.idbalances(y));
+
+         for (unsigned y=0; y<wltVals.addrdata_size(); y++)
+         {
+            auto addrBals = wltVals.addrdata(y);
+               
+            BinaryData scrAddr(addrBals.scraddr());
+
+            vector<uint64_t> abl;
+            for (unsigned z=0; z<addrBals.value_size(); z++)
+               abl.push_back(addrBals.value(z));
+
+            cbal.addressBalances_.insert(make_pair(scrAddr, abl));
+         }
+
+         result.insert(cbal);
+      }
+      
+      ReturnMessage<set<CombinedBalances>> rm(result);
+
+      if (runInCaller())
+      {
+         userCallbackLambda_(move(rm));
+      }
+      else
+      {
+         thread thr(userCallbackLambda_, move(rm));
+         if (thr.joinable())
+            thr.detach();
+      }
+   }
+   catch (ClientMessageError& e)
+   {
+      ReturnMessage<set<CombinedBalances>> rm(e);
+      userCallbackLambda_(move(rm));
+   }  
+}
+
+///////////////////////////////////////////////////////////////////////////////
+void CallbackReturn_CombinedCounts::callback(
+   const WebSocketMessagePartial& partialMsg)
+{
+   try
+   {
+      ::Codec_AddressData::ManyCombinedData msg;
+      AsyncClient::deserialize(&msg, partialMsg);
+
+      set<CombinedCounts> result;
+
+      for (unsigned i=0; i<msg.packedbalance_size(); i++)
+      {
+         auto wltVals = msg.packedbalance(i);
+
+         CombinedCounts cbal;
+         cbal.walletId_ = wltVals.id();
+
+         for (unsigned y=0; y<wltVals.addrdata_size(); y++)
+         {
+            auto addrBals = wltVals.addrdata(y);
+               
+            BinaryData scrAddr(addrBals.scraddr());
+
+            uint64_t bl = addrBals.value(0);
+            cbal.addressTxnCounts_.insert(make_pair(scrAddr, bl));
+         }
+
+         result.insert(cbal);
+      }
+      
+      ReturnMessage<set<CombinedCounts>> rm(result);
+
+      if (runInCaller())
+      {
+         userCallbackLambda_(move(rm));
+      }
+      else
+      {
+         thread thr(userCallbackLambda_, move(rm));
+         if (thr.joinable())
+            thr.detach();
+      }
+   }
+   catch (ClientMessageError& e)
+   {
+      ReturnMessage<set<CombinedCounts>> rm(e);
+      userCallbackLambda_(move(rm));
+   }  
 }
 
 ///////////////////////////////////////////////////////////////////////////////

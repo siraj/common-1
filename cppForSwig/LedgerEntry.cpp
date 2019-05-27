@@ -7,6 +7,8 @@
 ////////////////////////////////////////////////////////////////////////////////
 #include "LedgerEntry.h"
 
+using namespace std;
+
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 //
@@ -275,7 +277,8 @@ map<BinaryData, LedgerEntry> LedgerEntry::computeLedgerMap(
          else
          {
             auto ptx = zc->getTxByKey(txioVec.first);
-            nTxOutInTx = ptx->outputs_.size();
+            if(ptx != nullptr)
+               nTxOutInTx = ptx->outputs_.size();
          }
 
          if (nTxOutInTx == nTxOutAreOurs)

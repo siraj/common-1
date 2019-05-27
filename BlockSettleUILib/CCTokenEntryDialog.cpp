@@ -6,16 +6,14 @@
 #include <QPushButton>
 #include <spdlog/spdlog.h>
 #include "CCFileManager.h"
-#include "HDLeaf.h"
-#include "HDWallet.h"
-#include "MessageBoxCritical.h"
-#include "MessageBoxInfo.h"
-#include "MessageBoxQuestion.h"
+#include "BSMessageBox.h"
 #include "SignContainer.h"
-#include "WalletsManager.h"
+#include "Wallets/SyncHDLeaf.h"
+#include "Wallets/SyncHDWallet.h"
+#include "Wallets/SyncWalletsManager.h"
 
 
-CCTokenEntryDialog::CCTokenEntryDialog(const std::shared_ptr<WalletsManager> &walletsMgr
+CCTokenEntryDialog::CCTokenEntryDialog(const std::shared_ptr<bs::sync::WalletsManager> &walletsMgr
       , const std::shared_ptr<CCFileManager> &ccFileMgr
       , const std::shared_ptr<SignContainer> &container
       , QWidget *parent)
@@ -31,29 +29,14 @@ CCTokenEntryDialog::CCTokenEntryDialog(const std::shared_ptr<WalletsManager> &wa
    connect(ui_->lineEditToken, &QLineEdit::textEdited, this, &CCTokenEntryDialog::tokenChanged);
 
    connect(ccFileMgr_.get(), &CCFileManager::CCAddressSubmitted, this, &CCTokenEntryDialog::onCCAddrSubmitted, Qt::QueuedConnection);
+   connect(ccFileMgr_.get(), &CCFileManager::CCInitialSubmitted, this, &CCTokenEntryDialog::onCCInitialSubmitted, Qt::QueuedConnection);
+   connect(ccFileMgr_.get(), &CCFileManager::CCSubmitFailed, this, &CCTokenEntryDialog::onCCSubmitFailed, Qt::QueuedConnection);
 
    connect(signingContainer_.get(), &SignContainer::HDLeafCreated, this, &CCTokenEntryDialog::onWalletCreated);
    connect(signingContainer_.get(), &SignContainer::Error, this, &CCTokenEntryDialog::onWalletFailed);
 
-   switch (ccFileMgr_->GetOtpEncType()) {
-   case bs::wallet::EncryptionType::Auth:
-      ui_->groupBoxOtpPassword->hide();
-      ui_->labelAuth->show();
-      break;
+   ccFileMgr_->LoadCCDefinitionsFromPub();
 
-   case bs::wallet::EncryptionType::Password:
-      ui_->labelAuth->hide();
-      ui_->groupBoxOtpPassword->show();
-      connect(ui_->lineEditOtpPassword, &QLineEdit::textEdited, this, &CCTokenEntryDialog::passwordChanged);
-      break;
-
-   case bs::wallet::EncryptionType::Unencrypted:
-   default:
-      ui_->labelAuth->hide();
-      ui_->groupBoxOtpPassword->hide();
-      passwordOk_ = true;
-      break;
-   }
    updateOkState();
 }
 
@@ -68,7 +51,9 @@ void CCTokenEntryDialog::tokenChanged()
       return;
    }
    try {
-      const auto decoded = BtcUtils::base58toScrAddr(strToken).toBinStr();
+      BinaryData base58In(strToken);
+      base58In.append('\0'); // Remove once base58toScrAddr() is fixed.
+      const auto decoded = BtcUtils::base58toScrAddr(base58In).toBinStr();
       Blocksettle::Communication::CCSeedResponse response;
       if (!response.ParseFromString(decoded)) {
          throw std::invalid_argument("invalid internal token structure");
@@ -76,14 +61,14 @@ void CCTokenEntryDialog::tokenChanged()
       seed_ = response.bsseed();
       ccProduct_ = response.ccproduct();
 
-      ccWallet_ = walletsMgr_->GetCCWallet(ccProduct_);
+      ccWallet_ = walletsMgr_->getCCWallet(ccProduct_);
       if (!ccWallet_) {
          ui_->labelTokenHint->setText(tr("The Terminal will prompt you to create the relevant subwallet,"
             " if required").arg(QString::fromStdString(ccProduct_)));
 
          MessageBoxCCWalletQuestion qry(QString::fromStdString(ccProduct_), this);
          if (qry.exec() == QDialog::Accepted) {
-            const auto priWallet = walletsMgr_->GetPrimaryWallet();
+            const auto priWallet = walletsMgr_->getPrimaryWallet();
             if (!priWallet->getGroup(bs::hd::CoinType::BlockSettle_CC)) {
                priWallet->createGroup(bs::hd::CoinType::BlockSettle_CC);
             }
@@ -91,7 +76,7 @@ void CCTokenEntryDialog::tokenChanged()
             path.append(bs::hd::purpose, true);
             path.append(bs::hd::BlockSettle_CC, true);
             path.append(ccProduct_, true);
-            createWalletReqId_ = signingContainer_->CreateHDLeaf(priWallet, path);
+            createWalletReqId_ = signingContainer_->createHDLeaf(priWallet->walletId(), path);
          }
          else {
             reject();
@@ -107,28 +92,21 @@ void CCTokenEntryDialog::tokenChanged()
    updateOkState();
 }
 
-void CCTokenEntryDialog::passwordChanged()
-{
-   passwordOk_ = !ui_->lineEditOtpPassword->text().isEmpty();
-   otpPassword_ = ui_->lineEditOtpPassword->text().toStdString();
-   updateOkState();
-}
-
 void CCTokenEntryDialog::updateOkState()
 {
-   ui_->pushButtonOk->setEnabled(walletOk_ && passwordOk_);
+   ui_->pushButtonOk->setEnabled(walletOk_);
 }
 
-void CCTokenEntryDialog::onWalletCreated(unsigned int id, BinaryData pubKey, BinaryData chainCode, std::string walletId)
+void CCTokenEntryDialog::onWalletCreated(unsigned int id, const std::shared_ptr<bs::sync::hd::Leaf> &leaf)
 {
    if (!createWalletReqId_ || (createWalletReqId_ != id)) {
       return;
    }
    createWalletReqId_ = 0;
-   const auto priWallet = walletsMgr_->GetPrimaryWallet();
+   const auto priWallet = walletsMgr_->getPrimaryWallet();
    const auto group = priWallet->getGroup(bs::hd::BlockSettle_CC);
-   const auto leafNode = std::make_shared<bs::hd::Node>(pubKey, chainCode, priWallet->networkType());
-   ccWallet_ = group->createLeaf(bs::hd::Path::keyToElem(ccProduct_), leafNode);
+   group->addLeaf(leaf);
+   ccWallet_ = leaf;
    if (ccWallet_) {
       walletOk_ = true;
       ui_->labelTokenHint->setText(tr("Private Market subwallet for %1 created!").arg(QString::fromStdString(ccProduct_)));
@@ -147,6 +125,7 @@ void CCTokenEntryDialog::onWalletFailed(unsigned int id, std::string errMsg)
    createWalletReqId_ = 0;
    ui_->labelTokenHint->setText(tr("Failed to create CC subwallet %1: %2")
       .arg(QString::fromStdString(ccProduct_)).arg(QString::fromStdString(errMsg)));
+
 }
 
 void CCTokenEntryDialog::accept()
@@ -155,48 +134,33 @@ void CCTokenEntryDialog::accept()
       reject();
       return;
    }
-   const auto address = ccWallet_->GetNewExtAddress();
-   signingContainer_->SyncAddresses({ { ccWallet_, address } });
+   const auto address = ccWallet_->getNewExtAddress();
 
-   const auto &cbPasswordQuery = [this] { return otpPassword_; };
-   if (!ccFileMgr_->SubmitAddressToPuB(address, seed_, cbPasswordQuery)) {
-      reject();
-      MessageBoxCritical(tr("CC Token submit failure")
-         , tr("Failed to submit Private Market token to BlockSettle"), this).exec();
-   }
-   else {
+   if (ccFileMgr_->SubmitAddressToPuB(address, seed_)) {
       ui_->pushButtonOk->setEnabled(false);
    }
+   else {
+      onCCSubmitFailed(QString::fromStdString(address.display())
+         , tr("Submission to PB failed"));
+   }
 }
 
-void CCTokenEntryDialog::reject()
-{
-   QDialog::reject();
-}
-
-void CCTokenEntryDialog::onCCAddrSubmitted(const QString addr)
+void CCTokenEntryDialog::onCCAddrSubmitted(const QString)
 {
    QDialog::accept();
-   MessageBoxInfo(tr("Successful Submission")
+   BSMessageBox(BSMessageBox::info, tr("Submission Successful")
       , tr("The token has been submitted, please note that it might take a while before the"
-         " transaction is broadcasted in the Terminal")).exec();
+         " transaction is broadcast in the Terminal")).exec();
 }
 
-void CCTokenEntryDialog::onAuthSucceeded(SecureBinaryData password)
+void CCTokenEntryDialog::onCCInitialSubmitted(const QString)
 {
-   otpPassword_ = password;
-   passwordOk_ = true;
-   ui_->labelAuth->setText(tr("OTP signed with Auth"));
-   updateOkState();
+   ui_->labelTokenHint->setText(tr("Request was sent"));
 }
 
-void CCTokenEntryDialog::onAuthFailed(const QString &)
+void CCTokenEntryDialog::onCCSubmitFailed(const QString, const QString &err)
 {
-   passwordOk_ = false;
-   QDialog::reject();
-}
-
-void CCTokenEntryDialog::onAuthStatusUpdated(const QString &status)
-{
-   ui_->labelAuth->setText(tr("Auth status: %1").arg(status));
+   reject();
+   BSMessageBox(BSMessageBox::critical, tr("CC Token submit failure")
+      , tr("Failed to submit Private Market token to BlockSettle"), err, this).exec();
 }

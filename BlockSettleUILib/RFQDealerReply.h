@@ -11,7 +11,7 @@
 #include <unordered_set>
 #include "CommonTypes.h"
 #include "EncryptionUtils.h"
-#include "MetaData.h"
+#include "QWalletInfo.h"
 
 namespace Ui {
     class RFQDealerReply;
@@ -21,8 +21,13 @@ namespace spdlog {
 }
 namespace bs {
    class DealerUtxoResAdapter;
-   class SettlementAddressEntry;
-   class Wallet;
+   namespace sync {
+      namespace hd {
+         class Leaf;
+      }
+      class Wallet;
+      class WalletsManager;
+   }
 }
 class ApplicationSettings;
 class ArmoryConnection;
@@ -32,9 +37,9 @@ class QuoteProvider;
 class SelectedTransactionInputs;
 class SignContainer;
 class TransactionData;
-class WalletsManager;
 class CustomDoubleSpinBox;
 class MarketDataProvider;
+class ConnectionManager;
 
 QT_BEGIN_NAMESPACE
 class QDoubleSpinBox;
@@ -62,10 +67,11 @@ namespace bs {
             , const std::shared_ptr<AssetManager>& assetManager
             , const std::shared_ptr<QuoteProvider>& quoteProvider
             , const std::shared_ptr<ApplicationSettings> &
+            , const std::shared_ptr<ConnectionManager> &connectionManager
             , const std::shared_ptr<SignContainer> &
             , const std::shared_ptr<ArmoryConnection> &
             , std::shared_ptr<MarketDataProvider> mdProvider);
-         void setWalletsManager(const std::shared_ptr<WalletsManager> &walletsManager);
+         void setWalletsManager(const std::shared_ptr<bs::sync::WalletsManager> &);
 
          std::shared_ptr<TransactionData> getTransactionData(const std::string &reqId) const;
          bool autoSign() const;
@@ -77,8 +83,7 @@ namespace bs {
          QPushButton* quoteButton() const;
 
       signals:
-         void aqScriptLoaded(const QString &filename);
-         void autoSignActivated(const SecureBinaryData &password, const QString &hdWalletId, bool active);
+         void autoSignActivated(const QString &hdWalletId, bool active);
          void submitQuoteNotif(network::QuoteNotification);
          void pullQuoteNotif(const QString &reqId, const QString &reqSessToken);
 
@@ -101,18 +106,17 @@ namespace bs {
          void aqFillHistory();
          void aqScriptChanged(int curIndex);
          void onAqScriptLoaded(const QString &filename);
+         void onAqScriptFailed(const QString &filename, const QString &error);
          void walletSelected(int index);
          void onTransactionDataChanged();
-         void aqStateChanged(int state);
+         void checkBoxAQClicked();
          void onAQReply(const bs::network::QuoteReqNotification &qrn, double price);
          void onReservedUtxosChanged(const std::string &walletId, const std::vector<UTXO> &);
          void onOrderUpdated(const bs::network::Order &);
-         void onHDLeafCreated(unsigned int id, BinaryData pubKey, BinaryData chainCode, std::string walletId);
+         void onHDLeafCreated(unsigned int id, const std::shared_ptr<bs::sync::hd::Leaf> &);
          void onCreateHDWalletError(unsigned int id, std::string error);
          void onSignerStateUpdated();
          void onAutoSignActivated();
-         void onHDWalletInfo(unsigned int id, std::vector<bs::wallet::EncryptionType> encTypes
-            , std::vector<SecureBinaryData> encKeys, bs::wallet::KeyRank keyRank);
 
       protected:
          bool eventFilter(QObject *watched, QEvent *evt) override;
@@ -120,23 +124,25 @@ namespace bs {
       private:
          std::unique_ptr<Ui::RFQDealerReply> ui_;
          std::shared_ptr<spdlog::logger>        logger_;
-         std::shared_ptr<WalletsManager>        walletsManager_;
+         std::shared_ptr<bs::sync::WalletsManager> walletsManager_;
          std::shared_ptr<AuthAddressManager>    authAddressManager_;
          std::shared_ptr<AssetManager>          assetManager_;
          std::shared_ptr<QuoteProvider>         quoteProvider_;
          std::shared_ptr<ApplicationSettings>   appSettings_;
+         std::shared_ptr<ConnectionManager>     connectionManager_;
          std::shared_ptr<SignContainer>         signingContainer_;
          std::shared_ptr<ArmoryConnection>      armory_;
          std::shared_ptr<MarketDataProvider>    mdProvider_;
 
-         std::shared_ptr<bs::Wallet>   curWallet_;
-         std::shared_ptr<bs::Wallet>   prevWallet_;
-         std::shared_ptr<bs::Wallet>   ccWallet_;
-         std::shared_ptr<bs::Wallet>   xbtWallet_;
+         std::shared_ptr<bs::sync::Wallet>   curWallet_;
+         std::shared_ptr<bs::sync::Wallet>   prevWallet_;
+         std::shared_ptr<bs::sync::Wallet>   ccWallet_;
+         std::shared_ptr<bs::sync::Wallet>   xbtWallet_;
 
          std::unordered_map<std::string, double>   sentNotifs_;
          network::QuoteReqNotification    currentQRN_;
          std::shared_ptr<TransactionData> transactionData_;
+         unsigned int   payInRecipId_ = UINT_MAX;
          bool dealerSellXBT_;
          std::shared_ptr<SelectedTransactionInputs>   ccCoinSel_;
 
@@ -145,7 +151,6 @@ namespace bs {
          std::atomic_bool     autoUpdatePrices_;
 
          unsigned int         leafCreateReqId_ = 0;
-         unsigned int         autoSignWalletInfoReqId_ = 0;
          std::string          autoSignWalletId_;
 
          std::string product_;
@@ -175,12 +180,13 @@ namespace bs {
          double getPrice() const;
          double getValue() const;
          double getAmount() const;
-         std::shared_ptr<bs::Wallet> getCurrentWallet() const { return curWallet_; }
-         void setCurrentWallet(const std::shared_ptr<bs::Wallet> &);
-         std::shared_ptr<bs::Wallet> getCCWallet(const std::string &cc);
-         std::shared_ptr<bs::Wallet> getXbtWallet();
+         std::shared_ptr<bs::sync::Wallet> getCurrentWallet() const { return curWallet_; }
+         void setCurrentWallet(const std::shared_ptr<bs::sync::Wallet> &);
+         std::shared_ptr<bs::sync::Wallet> getCCWallet(const std::string &cc);
+         std::shared_ptr<bs::sync::Wallet> getXbtWallet();
          bs::Address getRecvAddress() const;
          void initAQ(const QString &filename);
+         void deinitAQ();
          void setBalanceOk(bool ok);
          void updateRecvAddresses();
          bool checkBalance() const;

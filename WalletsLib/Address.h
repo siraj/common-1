@@ -3,8 +3,6 @@
 
 #include <string>
 
-#include <QByteArray>
-
 #include "Addresses.h"
 #include "BinaryData.h"
 #include "BTCNumericTypes.h"
@@ -19,15 +17,14 @@ namespace bs {
          Auto,
          Base58,
          Hex,
-         Bech32
+         Bech32,
+         Binary
       };
 
       Address(AddressEntryType aet = AddressEntryType_Default) : BinaryData(), aet_(aet) {}
       Address(const BinaryData &data, AddressEntryType aet = AddressEntryType_Default);
       Address(const BinaryDataRef &data, AddressEntryType aet = AddressEntryType_Default);
-      Address(const QByteArray &data, AddressEntryType aet = AddressEntryType_Default);
-      Address(const QString &data, Format f = Auto, AddressEntryType aet = AddressEntryType_Default);
-      Address(const std::string &data, Format f = Auto, AddressEntryType aet = AddressEntryType_Default);
+      Address(const std::string &data, const Format &f = Auto, AddressEntryType aet = AddressEntryType_Default);
 
       bool operator==(const Address &) const;
       bool operator!=(const Address &addr) const { return !((*this) == addr); }
@@ -35,8 +32,10 @@ namespace bs {
       bool operator>(const Address &addr) const { return (id() > addr.id()); }
 
       AddressEntryType getType() const { return aet_; }
+      Format format() const { return format_; }
       bool isValid() const;
-      template<typename TRetVal = QString> TRetVal display(Format format = Auto) const;
+      void clear();
+      std::string display(Format format = Auto) const;
       BinaryData prefixed() const;
       BinaryData unprefixed() const;
       BinaryData id() const;
@@ -44,6 +43,9 @@ namespace bs {
       BinaryData getWitnessScript() const;
       std::shared_ptr<ScriptRecipient> getRecipient(uint64_t amount) const;
       std::shared_ptr<ScriptRecipient> getRecipient(double amount) const;
+
+      size_t getInputSize() const;
+      size_t getWitnessDataSize() const;  // returns UINT32_MAX if irrelevant
 
       static bs::Address fromPubKey(const BinaryData &data, AddressEntryType aet = AddressEntryType_Default) {
          return Address(BtcUtils::getHash160(data), aet);
@@ -59,6 +61,7 @@ namespace bs {
       static AddressEntryType guessAddressType(const BinaryData &addr);
 
    private:
+      Format               format_ = Format::Binary;
       AddressEntryType     aet_;
       mutable BinaryData   prefixed_ = {};
       mutable BinaryData   witnessScr_ = {};

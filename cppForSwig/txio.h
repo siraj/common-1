@@ -49,13 +49,16 @@ public:
    void      setValue(const uint64_t& newVal) { amount_ = newVal; }
 
    //////////////////////////////////////////////////////////////////////////////
-   TxRef     getTxRefOfOutput(void) const { return txRefOfOutput_; }
-   TxRef     getTxRefOfInput(void) const  { return txRefOfInput_; }
+   TxRef     getTxRefOfOutput(void) { return txRefOfOutput_; }
+   TxRef     getTxRefOfInput(void) { return txRefOfInput_; }
+   const TxRef& getTxRefOfOutput(void) const { return txRefOfOutput_; }
+   const TxRef& getTxRefOfInput(void) const { return txRefOfInput_; }
+
    uint32_t  getIndexOfOutput(void) const { return indexOfOutput_; }
    uint32_t  getIndexOfInput(void) const  { return indexOfInput_; }
    OutPoint  getOutPoint(LMDBBlockDatabase *db) const { return OutPoint(getTxHashOfOutput(db), indexOfOutput_); }
 
-   pair<bool, bool> reassessValidity(LMDBBlockDatabase *db);
+   std::pair<bool, bool> reassessValidity(LMDBBlockDatabase *db);
    bool  isTxOutFromSelf(void) const  { return isTxOutFromSelf_; }
    void setTxOutFromSelf(bool isTrue = true) { isTxOutFromSelf_ = isTrue; }
    bool  isFromCoinbase(void) const { return isFromCoinbase_; }
@@ -103,7 +106,8 @@ public:
    bool isSpent(LMDBBlockDatabase *db) const;
    bool isUnspent(LMDBBlockDatabase *db) const;
    bool isSpendable(LMDBBlockDatabase *db, uint32_t currBlk) const;
-   bool isMineButUnconfirmed(LMDBBlockDatabase *db, uint32_t currBlk) const;
+   bool isMineButUnconfirmed(
+      LMDBBlockDatabase *db, uint32_t currBlk, unsigned confTarget) const;
    void pprintOneLine(LMDBBlockDatabase *db) const;
 
    bool operator<(TxIOPair const & t2)

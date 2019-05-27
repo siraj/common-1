@@ -16,7 +16,17 @@
 namespace Ui {
     class RFQReplyWidget;
 }
-class ArmoryConnection;
+namespace spdlog {
+   class logger;
+}
+namespace bs {
+   namespace sync {
+      class WalletsManager;
+   }
+   class SettlementAddressEntry;
+   class SecurityStatsCollector;
+}
+class ArmoryObject;
 class AssetManager;
 class AuthAddressManager;
 class CelerClient;
@@ -24,17 +34,9 @@ class DialogManager;
 class MarketDataProvider;
 class QuoteProvider;
 class SignContainer;
-class WalletsManager;
 class ApplicationSettings;
+class ConnectionManager;
 
-namespace spdlog
-{
-   class logger;
-}
-namespace bs {
-   class SettlementAddressEntry;
-   class SecurityStatsCollector;
-}
 
 class RFQReplyWidget : public TabWithShortcut
 {
@@ -53,8 +55,10 @@ public:
       , const std::shared_ptr<ApplicationSettings> &appSettings
       , const std::shared_ptr<DialogManager> &dialogManager
       , const std::shared_ptr<SignContainer> &
-      , const std::shared_ptr<ArmoryConnection> &);
-   void SetWalletsManager(const std::shared_ptr<WalletsManager> &walletsManager);
+      , const std::shared_ptr<ArmoryObject> &
+      , const std::shared_ptr<ConnectionManager> &connectionManager);
+
+   void setWalletsManager(const std::shared_ptr<bs::sync::WalletsManager> &);
 
    void shortcutActivated(ShortcutType s) override;
 
@@ -67,7 +71,7 @@ private slots:
    void saveTxData(QString orderId, std::string txData);
    void onSignTxRequested(QString orderId, QString reqId);
    void onReadyToAutoSign();
-   void onAutoSignActivated(const SecureBinaryData &password, const QString &hdWalletId, bool active);
+   void onAutoSignActivated(const QString &hdWalletId, bool active);
 
 private:
    void showSettlementDialog(QDialog *dlg);
@@ -90,11 +94,12 @@ private:
    std::shared_ptr<QuoteProvider>         quoteProvider_;
    std::shared_ptr<AuthAddressManager>    authAddressManager_;
    std::shared_ptr<AssetManager>          assetManager_;
-   std::shared_ptr<WalletsManager>        walletsManager_;
+   std::shared_ptr<bs::sync::WalletsManager> walletsManager_;
    std::shared_ptr<DialogManager>         dialogManager_;
    std::shared_ptr<SignContainer>         signingContainer_;
-   std::shared_ptr<ArmoryConnection>      armory_;
+   std::shared_ptr<ArmoryObject>          armory_;
    std::shared_ptr<ApplicationSettings>   appSettings_;
+   std::shared_ptr<ConnectionManager>     connectionManager_;
 
    std::unordered_map<std::string, transaction_data_ptr>   sentXbtTransactionData_;
    std::unordered_map<std::string, SentCCReply>    sentCCReplies_;

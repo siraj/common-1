@@ -1,9 +1,9 @@
 #include "BaseDealerSettlementDialog.h"
 #include <QCoreApplication>
-#include "HDWallet.h"
+#include "Wallets/SyncHDWallet.h"
 #include "SettlementContainer.h"
 #include "SignContainer.h"
-#include "WalletKeysSubmitWidget.h"
+#include "ManageEncryption/WalletKeysSubmitWidget.h"
 #include <spdlog/spdlog.h>
 
 
@@ -11,12 +11,14 @@ BaseDealerSettlementDialog::BaseDealerSettlementDialog(const std::shared_ptr<spd
       , const std::shared_ptr<bs::SettlementContainer> &settlContainer
       , const std::shared_ptr<SignContainer> &signContainer
       , const std::shared_ptr<ApplicationSettings> &appSettings
+      , const std::shared_ptr<ConnectionManager> &connectionManager
       , QWidget* parent)
    : QDialog(parent)
    , logger_(logger)
    , settlContainer_(settlContainer)
    , signContainer_(signContainer)
    , appSettings_(appSettings)
+   , connectionManager_(connectionManager)
 {
    connect(settlContainer_.get(), &bs::SettlementContainer::timerStarted, this, &BaseDealerSettlementDialog::onTimerStarted);
    connect(settlContainer_.get(), &bs::SettlementContainer::timerStopped, this, &BaseDealerSettlementDialog::onTimerStopped);
@@ -26,13 +28,16 @@ BaseDealerSettlementDialog::BaseDealerSettlementDialog(const std::shared_ptr<spd
    connect(settlContainer_.get(), &bs::SettlementContainer::error, [this](QString msg) { setCriticalHintMessage(msg); });
    connect(settlContainer_.get(), &bs::SettlementContainer::info, [this](QString msg) { setHintText(msg); });
 
-   connect(signContainer_.get(), &SignContainer::HDWalletInfo, this, &BaseDealerSettlementDialog::onHDWalletInfo);
+   connect(signContainer_.get(), &SignContainer::QWalletInfo, this, &BaseDealerSettlementDialog::onWalletInfo);
 }
 
-void BaseDealerSettlementDialog::connectToProgressBar(QProgressBar *progressBar)
+void BaseDealerSettlementDialog::connectToProgressBar(QProgressBar *progressBar, QLabel *timeLeftLabel)
 {
    progressBar_ = progressBar;
    progressBar_->hide();
+
+   timeLeftLabel_ = timeLeftLabel;
+   timeLeftLabel_->hide();
 }
 
 void BaseDealerSettlementDialog::connectToHintLabel(QLabel *hintLabel, QLabel *errorLabel)
@@ -67,9 +72,13 @@ void BaseDealerSettlementDialog::setAuthPasswordPrompt(const QString &prompt)
 
 void BaseDealerSettlementDialog::onTimerStarted(int msDuration)
 {
+   timeLeftLabel_->show();
+   timeLeftLabel_->setText(tr("%1 second(s) remaining")
+                               .arg(QString::number(msDuration > 0 ? msDuration/1000 : 0)));
+
    progressBar_->show();
-   progressBar_->setMinimum(0);
    progressBar_->setMaximum(msDuration);
+   progressBar_->setMinimum(0);
    progressBar_->setValue(progressBar_->maximum());
    progressBar_->setFormat(QString());
 }
@@ -92,31 +101,34 @@ void BaseDealerSettlementDialog::reject()
    QDialog::reject();
 }
 
-void BaseDealerSettlementDialog::onHDWalletInfo(unsigned int id, std::vector<bs::wallet::EncryptionType> encTypes
-   , std::vector<SecureBinaryData> encKeys, bs::wallet::KeyRank keyRank)
+void BaseDealerSettlementDialog::onWalletInfo(unsigned int reqId, const bs::hd::WalletInfo &walletInfo)
 {
-   if (!infoReqId_ || (id != infoReqId_)) {
+   if (!infoReqId_ || (reqId != infoReqId_)) {
       return;
    }
    infoReqId_ = 0;
    walletInfoReceived_ = true;
-   encTypes_ = encTypes;
-   encKeys_ = encKeys;
-   keyRank_ = keyRank;
+
+   // just update walletInfo_  to save walletName and id
+   walletInfo_.setEncKeys(walletInfo.encKeys());
+   walletInfo_.setEncTypes(walletInfo.encTypes());
+   walletInfo_.setKeyRank(walletInfo.keyRank());
+
    if (accepting_) {
       startAccepting();
    }
 }
 
-void BaseDealerSettlementDialog::setWallet(const std::shared_ptr<bs::hd::Wallet> &wallet)
+void BaseDealerSettlementDialog::setWallet(const std::shared_ptr<bs::sync::hd::Wallet> &wallet)
 {
    widgetPassword()->hide();
    connect(widgetWalletKeys(), &WalletKeysSubmitWidget::keyChanged, [this] { validateGUI(); });
 
    rootWallet_ = wallet;
    if (signContainer_ && !signContainer_->isOffline()) {
-      infoReqId_ = signContainer_->GetInfo(wallet);
+      infoReqId_ = signContainer_->GetInfo(rootWallet_->walletId());
    }
+   walletInfo_ = bs::hd::WalletInfo(rootWallet_);
 }
 
 void BaseDealerSettlementDialog::readyToAccept()
@@ -133,8 +145,8 @@ void BaseDealerSettlementDialog::startAccepting()
       logger_->error("[BaseDealerSettlementDialog::startAccepting] no root wallet");
       return;
    }
-   widgetWalletKeys()->init(MobileClientRequest::SettlementTransaction, rootWallet_->getWalletId()
-      , keyRank_, encTypes_, encKeys_, appSettings_);
+   widgetWalletKeys()->init(AutheIDClient::SettlementTransaction, walletInfo_
+                            , WalletKeyWidget::UseType::RequestAuthInParent, logger_, appSettings_, connectionManager_);
    widgetPassword()->show();
    widgetWalletKeys()->setFocus();
    QCoreApplication::processEvents();

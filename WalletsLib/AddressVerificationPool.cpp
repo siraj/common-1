@@ -5,9 +5,9 @@
 
 #include <spdlog/spdlog.h>
 
-#include <QString>
 
-AddressVerificationPool::AddressVerificationPool(const std::shared_ptr<spdlog::logger>& logger, const std::string& poolId
+AddressVerificationPool::AddressVerificationPool(const std::shared_ptr<spdlog::logger>& logger
+   , const std::string& poolId
    , const std::shared_ptr<ArmoryConnection> &armory)
    : logger_(logger)
    , poolId_(poolId)
@@ -22,9 +22,9 @@ AddressVerificationPool::AddressVerificationPool(const std::shared_ptr<spdlog::l
 bool AddressVerificationPool::SubmitForVerification(const std::shared_ptr<AuthAddress>& address
       , const verificationCompletedCallback& onCompleted)
 {
-   auto addressString = address->GetChainedAddress().display<std::string>();
+   auto addressString = address->GetChainedAddress().display();
 
-   uint pendingVerifications = 0;
+   unsigned int pendingVerifications = 0;
 
    {
       FastLock locker(pendingLockerFlag_);
@@ -51,7 +51,7 @@ bool AddressVerificationPool::SubmitForVerification(const std::shared_ptr<AuthAd
 
 void AddressVerificationPool::completeVerification(const std::shared_ptr<AuthAddress>& address, AddressVerificationState state)
 {
-   auto addressString = address->GetChainedAddress().display<std::string>();
+   auto addressString = address->GetChainedAddress().display();
    std::queue<verificationCompletedCallback> callbackQueue;
 
    size_t pendingCount = 0;

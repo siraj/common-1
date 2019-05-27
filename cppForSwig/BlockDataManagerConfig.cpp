@@ -1,6 +1,6 @@
 ////////////////////////////////////////////////////////////////////////////////
 //                                                                            //
-//  Copyright (C) 2016, goatpig                                               //
+//  Copyright (C) 2016-19, goatpig                                            //
 //  Distributed under the MIT license                                         //
 //  See LICENSE-MIT or https://opensource.org/licenses/MIT                    //
 //                                                                            //
@@ -13,20 +13,21 @@
 #include "EncryptionUtils.h"
 #include "JSON_codec.h"
 #include "SocketObject.h"
+#include "BIP150_151.h"
 #ifndef _WIN32
 #include "sys/stat.h"
 #endif
+
+using namespace std;
 
 ////////////////////////////////////////////////////////////////////////////////
 //
 // NodeStatusStruct
 //
 ////////////////////////////////////////////////////////////////////////////////
-uint8_t BlockDataManagerConfig::pubkeyHashPrefix_;
-uint8_t BlockDataManagerConfig::scriptHashPrefix_;
 ARMORY_DB_TYPE BlockDataManagerConfig::armoryDbType_ = ARMORY_DB_FULL;
-SOCKET_SERVICE BlockDataManagerConfig::service_ = SERVICE_FCGI;
-
+SOCKET_SERVICE BlockDataManagerConfig::service_ = SERVICE_WEBSOCKET;
+ARMORY_OPERATION_MODE BlockDataManagerConfig::operationMode_ = OPERATION_REGULAR;
 
 ////////////////////////////////////////////////////////////////////////////////
 const string BlockDataManagerConfig::dbDirExtention_ = "/databases";
@@ -77,11 +78,14 @@ const string BlockDataManagerConfig::defaultRegtestBlkFileLocation_ =
    "~/.bitcoin/regtest/blocks";
 #endif
 
+string BlockDataManagerConfig::dataDir_ = "";
+bool BlockDataManagerConfig::ephemeralPeers_ = false;
+
 ////////////////////////////////////////////////////////////////////////////////
 BlockDataManagerConfig::BlockDataManagerConfig() :
-   cookie_(SecureBinaryData().GenerateRandom(32).toHexStr())
+   cookie_(CryptoPRNG::generateRandom(32).toHexStr())
 {
-   selectNetwork("Main");
+   selectNetwork(NETWORK_MODE_MAINNET);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -93,50 +97,69 @@ string BlockDataManagerConfig::portToString(unsigned port)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void BlockDataManagerConfig::selectNetwork(const string &netname)
+bool BlockDataManagerConfig::fileExists(const string& path, int mode)
 {
-   if (netname == "Main")
+#ifdef _WIN32
+   return _access(path.c_str(), mode) == 0;
+#else
+   auto nixmode = F_OK;
+   if (mode & 2)
+      nixmode |= R_OK;
+   if (mode & 4)
+      nixmode |= W_OK;
+   return access(path.c_str(), nixmode) == 0;
+#endif
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void BlockDataManagerConfig::selectNetwork(NETWORK_MODE mode)
+{
+   NetworkConfig::selectNetwork(mode);
+
+   switch (mode)
    {
-      genesisBlockHash_ = READHEX(MAINNET_GENESIS_HASH_HEX);
-      genesisTxHash_ = READHEX(MAINNET_GENESIS_TX_HASH_HEX);
-      magicBytes_ = READHEX(MAINNET_MAGIC_BYTES);
-      btcPort_ = portToString(NODE_PORT_MAINNET);
+   case NETWORK_MODE_MAINNET:
+   {
       rpcPort_ = portToString(RPC_PORT_MAINNET);
-      pubkeyHashPrefix_ = SCRIPT_PREFIX_HASH160;
-      scriptHashPrefix_ = SCRIPT_PREFIX_P2SH;
       
-      if (!customFcgiPort_)
+      if (!customListenPort_)
          listenPort_ = portToString(LISTEN_PORT_MAINNET);
-   }
-   else if (netname == "Test")
-   {
-      genesisBlockHash_ = READHEX(TESTNET_GENESIS_HASH_HEX);
-      genesisTxHash_ = READHEX(TESTNET_GENESIS_TX_HASH_HEX);
-      magicBytes_ = READHEX(TESTNET_MAGIC_BYTES);
-      btcPort_ = portToString(NODE_PORT_TESTNET);
-      rpcPort_ = portToString(RPC_PORT_TESTNET);
-      pubkeyHashPrefix_ = SCRIPT_PREFIX_HASH160_TESTNET;
-      scriptHashPrefix_ = SCRIPT_PREFIX_P2SH_TESTNET;
-
-      testnet_ = true;
       
-      if (!customFcgiPort_)
+      if(!customBtcPort_)
+         btcPort_ = portToString(NODE_PORT_MAINNET);
+
+      break;
+   }
+
+   case NETWORK_MODE_TESTNET:
+   {
+      rpcPort_ = portToString(RPC_PORT_TESTNET);
+
+      if (!customListenPort_)
          listenPort_ = portToString(LISTEN_PORT_TESTNET);
-   }
-   else if (netname == "Regtest")
-   {
-      genesisBlockHash_ = READHEX(REGTEST_GENESIS_HASH_HEX);
-      genesisTxHash_ = READHEX(REGTEST_GENESIS_TX_HASH_HEX);
-      magicBytes_ = READHEX(REGTEST_MAGIC_BYTES);
-      btcPort_ = portToString(NODE_PORT_REGTEST);
-      rpcPort_ = portToString(RPC_PORT_TESTNET);
-      pubkeyHashPrefix_ = SCRIPT_PREFIX_HASH160_TESTNET;
-      scriptHashPrefix_ = SCRIPT_PREFIX_P2SH_TESTNET;
 
-      regtest_ = true;
-      
-      if (!customFcgiPort_)
+      if (!customBtcPort_)
+         btcPort_ = portToString(NODE_PORT_TESTNET);
+
+      break;
+   }
+
+   case NETWORK_MODE_REGTEST:
+   {
+      rpcPort_ = portToString(RPC_PORT_REGTEST);
+
+      if (!customListenPort_)
          listenPort_ = portToString(LISTEN_PORT_REGTEST);
+
+      if (!customBtcPort_)
+         btcPort_ = portToString(NODE_PORT_REGTEST);
+
+      break;
+   }
+
+   default:
+      LOGERR << "unexpected network mode!";
+      throw runtime_error("unxecpted network mode");
    }
 }
 
@@ -214,13 +237,20 @@ void BlockDataManagerConfig::parseArgs(int argc, char* argv[])
    Specifying another type will do nothing. Build a new db to change type.
 
    --cookie: create a cookie file holding a random authentication key to allow
-   local clients to make use of elevated commands, like shutdown.
+   local clients to make use of elevated commands, like shutdown. Client and 
+   server will make use of ephemeral peer keys, ignoring the on disk peer wallet
 
    --listen-port: sets the DB listening port.
 
    --clear-mempool: delete all zero confirmation transactions from the DB.
 
    --satoshirpc-port: set node rpc port
+
+   --satoshi-port: set Bitcoin node port
+
+   --public: BIP150 auth will allow for anonymous requesters. While only clients
+   can be anon (servers/responders are always auth'ed), both sides need to enable
+   public channels for the handshake to succeed
 
    ***/
 
@@ -256,21 +286,39 @@ void BlockDataManagerConfig::parseArgs(int argc, char* argv[])
       }
       else
       {
-         if (!testnet_ && !regtest_)
+         switch (NetworkConfig::getMode())
+         {
+         case NETWORK_MODE_MAINNET:
+         {
             dataDir_ = defaultDataDir_;
-         else if (!regtest_)
+            break;
+         }
+
+         case NETWORK_MODE_TESTNET:
+         {
             dataDir_ = defaultTestnetDataDir_;
-         else
+            break;
+         }
+
+         case NETWORK_MODE_REGTEST:
+         {
             dataDir_ = defaultRegtestDataDir_;
+            break;
+         }
+
+         default:
+            LOGERR << "unexpected network mode";
+            throw runtime_error("unexpected network mode");
+         }
       }
 
-      expandPath(dataDir_);
+      DBUtils::expandPath(dataDir_);
 
-      //get datadir
+      //get config file
       auto configPath = dataDir_;
-      appendPath(configPath, "armorydb.conf");
+      DBUtils::appendPath(configPath, "armorydb.conf");
 
-      if (DBUtils::fileExists(configPath, 2))
+      if (fileExists(configPath, 2))
       {
          ConfigFile cf(configPath);
          auto mapIter = cf.keyvalMap_.find("datadir");
@@ -287,35 +335,42 @@ void BlockDataManagerConfig::parseArgs(int argc, char* argv[])
       if (dbDir_.size() == 0)
       {
          dbDir_ = dataDir_;
-         appendPath(dbDir_, dbDirExtention_);
+         DBUtils::appendPath(dbDir_, dbDirExtention_);
          autoDbDir = true;
       }
 
       if (blkFileLocation_.size() == 0)
       {
-         if (!testnet_)
+         switch (NetworkConfig::getMode())
+         {
+         case NETWORK_MODE_MAINNET:
+         {
             blkFileLocation_ = defaultBlkFileLocation_;
-         else
+            break;
+         }
+         
+         default:
             blkFileLocation_ = defaultTestnetBlkFileLocation_;
+         }
       }
 
       //expand paths if necessary
-      expandPath(dbDir_);
-      expandPath(blkFileLocation_);
+      DBUtils::expandPath(dbDir_);
+      DBUtils::expandPath(blkFileLocation_);
 
       if (blkFileLocation_.size() < 6 ||
          blkFileLocation_.substr(blkFileLocation_.length() - 6, 6) != "blocks")
       {
-         appendPath(blkFileLocation_, "blocks");
+         DBUtils::appendPath(blkFileLocation_, "blocks");
       }
 
       logFilePath_ = dataDir_;
-      appendPath(logFilePath_, "dbLog.txt");
+      DBUtils::appendPath(logFilePath_, "dbLog.txt");
 
       //test all paths
       auto testPath = [](const string& path, int mode)
       {
-         if (!DBUtils::fileExists(path, mode))
+         if (!fileExists(path, mode))
          {
             stringstream ss;
             ss << path << " is not a valid path";
@@ -349,11 +404,11 @@ void BlockDataManagerConfig::parseArgs(int argc, char* argv[])
 
       testPath(blkFileLocation_, 2);
 
-      //fcgi port
-      if (useCookie_ && !customFcgiPort_)
+      //listen port
+      if (useCookie_ && !customListenPort_)
       {
-         //no custom fcgi port was provided and the db was spawned with a 
-         //cookie file, fcgi port will be randomized
+         //no custom listen port was provided and the db was spawned with a 
+         //cookie file, listen port will be randomized
          srand(time(0));
          while (1)
          {
@@ -395,26 +450,33 @@ void BlockDataManagerConfig::processArgs(const map<string, string>& args,
       }
       else
       {
-         customFcgiPort_ = true;
+         customListenPort_ = true;
       }
+   }
+
+   iter = args.find("satoshi-port");
+   if (iter != args.end())
+   {
+      btcPort_ = stripQuotes(iter->second);
+      customBtcPort_ = true;
    }
 
    //network type
    iter = args.find("testnet");
    if (iter != args.end())
    {
-      selectNetwork("Test");
+      selectNetwork(NETWORK_MODE_TESTNET);
    }
    else
    {
       iter = args.find("regtest");
       if (iter != args.end())
       {
-         selectNetwork("Regtest");
+         selectNetwork(NETWORK_MODE_REGTEST);
       }
       else
       {
-         selectNetwork("Main");
+         selectNetwork(NETWORK_MODE_MAINNET);
       }
    }
 
@@ -543,59 +605,17 @@ void BlockDataManagerConfig::processArgs(const map<string, string>& args,
    //cookie
    iter = args.find("cookie");
    if (iter != args.end())
+   {
       useCookie_ = true;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-void BlockDataManagerConfig::appendPath(string& base, const string& add)
-{
-   if (add.size() == 0)
-      return;
-
-   auto firstChar = add.c_str()[0];
-   auto lastChar = base.c_str()[base.size() - 1];
-   if (firstChar != '\\' && firstChar != '/')
-      if (lastChar != '\\' && lastChar != '/')
-         base.append("/");
-
-   base.append(add);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-void BlockDataManagerConfig::expandPath(string& path)
-{
-   if (path.c_str()[0] != '~')
-      return;
-
-   //resolve ~
-#ifdef _WIN32
-   char* pathPtr = new char[MAX_PATH + 1];
-   if (SHGetFolderPath(0, CSIDL_APPDATA, 0, 0, pathPtr) != S_OK)
-   {
-      delete[] pathPtr;
-      throw runtime_error("failed to resolve appdata path");
+      ephemeralPeers_ = true;
    }
 
-   string userPath(pathPtr);
-   delete[] pathPtr;
-#else
-   wordexp_t wexp;
-   wordexp("~", &wexp, 0);
-
-   for (unsigned i = 0; i < wexp.we_wordc; i++)
+   //public
+   iter = args.find("public");
+   if (iter != args.end())
    {
-      cout << wexp.we_wordv[i] << endl;
+      startupBIP150CTX(4, true);
    }
-
-   if (wexp.we_wordc == 0)
-      throw runtime_error("failed to resolve home path");
-
-   string userPath(wexp.we_wordv[0]);
-   wordfree(&wexp);
-#endif
-
-   appendPath(userPath, path.substr(1));
-   path = move(userPath);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -672,7 +692,7 @@ void BlockDataManagerConfig::createCookie() const
       return;
 
    auto cookiePath = dataDir_;
-   appendPath(cookiePath, ".cookie_");
+   DBUtils::appendPath(cookiePath, ".cookie_");
    fstream fs(cookiePath, ios_base::out | ios_base::trunc);
    fs << cookie_ << endl;
    fs << listenPort_;
@@ -714,7 +734,7 @@ string BlockDataManagerConfig::getPortFromCookie(const string& datadir)
 {
    //check for cookie file
    string cookie_path = datadir;
-   appendPath(cookie_path, ".cookie_");
+   DBUtils::appendPath(cookie_path, ".cookie_");
    auto&& lines = getLines(cookie_path);
    if (lines.size() != 2)
       return string();
@@ -726,7 +746,7 @@ string BlockDataManagerConfig::getPortFromCookie(const string& datadir)
 string BlockDataManagerConfig::getCookie(const string& datadir)
 {
    string cookie_path = datadir;
-   appendPath(cookie_path, ".cookie_");
+   DBUtils::appendPath(cookie_path, ".cookie_");
    auto&& lines = getLines(cookie_path);
    if (lines.size() != 2)
       return string();
@@ -802,12 +822,17 @@ vector<BinaryData> ConfigFile::fleshOutArgs(
 
    //complete config file path
    string configFile_path = BlockDataManagerConfig::defaultDataDir_;
+   if (keyValMap.find("--testnet") != keyValMap.end())
+      configFile_path = BlockDataManagerConfig::defaultTestnetDataDir_;
+   else if (keyValMap.find("--regtest") != keyValMap.end())
+      configFile_path = BlockDataManagerConfig::defaultRegtestDataDir_;
+
    auto datadir_iter = keyValMap.find("--datadir");
    if (datadir_iter != keyValMap.end() && datadir_iter->second.size() > 0)
       configFile_path = datadir_iter->second;
 
-   BlockDataManagerConfig::appendPath(configFile_path, path);
-   BlockDataManagerConfig::expandPath(configFile_path);
+   DBUtils::appendPath(configFile_path, path);
+   DBUtils::expandPath(configFile_path);
 
    //process config file
    ConfigFile cfile(configFile_path);

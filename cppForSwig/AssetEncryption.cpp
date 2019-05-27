@@ -10,6 +10,8 @@
 #include "Assets.h"
 #include "make_unique.h"
 
+using namespace std;
+
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 //// KeyDerivationFunction
@@ -26,7 +28,9 @@ BinaryData KeyDerivationFunction_Romix::computeID() const
    bw.put_uint32_t(iterations_);
    bw.put_uint32_t(memTarget_);
 
-   return BtcUtils::getHash256(bw.getData());
+   BinaryData bd(32);
+   CryptoSHA2::getHash256(bw.getData(), bd.getPtr());
+   return bd;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -129,19 +133,48 @@ bool KeyDerivationFunction_Romix::isSame(KeyDerivationFunction* const kdf) const
 
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
-//// Cypher
+//// Cipher
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
-Cypher::~Cypher()
+Cipher::~Cipher()
 {}
 
 ////////////////////////////////////////////////////////////////////////////////
-unique_ptr<Cypher> Cypher::deserialize(BinaryRefReader& brr)
+unsigned Cipher::getBlockSize(CipherType type)
 {
-   unique_ptr<Cypher> cypher;
+   unsigned blockSize;
+   switch (type)
+   {
+   case CipherType_AES:
+   {
+#ifdef LIBBTC_ONLY
+      blockSize = AES_BLOCK_SIZE;
+#else
+      blockSize = BTC_AES::BLOCKSIZE;
+#endif
+      break;
+   }
+
+   default:
+      throw runtime_error("cannot get block size for unexpected cipher type");
+   }
+
+   return blockSize;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+SecureBinaryData Cipher::generateIV(void) const
+{
+   return CryptoPRNG::generateRandom(getBlockSize(type_));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+unique_ptr<Cipher> Cipher::deserialize(BinaryRefReader& brr)
+{
+   unique_ptr<Cipher> cipher;
    auto prefix = brr.get_uint8_t();
-   if (prefix != CYPHER_BYTE)
-      throw runtime_error("invalid serialized cypher prefix");
+   if (prefix != CIPHER_BYTE)
+      throw runtime_error("invalid serialized cipher prefix");
 
    auto type = brr.get_uint8_t();
 
@@ -156,26 +189,26 @@ unique_ptr<Cypher> Cypher::deserialize(BinaryRefReader& brr)
 
    switch (type)
    {
-   case CypherType_AES:
+   case CipherType_AES:
    {
-      cypher = move(make_unique<Cypher_AES>(
+      cipher = move(make_unique<Cipher_AES>(
          kdfId, encryptionKeyId, iv));
 
       break;
    }
 
    default:
-      throw CypherException("unexpected cypher type");
+      throw CipherException("unexpected cipher type");
    }
 
-   return move(cypher);
+   return move(cipher);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-BinaryData Cypher_AES::serialize() const
+BinaryData Cipher_AES::serialize() const
 {
    BinaryWriter bw;
-   bw.put_uint8_t(CYPHER_BYTE);
+   bw.put_uint8_t(CIPHER_BYTE);
    bw.put_uint8_t(getType());
 
    bw.put_var_int(kdfId_.getSize());
@@ -191,27 +224,27 @@ BinaryData Cypher_AES::serialize() const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-unique_ptr<Cypher> Cypher_AES::getCopy() const
+unique_ptr<Cipher> Cipher_AES::getCopy() const
 {
-   return make_unique<Cypher_AES>(kdfId_, encryptionKeyId_);
+   return make_unique<Cipher_AES>(kdfId_, encryptionKeyId_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-unique_ptr<Cypher> Cypher_AES::getCopy(const BinaryData& keyId) const
+unique_ptr<Cipher> Cipher_AES::getCopy(const BinaryData& keyId) const
 {
-   return make_unique<Cypher_AES>(kdfId_, keyId);
+   return make_unique<Cipher_AES>(kdfId_, keyId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-SecureBinaryData Cypher_AES::encrypt(const SecureBinaryData& key,
+SecureBinaryData Cipher_AES::encrypt(const SecureBinaryData& key,
    const SecureBinaryData& data) const
 {
-   CryptoAES aes_cypher;
-   return aes_cypher.EncryptCBC(data, key, iv_);
+   CryptoAES aes_cipher;
+   return aes_cipher.EncryptCBC(data, key, iv_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-SecureBinaryData Cypher_AES::encrypt(DecryptedEncryptionKey* const key,
+SecureBinaryData Cipher_AES::encrypt(DecryptedEncryptionKey* const key,
    const BinaryData& kdfId, const SecureBinaryData& data) const
 {
    if (key == nullptr)
@@ -219,26 +252,32 @@ SecureBinaryData Cypher_AES::encrypt(DecryptedEncryptionKey* const key,
 
    auto& encryptionKey = key->getDerivedKey(kdfId);
 
-   CryptoAES aes_cypher;
-   return aes_cypher.EncryptCBC(data, encryptionKey, iv_);
+   CryptoAES aes_cipher;
+   return aes_cipher.EncryptCBC(data, encryptionKey, iv_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-SecureBinaryData Cypher_AES::decrypt(const SecureBinaryData& key,
+SecureBinaryData Cipher_AES::decrypt(const SecureBinaryData& key,
    const SecureBinaryData& data) const
 {
-   CryptoAES aes_cypher;
-   return aes_cypher.DecryptCBC(data, key, iv_);
+   CryptoAES aes_cipher;
+   return aes_cipher.DecryptCBC(data, key, iv_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-bool Cypher_AES::isSame(Cypher* const cypher) const
+bool Cipher_AES::isSame(Cipher* const cipher) const
 {
-   auto cypher_aes = dynamic_cast<Cypher_AES*>(cypher);
-   if (cypher_aes == nullptr)
+   auto cipher_aes = dynamic_cast<Cipher_AES*>(cipher);
+   if (cipher_aes == nullptr)
       return false;
 
-   return kdfId_ == cypher_aes->kdfId_ &&
-      encryptionKeyId_ == cypher_aes->encryptionKeyId_ &&
-      iv_ == cypher_aes->iv_;
+   return kdfId_ == cipher_aes->kdfId_ &&
+      encryptionKeyId_ == cipher_aes->encryptionKeyId_ &&
+      iv_ == cipher_aes->iv_;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+unsigned Cipher_AES::getBlockSize(void) const
+{
+   return Cipher::getBlockSize(getType());
 }

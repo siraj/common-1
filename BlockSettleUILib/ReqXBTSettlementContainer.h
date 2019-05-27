@@ -5,24 +5,27 @@
 #include <unordered_set>
 #include "AddressVerificator.h"
 #include "AuthAddress.h"
-#include "MetaData.h"
 #include "SettlementContainer.h"
 #include "SettlementMonitor.h"
-#include "SettlementWallet.h"
 #include "UtxoReservation.h"
 #include "TransactionData.h"
+#include "QWalletInfo.h"
 
 namespace spdlog {
    class logger;
 }
+namespace bs {
+   namespace sync {
+      class WalletsManager;
+   }
+}
 class AddressVerificator;
-class ArmoryConnection;
+class ArmoryObject;
 class AssetManager;
 class AuthAddressManager;
 class SignContainer;
 class QuoteProvider;
 class TransactionData;
-class WalletsManager;
 
 
 class ReqXBTSettlementContainer : public bs::SettlementContainer
@@ -31,8 +34,8 @@ class ReqXBTSettlementContainer : public bs::SettlementContainer
 public:
    ReqXBTSettlementContainer(const std::shared_ptr<spdlog::logger> &
       , const std::shared_ptr<AuthAddressManager> &, const std::shared_ptr<AssetManager> &
-      , const std::shared_ptr<SignContainer> &, const std::shared_ptr<ArmoryConnection> &
-      , const std::shared_ptr<WalletsManager> &, const bs::network::RFQ &
+      , const std::shared_ptr<SignContainer> &, const std::shared_ptr<ArmoryObject> &
+      , const std::shared_ptr<bs::sync::WalletsManager> &, const bs::network::RFQ &
       , const bs::network::Quote &, const std::shared_ptr<TransactionData> &);
    ~ReqXBTSettlementContainer() override;
 
@@ -56,21 +59,14 @@ public:
    double amount() const override { return amount_; }
 
    std::string fxProduct() const { return fxProd_; }
-   std::string authWalletName() const { return authWalletName_; }
-   std::string authWalletId() const { return authWalletId_; }
-   std::string walletId() const { return walletId_; }
    uint64_t fee() const { return fee_; }
    bool weSell() const { return clientSells_; }
    bool isSellFromPrimary() const { return sellFromPrimary_; }
    bool userKeyOk() const { return userKeyOk_; }
    bool payinReceived() const { return !payinData_.isNull(); }
 
-   std::vector<bs::wallet::EncryptionType> encTypes() const { return encTypes_; }
-   std::vector<bs::wallet::EncryptionType> authEncTypes() const { return encTypesAuth_; }
-   std::vector<SecureBinaryData> encKeys() const { return encKeys_; }
-   std::vector<SecureBinaryData> authEncKeys() const { return encKeysAuth_; }
-   bs::wallet::KeyRank keyRank() const { return keyRank_; }
-   bs::wallet::KeyRank authKeyRank() const { return keyRankAuth_; }
+   bs::hd::WalletInfo walletInfo() const { return walletInfo_; }
+   bs::hd::WalletInfo walletInfoAuth() const { return walletInfoAuth_; }
 
 signals:
    void settlementCancelled();
@@ -82,15 +78,14 @@ signals:
    void authWalletInfoReceived();
 
 private slots:
-   void onHDWalletInfo(unsigned int id, std::vector<bs::wallet::EncryptionType>
-      , std::vector<SecureBinaryData> encKeys, bs::wallet::KeyRank);
+   void onWalletInfo(unsigned int reqId, const bs::hd::WalletInfo &walletInfo);
    void onTXSigned(unsigned int id, BinaryData signedTX, std::string error, bool cancelledByUser);
    void onTimerExpired();
    void onPayInZCDetected();
    void onPayoutZCDetected(int confNum, bs::PayoutSigner::Type);
 
 protected:
-   void zcReceived(unsigned int) override;
+   void zcReceived(const std::vector<bs::TXEntry>) override;
 
 private:
    unsigned int createPayoutTx(const BinaryData& payinHash, double qty, const bs::Address &recvAddr
@@ -104,29 +99,25 @@ private:
    std::shared_ptr<spdlog::logger>        logger_;
    std::shared_ptr<AuthAddressManager>    authAddrMgr_;
    std::shared_ptr<AssetManager>          assetMgr_;
-   std::shared_ptr<WalletsManager>        walletsMgr_;
+   std::shared_ptr<bs::sync::WalletsManager> walletsMgr_;
    std::shared_ptr<SignContainer>         signContainer_;
    std::shared_ptr<ArmoryConnection>      armory_;
    std::shared_ptr<TransactionData>       transactionData_;
    bs::network::RFQ           rfq_;
    bs::network::Quote         quote_;
+   bs::Address                settlAddr_;
 
-   std::shared_ptr<bs::SettlementAddressEntry>     settlAddr_;
    std::shared_ptr<AddressVerificator>       addrVerificator_;
    std::shared_ptr<bs::SettlementMonitorCb>        monitor_;
    std::shared_ptr<bs::UtxoReservation::Adapter>   utxoAdapter_;
 
    AddressVerificationState   dealerVerifState_ = AddressVerificationState::InProgress;
 
-   std::vector<bs::wallet::EncryptionType>   encTypes_, encTypesAuth_;
-   std::vector<SecureBinaryData>             encKeys_, encKeysAuth_;
-   bs::wallet::KeyRank                       keyRank_, keyRankAuth_;
+   bs::hd::WalletInfo walletInfo_, walletInfoAuth_;
+
 
    double            amount_;
    std::string       fxProd_;
-   std::string       authWalletName_;
-   std::string       authWalletId_;
-   std::string       walletId_;
    uint64_t          fee_;
    SecureBinaryData  payoutPassword_;
    BinaryData        settlementId_;

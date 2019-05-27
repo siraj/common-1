@@ -1,9 +1,13 @@
 <RCC>
     <qresource prefix="/">
-        <file alias="ICON_STATUS_OFFLINE">resources/status_offline.png</file>
-        <file alias="ICON_STATUS_ERROR">resources/status_error.png</file>
-        <file alias="ICON_STATUS_ONLINE">resources/status_online.png</file>
-        <file alias="ICON_STATUS_CONNECTING">resources/status_connecting.png</file>
+        <file alias="ICON_STATUS_OFFLINE">resources/status_offline_2.png</file>
+        <file alias="ICON_STATUS_ERROR">resources/status_error_2.png</file>
+        <file alias="ICON_STATUS_ONLINE">resources/status_online_2.png</file>
+        <file alias="ICON_STATUS_CONNECTING">resources/status_connecting_2.png</file>
+        <file alias="ICON_MSG_STATUS_OFFLINE">resources/msg_status_offline_2.png</file>
+        <file alias="ICON_MSG_STATUS_ONLINE">resources/msg_status_online_2.png</file>
+        <file alias="ICON_MSG_STATUS_CONNECTING">resources/msg_status_connecting_2.png</file>
+        <file alias="ICON_MSG_STATUS_READ">resources/msg_status_read_2.png</file>
         <file>resources/preferences-system.png</file>
         <file>resources/preferences-system-network.png</file>
         <file>resources/Raleway/Raleway-Regular.ttf</file>
@@ -55,7 +59,6 @@
         <file>resources/ios-infinity.ttf</file>
         <file>resources/progress-bar-pattern.png</file>
         <file alias="SPLASH_LOGO">resources/splashlogo_splashscreen.png</file>
-        <file alias="SPLASH_LOGO_TESTNET">resources/splashlogo_testnet.png</file>
         <file alias="ICON_BITCOIN">resources/bitcoin-main-net.png</file>
         <file alias="ICON_BITCOIN_2X">resources/bitcoin-main-net@2x.png</file>
         <file alias="ICON_BITCOIN_GRAY">resources/bitcoin-disabled.png</file>
@@ -174,7 +177,6 @@
         <file>resources/notification_warning@2x.png</file>
         <file>resources/logo_print-160px-300ppi.png</file>
         <file>resources/logo_print-250px-300ppi.png</file>
-        <file>resources/OTP_template.html</file>
         <file alias="ICON_BS_16_TESTNET">resources/clearing-connection-test-net.png</file>
         <file alias="ICON_BS_24_TESTNET">resources/clearing-connection-test-net@1.5x.png</file>
         <file alias="ICON_BS_32_TESTNET">resources/clearing-connection-test-net@2x.png</file>
@@ -200,5 +202,13 @@
         <file>resources/md_license.html</file>
         <file>resources/cancel.png</file>
         <file>resources/cancel@2x.png</file>
+        <file>resources/finger.png</file>
+        <file>resources/finger@2x.png</file>
+        <file>resources/PublicKeys/pub_prod.key</file>
+        <file>resources/PublicKeys/pub_uat.key</file>
+        <file>resources/PublicKeys/pub_staging.key</file>
+        <file>resources/PublicKeys/chat_prod.key</file>
+        <file>resources/PublicKeys/chat_uat.key</file>
+        <file>resources/PublicKeys/chat_staging.key</file>
     </qresource>
 </RCC>

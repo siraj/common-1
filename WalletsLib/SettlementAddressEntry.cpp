@@ -1,8 +1,10 @@
 #include "SettlementAddressEntry.h"
 
-std::shared_ptr<bs::SettlementAddressEntry> bs::SettlementAssetEntry::getAddressEntry(const shared_ptr<SettlementAssetEntry> &assetPtr)
+using namespace bs::core;
+
+std::shared_ptr<SettlementAddressEntry> SettlementAssetEntry::getAddressEntry(const std::shared_ptr<SettlementAssetEntry> &assetPtr)
 {
-   std::shared_ptr<SettlementAssetEntry> sae = dynamic_pointer_cast<SettlementAssetEntry>(assetPtr);
+   std::shared_ptr<SettlementAssetEntry> sae = std::dynamic_pointer_cast<SettlementAssetEntry>(assetPtr);
    if (sae == nullptr) {
       throw AssetException("Asset entry is not SettlementAssetEntry");
    }
@@ -29,12 +31,12 @@ std::shared_ptr<bs::SettlementAddressEntry> bs::SettlementAssetEntry::getAddress
    return addr;
 }
 
-std::pair<bs::Address, std::shared_ptr<bs::GenericAsset>> bs::SettlementAssetEntry::deserialize(BinaryDataRef value)
+std::pair<bs::Address, std::shared_ptr<bs::core::GenericAsset>> SettlementAssetEntry::deserialize(BinaryDataRef value)
 {
    BinaryRefReader brrVal(value);
    const auto assetType = static_cast<AssetEntryType>(brrVal.get_uint8_t());
    if (assetType == AssetEntryType_Single) {
-      return bs::PlainAsset::deserialize(value);
+      return bs::core::PlainAsset::deserialize(value);
    }
    const auto id = brrVal.get_int32_t();
 
@@ -50,7 +52,7 @@ std::pair<bs::Address, std::shared_ptr<bs::GenericAsset>> bs::SettlementAssetEnt
    if (settlementId.isNull() || buyAuthPubKey.isNull() || sellAuthPubKey.isNull()) {
       throw AssetException("SettlementAssetEntry: invalid data in DB");
    }
-   auto asset = std::make_shared<bs::SettlementAssetEntry>(settlementId, buyAuthPubKey, sellAuthPubKey, id);
+   auto asset = std::make_shared<SettlementAssetEntry>(settlementId, buyAuthPubKey, sellAuthPubKey, id);
 
    if (brrVal.getSizeRemaining() > 0) {
       len = brrVal.get_var_int();
@@ -69,7 +71,7 @@ std::pair<bs::Address, std::shared_ptr<bs::GenericAsset>> bs::SettlementAssetEnt
    return { getAddressEntry(asset)->getPrefixedHash(), asset };
 }
 
-BinaryData bs::SettlementAssetEntry::serialize() const
+BinaryData SettlementAssetEntry::serialize() const
 {
    BinaryWriter bw;
    bw.put_uint8_t(static_cast<uint8_t>(getType()));
@@ -93,7 +95,7 @@ BinaryData bs::SettlementAssetEntry::serialize() const
    return bw.getData();
 }
 
-const BinaryData &bs::SettlementAssetEntry::script() const
+const BinaryData &SettlementAssetEntry::script() const
 {
    if (script_.isNull()) {
       const BinaryData &buyChainKey = buyChainedPubKey();
@@ -101,9 +103,9 @@ const BinaryData &bs::SettlementAssetEntry::script() const
 
       BinaryWriter script;
       script.put_uint8_t(OP_1);
-      script.put_uint8_t(buyChainKey.getSize());
+      script.put_uint8_t((uint8_t)buyChainKey.getSize());
       script.put_BinaryData(buyChainKey);
-      script.put_uint8_t(sellChainKey.getSize());
+      script.put_uint8_t((uint8_t)sellChainKey.getSize());
       script.put_BinaryData(sellChainKey);
       script.put_uint8_t(OP_2);
       script.put_uint8_t(OP_CHECKMULTISIG);
@@ -113,7 +115,7 @@ const BinaryData &bs::SettlementAssetEntry::script() const
    return script_;
 }
 
-const BinaryData &bs::SettlementAssetEntry::buyChainedPubKey() const
+const BinaryData &SettlementAssetEntry::buyChainedPubKey() const
 {
    if (buyChainedPubKey_.isNull()) {
       CryptoECDSA crypto;
@@ -122,7 +124,7 @@ const BinaryData &bs::SettlementAssetEntry::buyChainedPubKey() const
    return buyChainedPubKey_;
 }
 
-const BinaryData &bs::SettlementAssetEntry::sellChainedPubKey() const
+const BinaryData &SettlementAssetEntry::sellChainedPubKey() const
 {
    if (sellChainedPubKey_.isNull()) {
       CryptoECDSA crypto;
@@ -131,27 +133,27 @@ const BinaryData &bs::SettlementAssetEntry::sellChainedPubKey() const
    return sellChainedPubKey_;
 }
 
-const BinaryData &bs::SettlementAssetEntry::prefixedHash() const
+const BinaryData &SettlementAssetEntry::prefixedHash() const
 {
    if (hash_.isNull()) {
-      hash_.append(BlockDataManagerConfig::getScriptHashPrefix());
+      hash_.append(NetworkConfig::getScriptHashPrefix());
       hash_.append(hash());
    }
    return hash_;
 }
 
-const BinaryData &bs::SettlementAssetEntry::p2wshScript() const
+const BinaryData &SettlementAssetEntry::p2wshScript() const
 {
    if (p2wshScript_.isNull()) {
       const auto hash256 = BtcUtils::getSha256(script());
-      Recipient_PW2SH recipient(hash256, 0);
+      Recipient_P2WSH recipient(hash256, 0);
       const auto &script = recipient.getSerializedScript();
-      p2wshScript_ = script.getSliceCopy(9, script.getSize() - 9);
+      p2wshScript_ = script.getSliceCopy(9, (uint32_t)script.getSize() - 9);
    }
    return p2wshScript_;
 }
 
-const BinaryData &bs::SettlementAssetEntry::p2wsHash() const
+const BinaryData &SettlementAssetEntry::p2wsHash() const
 {
    if (p2wsHash_.isNull()) {
       p2wsHash_ = BtcUtils::getHash160(p2wshScript());
@@ -159,16 +161,16 @@ const BinaryData &bs::SettlementAssetEntry::p2wsHash() const
    return p2wsHash_;
 }
 
-const BinaryData &bs::SettlementAssetEntry::prefixedP2SHash() const
+const BinaryData &SettlementAssetEntry::prefixedP2SHash() const
 {
    if (prefixedP2SHash_.isNull()) {
-      prefixedP2SHash_.append(BlockDataManagerConfig::getScriptHashPrefix());
+      prefixedP2SHash_.append(NetworkConfig::getScriptHashPrefix());
       prefixedP2SHash_.append(p2wsHash());
    }
    return prefixedP2SHash_;
 }
 
-const std::vector<BinaryData> &bs::SettlementAssetEntry::supportedAddresses() const
+const std::vector<BinaryData> &SettlementAssetEntry::supportedAddresses() const
 {
    if (supportedAddresses_.empty()) {
       supportedAddresses_ = { script(), p2wshScript() };
@@ -176,7 +178,7 @@ const std::vector<BinaryData> &bs::SettlementAssetEntry::supportedAddresses() co
    return supportedAddresses_;
 }
 
-const std::vector<BinaryData> &bs::SettlementAssetEntry::supportedAddrHashes() const
+const std::vector<BinaryData> &SettlementAssetEntry::supportedAddrHashes() const
 {
    if (supportedHashes_.empty()) {
       BinaryData p2wshPrefixed;
@@ -188,7 +190,7 @@ const std::vector<BinaryData> &bs::SettlementAssetEntry::supportedAddrHashes() c
 }
 
 
-const BinaryData &bs::SettlementAddressEntry_P2WSH::getHash() const
+const BinaryData &SettlementAddressEntry_P2WSH::getHash() const
 {
    if (hash_.isNull()) {
       hash_ = BtcUtils::getSha256(ae_->script());
@@ -196,7 +198,7 @@ const BinaryData &bs::SettlementAddressEntry_P2WSH::getHash() const
    return hash_;
 }
 
-const BinaryData &bs::SettlementAddressEntry_P2WSH::getPrefixedHash(void) const
+const BinaryData &SettlementAddressEntry_P2WSH::getPrefixedHash(void) const
 {
    if (prefixedHash_.isNull()) {
       prefixedHash_.append(uint8_t(SCRIPT_PREFIX_P2WSH));

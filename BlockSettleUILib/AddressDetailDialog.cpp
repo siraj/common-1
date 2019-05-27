@@ -11,35 +11,43 @@
 #include <QAction>
 
 #include "ArmoryConnection.h"
-#include "MetaData.h"
+#include "HDPath.h"
 #include "TransactionsViewModel.h"
 #include "UiUtils.h"
+#include "Wallets/SyncWallet.h"
 
 
 class IncomingTransactionFilter : public QSortFilterProxyModel
 {
 public:
-   QString address;
-
    IncomingTransactionFilter(QObject* parent) : QSortFilterProxyModel(parent) {}
-   bool filterAcceptsRow(int source_row, const QModelIndex &) const override {
-      auto transactionAddress = sourceModel()->data(sourceModel()->index(source_row, static_cast<int>(TransactionsViewModel::Columns::Address))).toString();
-      return transactionAddress == address;
+
+   bool filterAcceptsRow(int source_row, const QModelIndex &source_parent) const override
+   {
+      const auto txModel = qobject_cast<TransactionsViewModel *>(sourceModel());
+      if (!txModel) {
+         return false;
+      }
+      const auto &index = txModel->index(source_row, 0, source_parent);
+      const auto &txItem = txModel->getItem(index);
+      return (txItem.isSet() && (txItem.txEntry.value > 0));
    }
 };
 
 class OutgoingTransactionFilter : public QSortFilterProxyModel
 {
 public:
-   QString address;
-
    OutgoingTransactionFilter(QObject* parent) : QSortFilterProxyModel(parent) {}
-   bool filterAcceptsRow(int source_row, const QModelIndex &) const override {
-      auto transactionAddress = sourceModel()->data(sourceModel()->index(source_row, static_cast<int>(TransactionsViewModel::Columns::Address))).toString();
-      if (transactionAddress.isEmpty()) {
+
+   bool filterAcceptsRow(int source_row, const QModelIndex &source_parent) const override
+   {
+      const auto txModel = qobject_cast<TransactionsViewModel *>(sourceModel());
+      if (!txModel) {
          return false;
       }
-      return transactionAddress != address;
+      const auto &index = txModel->index(source_row, 0, source_parent);
+      const auto &txItem = txModel->getItem(index);
+      return (txItem.isSet() && (txItem.txEntry.value < 0));
    }
 };
 
@@ -63,47 +71,69 @@ public:
          && col != TransactionsViewModel::Columns::Address
          && col != TransactionsViewModel::Columns::Comment
          && col != TransactionsViewModel::Columns::SendReceive
-         && col != TransactionsViewModel::Columns::RbfFlag
          /*&& col != TransactionsViewModel::Columns::MissedBlocks*/;
    }
 };
 
 
-AddressDetailDialog::AddressDetailDialog(const bs::Address& address, const std::shared_ptr<bs::Wallet> &wallet
-   , const std::shared_ptr<WalletsManager>& walletsManager, const std::shared_ptr<ArmoryConnection> &armory
-   , QWidget* parent)
+AddressDetailDialog::AddressDetailDialog(const bs::Address& address
+                                     , const std::shared_ptr<bs::sync::Wallet> &wallet
+                         , const std::shared_ptr<bs::sync::WalletsManager>& walletsManager
+                               , const std::shared_ptr<ArmoryObject> &armory
+                                 , const std::shared_ptr<spdlog::logger> &logger
+                                         , QWidget* parent)
    : QDialog(parent)
    , ui_(new Ui::AddressDetailDialog())
    , address_(address)
    , walletsManager_(walletsManager)
    , armory_(armory)
    , wallet_(wallet)
+   , logger_(logger)
 {
    setAttribute(Qt::WA_DeleteOnClose);
    ui_->setupUi(this);
    ui_->labelError->hide();
 
-   connect(wallet_.get(), &bs::Wallet::addrBalanceReceived, this, &AddressDetailDialog::onAddrBalanceReceived);
-   connect(wallet_.get(), &bs::Wallet::addrTxNReceived, this, &AddressDetailDialog::onAddrTxNReceived);
-
-   wallet_->getAddrBalance(address);
-   wallet_->getAddrTxN(address);
+   wallet_->getAddrBalance(address, [this](std::vector<uint64_t> balanceVec) {
+      QMetaObject::invokeMethod(this, [this, balanceVec] { onAddrBalanceReceived(balanceVec); });
+   });
+   wallet_->getAddrTxN(address, [this](uint32_t txn) {
+      QMetaObject::invokeMethod(this, [this, txn] { onAddrTxNReceived(txn); });
+   });
 
    auto copyButton = ui_->buttonBox->addButton(tr("Copy to clipboard"), QDialogButtonBox::ActionRole);
    connect(copyButton, &QPushButton::clicked, this, &AddressDetailDialog::onCopyClicked);
 
-   ui_->labelWallenName->setText(QString::fromStdString(wallet_->GetWalletName()));
+   ui_->labelWallenName->setText(QString::fromStdString(wallet_->name()));
 
-   const auto addressString = address.display();
+   const auto addressString = QString::fromStdString(address.display());
    ui_->labelAddress->setText(addressString);
 
-   auto index = QString::fromStdString(wallet_->GetAddressIndex(address));
+   const auto addrIndex = wallet_->getAddressIndex(address);
+   const auto path = bs::hd::Path::fromString(addrIndex);
+   QString index;
+   if (path.length() != 2) {
+      index = QString::fromStdString(addrIndex);
+   }
+   else {
+      const auto lastIndex = QString::number(path.get(-1));
+      switch (path.get(-2)) {
+      case 0:
+         index = tr("External/%1").arg(lastIndex);
+         break;
+      case 1:
+         index = tr("Internal/%1").arg(lastIndex);
+         break;
+      default:
+         index = tr("Unknown/%1").arg(lastIndex);
+      }
+   }
    if (index.length() > 64) {
       index = index.left(64);
    }
    ui_->labelAddrIndex->setText(index);
 
-   const auto comment = wallet_->GetAddressComment(address);
+   const auto comment = wallet_->getAddressComment(address);
    ui_->labelComment->setText(QString::fromStdString(comment));
 
    ui_->inputAddressesWidget->header()->setSectionResizeMode(QHeaderView::ResizeToContents);
@@ -114,17 +144,17 @@ AddressDetailDialog::AddressDetailDialog(const bs::Address& address, const std::
       onError();
    }
    else {
-      const auto &cbLedgerDelegate = [this, armory](AsyncClient::LedgerDelegate delegate) {
-         QMetaObject::invokeMethod(this, "initModels", Qt::QueuedConnection
-            , Q_ARG(AsyncClient::LedgerDelegate, delegate));
+      const auto &cbLedgerDelegate = [this, armory](const std::shared_ptr<AsyncClient::LedgerDelegate> &delegate) {
+         initModels(delegate);
       };
-      if (!armory->getLedgerDelegateForAddress(wallet_->GetWalletId(), address_, cbLedgerDelegate)) {
+      if (!wallet_->getLedgerDelegateForAddress(address_, cbLedgerDelegate, this)) {
          ui_->labelError->setText(tr("Error loading address info"));
          onError();
       }
    }
 
-   ui_->labelQR->setPixmap(UiUtils::getQRCode(addressString, 128));
+   const QString addrURI = QLatin1String("bitcoin:") + addressString;
+   ui_->labelQR->setPixmap(UiUtils::getQRCode(addrURI, 128));
 
    ui_->inputAddressesWidget->setContextMenuPolicy(Qt::CustomContextMenu);
    ui_->outputAddressesWidget->setContextMenuPolicy(Qt::CustomContextMenu);
@@ -137,12 +167,16 @@ AddressDetailDialog::AddressDetailDialog(const bs::Address& address, const std::
 
 AddressDetailDialog::~AddressDetailDialog() = default;
 
-void AddressDetailDialog::initModels(AsyncClient::LedgerDelegate delegate)
+void AddressDetailDialog::initModels(const std::shared_ptr<AsyncClient::LedgerDelegate> &delegate)
 {
-   TransactionsViewModel* model = new TransactionsViewModel(armory_, walletsManager_, delegate, this, wallet_);
+   TransactionsViewModel* model = new TransactionsViewModel(armory_
+                                                            , walletsManager_
+                                                            , delegate
+                                                            , logger_
+                                                            , this
+                                                            , wallet_);
 
    IncomingTransactionFilter* incomingFilter = new IncomingTransactionFilter(this);
-   incomingFilter->address = address_.display();
    incomingFilter->setSourceModel(model);
    AddressTransactionFilter* inFilter = new AddressTransactionFilter(this);
    inFilter->setSourceModel(incomingFilter);
@@ -150,7 +184,6 @@ void AddressDetailDialog::initModels(AsyncClient::LedgerDelegate delegate)
    ui_->inputAddressesWidget->sortByColumn(static_cast<int>(TransactionsViewModel::Columns::Date), Qt::DescendingOrder);
 
    OutgoingTransactionFilter* outgoingFilter = new OutgoingTransactionFilter(this);
-   outgoingFilter->address = address_.display();
    outgoingFilter->setSourceModel(model);
    AddressTransactionFilter* outFilter = new AddressTransactionFilter(this);
    outFilter->setSourceModel(outgoingFilter);
@@ -158,20 +191,14 @@ void AddressDetailDialog::initModels(AsyncClient::LedgerDelegate delegate)
    ui_->outputAddressesWidget->sortByColumn(static_cast<int>(TransactionsViewModel::Columns::Date), Qt::DescendingOrder);
 }
 
-void AddressDetailDialog::onAddrBalanceReceived(const bs::Address &addr, std::vector<uint64_t> balance)
+void AddressDetailDialog::onAddrBalanceReceived(std::vector<uint64_t> balance)
 {
-   if (addr != address_) {
-      return;
-   }
-   ui_->labelBalance->setText((wallet_->GetType() == bs::wallet::Type::ColorCoin)
+   ui_->labelBalance->setText((wallet_->type() == bs::core::wallet::Type::ColorCoin)
       ? UiUtils::displayCCAmount(balance[0]) : UiUtils::displayAmount(balance[0]));
 }
 
-void AddressDetailDialog::onAddrTxNReceived(const bs::Address &addr, uint32_t txn)
+void AddressDetailDialog::onAddrTxNReceived(uint32_t txn)
 {
-   if (addr != address_) {
-      return;
-   }
    ui_->labelTransactions->setText(QString::number(txn));
 }
 
@@ -184,7 +211,7 @@ void AddressDetailDialog::onError()
 
 void AddressDetailDialog::onCopyClicked() const
 {
-   QApplication::clipboard()->setText(address_.display());
+   QApplication::clipboard()->setText(QString::fromStdString(address_.display()));
 }
 
 void AddressDetailDialog::onInputAddrContextMenu(const QPoint &pos)

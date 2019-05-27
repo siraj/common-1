@@ -1,3 +1,4 @@
+#include "ui_TransactionsWidget.h"
 #include "TransactionsWidget.h"
 
 #include <QSortFilterProxyModel>
@@ -5,16 +6,15 @@
 #include <QClipboard>
 #include <QDateTime>
 
-#include "ui_TransactionsWidget.h"
-
+#include "ApplicationSettings.h"
+#include "BSMessageBox.h"
 #include "CreateTransactionDialogAdvanced.h"
-#include "HDWallet.h"
-#include "MessageBoxCritical.h"
 #include "TransactionsViewModel.h"
 #include "TransactionDetailDialog.h"
-#include "WalletsManager.h"
+#include "Wallets/SyncHDWallet.h"
+#include "Wallets/SyncSettlementWallet.h"
+#include "Wallets/SyncWalletsManager.h"
 #include "UiUtils.h"
-#include "ApplicationSettings.h"
 
 static const QString c_allWalletsId = QLatin1String("all");
 
@@ -62,63 +62,68 @@ public:
          }
       }
 
-      if (transactionDirection != bs::Transaction::Unknown) {
+      if (transactionDirection != bs::sync::Transaction::Unknown) {
          const auto aIdx = src->index(source_row,
             static_cast<int>(TransactionsViewModel::Columns::Amount));
-         const auto wallet = static_cast<bs::Wallet*>(aIdx.data(
+         const auto wallet = static_cast<bs::sync::Wallet*>(aIdx.data(
             TransactionsViewModel::WalletRole).value<void*>());
 
-         if (!walletIds.isEmpty() && wallet->GetType() == bs::wallet::Type::ColorCoin) {
+         if (!walletIds.isEmpty() && wallet->type() == bs::core::wallet::Type::ColorCoin) {
             const auto a = aIdx.data(Qt::DisplayRole).toDouble();
 
             switch (transactionDirection) {
-               case bs::Transaction::Received : {
-                  if (a < 0.0) {
-                     return false;
-                  }
-               }
-                  break;
-
-               case bs::Transaction::Sent : {
-                  if (a > 0.0) {
-                     return false;
-                  }
-               }
-                  break;
-
-               default :
+            case bs::sync::Transaction::Received : {
+               if (a < 0.0) {
                   return false;
+               }
+            }
+               break;
+
+            case bs::sync::Transaction::Sent : {
+               if (a > 0.0) {
+                  return false;
+               }
+            }
+               break;
+
+            default :
+               return false;
             }
          } else if (direction != transactionDirection) {
             return false;
          }
       }
 
-      if (!searchString.isEmpty()) {
-         QModelIndex index = src->index(source_row, static_cast<int>(TransactionsViewModel::Columns::Comment));
-         if (!src->data(index, TransactionsViewModel::FilterRole).toString().contains(searchString, Qt::CaseInsensitive)) {
-            return false;
-         }
-      }
+      bool result = true;
 
       if ((startDate > 0) && (endDate > 0)) {
          QModelIndex index = src->index(source_row, static_cast<int>(TransactionsViewModel::Columns::Date));
          uint32_t txDate = src->data(index, TransactionsViewModel::FilterRole).toUInt();
-         return (startDate <= txDate) && (txDate <= endDate);
+         result = (startDate <= txDate) && (txDate <= endDate);
       }
 
-      return true;
+      if (result && !searchString.isEmpty()) {     // more columns can be added later
+         for (const auto &col : { TransactionsViewModel::Columns::Comment, TransactionsViewModel::Columns::Address }) {
+            QModelIndex index = src->index(source_row, static_cast<int>(col));
+            if (src->data(index, TransactionsViewModel::FilterRole).toString().contains(searchString, Qt::CaseInsensitive)) {
+               return true;
+            }
+         }
+         return false;
+      }
+
+      return result;
    }
 
    bool filterAcceptsColumn(int source_column, const QModelIndex &source_parent) const override
    {
       Q_UNUSED(source_parent);
 /*      const auto col = static_cast<TransactionsViewModel::Columns>(source_column);
-      return (col != TransactionsViewModel::Columns::RbfFlag) && (col != TransactionsViewModel::Columns::MissedBlocks);*/
+      return (col != TransactionsViewModel::Columns::MissedBlocks);*/
       return true;   // strange, but it works properly only this way
    }
 
-   void updateFilters(const QStringList &walletIds, const QString &searchString, bs::Transaction::Direction direction)
+   void updateFilters(const QStringList &walletIds, const QString &searchString, bs::sync::Transaction::Direction direction)
    {
       this->walletIds = walletIds;
       this->searchString = searchString;
@@ -142,7 +147,7 @@ public:
    std::shared_ptr<ApplicationSettings> appSettings_;
    QStringList walletIds;
    QString searchString;
-   bs::Transaction::Direction transactionDirection = bs::Transaction::Unknown;
+   bs::sync::Transaction::Direction transactionDirection = bs::sync::Transaction::Unknown;
    uint32_t startDate = 0;
    uint32_t endDate = 0;
 };
@@ -150,18 +155,23 @@ public:
 
 TransactionsWidget::TransactionsWidget(QWidget* parent)
    : TabWithShortcut(parent)
-   , ui(new Ui::TransactionsWidget())
+   , ui_(new Ui::TransactionsWidget())
    , transactionsModel_(nullptr)
    , sortFilterModel_(nullptr)
 
 {
-   ui->setupUi(this);
-   connect(ui->treeViewTransactions, &QAbstractItemView::doubleClicked, this, &TransactionsWidget::showTransactionDetails);
-   ui->treeViewTransactions->setContextMenuPolicy(Qt::CustomContextMenu);
+   ui_->setupUi(this);
+   connect(ui_->treeViewTransactions, &QAbstractItemView::doubleClicked, this, &TransactionsWidget::showTransactionDetails);
+   ui_->treeViewTransactions->setContextMenuPolicy(Qt::CustomContextMenu);
 
    actionCopyAddr_ = new QAction(tr("&Copy Address"));
    connect(actionCopyAddr_, &QAction::triggered, [this]() {
       qApp->clipboard()->setText(curAddress_);
+   });
+
+   actionCopyTx_ = new QAction(tr("Copy &Transaction Hash"));
+   connect(actionCopyTx_, &QAction::triggered, [this]() {
+      qApp->clipboard()->setText(curTx_);
    });
 
    actionRBF_ = new QAction(tr("Replace-By-Fee (RBF)"), this);
@@ -170,83 +180,102 @@ TransactionsWidget::TransactionsWidget(QWidget* parent)
    actionCPFP_ = new QAction(tr("Child-Pays-For-Parent (CPFP)"), this);
    connect(actionCPFP_, &QAction::triggered, this, &TransactionsWidget::onCreateCPFPDialog);
 
-   connect(ui->treeViewTransactions, &QAbstractItemView::customContextMenuRequested, [=](const QPoint& p) {
-      auto index = sortFilterModel_->mapToSource(ui->treeViewTransactions->indexAt(p));
+   connect(ui_->treeViewTransactions, &QAbstractItemView::customContextMenuRequested, [=](const QPoint& p) {
+      auto index = sortFilterModel_->mapToSource(ui_->treeViewTransactions->indexAt(p));
       auto addressIndex = transactionsModel_->index(index.row(), static_cast<int>(TransactionsViewModel::Columns::Address));
       curAddress_ = transactionsModel_->data(addressIndex).toString();
 
       contextMenu_.clear();
-      contextMenu_.addAction(actionCopyAddr_);
 
       if (sortFilterModel_) {
-         const auto sourceIndex = sortFilterModel_->mapToSource(ui->treeViewTransactions->indexAt(p));
-         const auto txItem = transactionsModel_->getItem(sourceIndex.row());
-         if (txItem.initialized) {
-            if (txItem.isRBFeligible()) {
+         const auto &sourceIndex = sortFilterModel_->mapToSource(ui_->treeViewTransactions->indexAt(p));
+         const auto &txNode = transactionsModel_->getNode(sourceIndex);
+         if (txNode && txNode->item() && txNode->item()->initialized) {
+            if (txNode->item()->isRBFeligible() && (txNode->level() < 2)) {
                contextMenu_.addAction(actionRBF_);
-               actionRBF_->setData(sourceIndex.row());
+               actionRBF_->setData(sourceIndex);
             }
             else {
                actionRBF_->setData(-1);
             }
 
-            if (txItem.isCPFPeligible()) {
+            if (txNode->item()->isCPFPeligible()) {
                contextMenu_.addAction(actionCPFP_);
-               actionCPFP_->setData(sourceIndex.row());
+               actionCPFP_->setData(sourceIndex);
             }
             else {
                actionCPFP_->setData(-1);
             }
+
+            // save transaction id and add context menu for copying it to clipboard
+            curTx_ = QString::fromStdString(txNode->item()->txEntry.txHash.toHexStr(true));
+            contextMenu_.addAction(actionCopyTx_);
+
+            // allow copy address only if there is only 1 address
+            if (txNode->item()->addressCount == 1) {
+               contextMenu_.addAction(actionCopyAddr_);
+            }
          }
       }
-      contextMenu_.popup(ui->treeViewTransactions->mapToGlobal(p));
+      contextMenu_.popup(ui_->treeViewTransactions->mapToGlobal(p));
    });
-   ui->treeViewTransactions->setUniformRowHeights(true);
-   ui->treeViewTransactions->header()->setSectionResizeMode(QHeaderView::ResizeToContents);
+   ui_->treeViewTransactions->setUniformRowHeights(true);
+   ui_->treeViewTransactions->setItemsExpandable(true);
+   ui_->treeViewTransactions->setRootIsDecorated(true);
+   ui_->treeViewTransactions->header()->setSectionResizeMode(QHeaderView::ResizeToContents);
 
-   connect(ui->typeFilterComboBox, static_cast<void (QComboBox::*)(int)>(&QComboBox::currentIndexChanged), [&](int index) {
-      sortFilterModel_->updateFilters(sortFilterModel_->walletIds, sortFilterModel_->searchString, static_cast<bs::Transaction::Direction>(index));
+   connect(ui_->typeFilterComboBox, static_cast<void (QComboBox::*)(int)>(&QComboBox::currentIndexChanged), [&](int index) {
+      sortFilterModel_->updateFilters(sortFilterModel_->walletIds, sortFilterModel_->searchString
+         , static_cast<bs::sync::Transaction::Direction>(index));
    });
 
-   connect(ui->walletBox, static_cast<void (QComboBox::*)(int)>(&QComboBox::currentIndexChanged), this, &TransactionsWidget::walletsFilterChanged);
+   connect(ui_->walletBox, static_cast<void (QComboBox::*)(int)>(&QComboBox::currentIndexChanged), this, &TransactionsWidget::walletsFilterChanged);
 
-   ui->dateEditEnd->setDateTime(QDateTime::currentDateTime().addDays(1));
+   ui_->dateEditEnd->setDateTime(QDateTime::currentDateTime().addDays(1));
 
-   connect(ui->dateEditEnd, &QDateTimeEdit::dateTimeChanged, [=](const QDateTime& dateTime) {
-      if (ui->dateEditStart->dateTime() > dateTime)
+   connect(ui_->dateEditEnd, &QDateTimeEdit::dateTimeChanged, [=](const QDateTime& dateTime) {
+      if (ui_->dateEditStart->dateTime() > dateTime)
       {
-         ui->dateEditStart->setDateTime(dateTime);
+         ui_->dateEditStart->setDateTime(dateTime);
       }
    });
-   connect(ui->dateEditStart, &QDateTimeEdit::dateTimeChanged, [=](const QDateTime& dateTime) {
-      if (ui->dateEditEnd->dateTime() < dateTime)
+   connect(ui_->dateEditStart, &QDateTimeEdit::dateTimeChanged, [=](const QDateTime& dateTime) {
+      if (ui_->dateEditEnd->dateTime() < dateTime)
       {
-         ui->dateEditEnd->setDateTime(dateTime);
+         ui_->dateEditEnd->setDateTime(dateTime);
       }
    });
 
-   connect(ui->treeViewTransactions, &TreeViewWithEnterKey::enterKeyPressed,
+   connect(ui_->treeViewTransactions, &TreeViewWithEnterKey::enterKeyPressed,
           this, &TransactionsWidget::onEnterKeyInTrxPressed);
 
-   ui->labelResultCount->hide();
+   ui_->labelResultCount->hide();
+   ui_->progressBar->hide();
 }
 
 TransactionsWidget::~TransactionsWidget() = default;
 
-void TransactionsWidget::init(const std::shared_ptr<WalletsManager> &walletsMgr
-   , const std::shared_ptr<ArmoryConnection> &armory, const std::shared_ptr<SignContainer> &signContainer)
+void TransactionsWidget::init(const std::shared_ptr<bs::sync::WalletsManager> &walletsMgr
+                              , const std::shared_ptr<ArmoryConnection> &armory
+                              , const std::shared_ptr<SignContainer> &signContainer
+                              , const std::shared_ptr<spdlog::logger> &logger)
+
 {
    walletsManager_ = walletsMgr;
    armory_ = armory;
    signContainer_ = signContainer;
+   logger_ = logger;
 
-   connect(walletsManager_.get(), &WalletsManager::walletChanged, this, &TransactionsWidget::walletsChanged);
+   connect(walletsManager_.get(), &bs::sync::WalletsManager::walletChanged, this, &TransactionsWidget::walletsChanged);
+   connect(walletsManager_.get(), &bs::sync::WalletsManager::walletDeleted, [this](std::string) { walletsChanged(); });
 }
 
 void TransactionsWidget::SetTransactionsModel(const std::shared_ptr<TransactionsViewModel>& model)
 {
    transactionsModel_ = model;
    connect(transactionsModel_.get(), &TransactionsViewModel::dataLoaded, this, &TransactionsWidget::onDataLoaded, Qt::QueuedConnection);
+   connect(transactionsModel_.get(), &TransactionsViewModel::initProgress, this, &TransactionsWidget::onProgressInited);
+   connect(transactionsModel_.get(), &TransactionsViewModel::updateProgress, this, &TransactionsWidget::onProgressUpdated);
 
    sortFilterModel_ = new TransactionsSortFilterModel(appSettings_, this);
    sortFilterModel_->setSourceModel(model.get());
@@ -258,30 +287,44 @@ void TransactionsWidget::SetTransactionsModel(const std::shared_ptr<Transactions
    walletsChanged();
 
    auto updateDateTimes = [=]() {
-      sortFilterModel_->updateDates(ui->dateEditStart->dateTime(), ui->dateEditEnd->dateTime());
+      sortFilterModel_->updateDates(ui_->dateEditStart->dateTime(), ui_->dateEditEnd->dateTime());
    };
-   connect(ui->dateEditStart, &QDateTimeEdit::dateTimeChanged, updateDateTimes);
-   connect(ui->dateEditEnd, &QDateTimeEdit::dateTimeChanged, updateDateTimes);
+   connect(ui_->dateEditStart, &QDateTimeEdit::dateTimeChanged, updateDateTimes);
+   connect(ui_->dateEditEnd, &QDateTimeEdit::dateTimeChanged, updateDateTimes);
 
-   connect(ui->searchField, &QLineEdit::textChanged, [=](const QString& text) {
+   connect(ui_->searchField, &QLineEdit::textChanged, [=](const QString& text) {
       sortFilterModel_->updateFilters(sortFilterModel_->walletIds, text, sortFilterModel_->transactionDirection);
    });
 
-   ui->treeViewTransactions->setSortingEnabled(true);
-   ui->treeViewTransactions->setModel(sortFilterModel_);
-   ui->treeViewTransactions->hideColumn(static_cast<int>(TransactionsViewModel::Columns::RbfFlag));
-   ui->treeViewTransactions->hideColumn(static_cast<int>(TransactionsViewModel::Columns::TxHash));
-//   ui->treeViewTransactions->hideColumn(static_cast<int>(TransactionsViewModel::Columns::MissedBlocks));
+   ui_->treeViewTransactions->setSortingEnabled(true);
+   ui_->treeViewTransactions->setModel(sortFilterModel_);
+   ui_->treeViewTransactions->hideColumn(static_cast<int>(TransactionsViewModel::Columns::TxHash));
+//   ui_->treeViewTransactions->hideColumn(static_cast<int>(TransactionsViewModel::Columns::MissedBlocks));
 }
 
 void TransactionsWidget::onDataLoaded(int count)
 {
-   if ((count <= 0) || (ui->dateEditStart->dateTime().date().year() > 2009)) {
+   ui_->progressBar->hide();
+   ui_->progressBar->setMaximum(0);
+   ui_->progressBar->setMinimum(0);
+
+   if ((count <= 0) || (ui_->dateEditStart->dateTime().date().year() > 2009)) {
       return;
    }
-   auto index = transactionsModel_->index(count - 1, static_cast<int>(TransactionsViewModel::Columns::Date));
-   auto dateTime = transactionsModel_->data(index).toDateTime();
-   ui->dateEditStart->setDateTime(dateTime);
+   const auto &item = transactionsModel_->getOldestItem();
+   ui_->dateEditStart->setDateTime(QDateTime::fromTime_t(item.txEntry.txTime));
+}
+
+void TransactionsWidget::onProgressInited(int start, int end)
+{
+   ui_->progressBar->show();
+   ui_->progressBar->setMinimum(start);
+   ui_->progressBar->setMaximum(end);
+}
+
+void TransactionsWidget::onProgressUpdated(int value)
+{
+   ui_->progressBar->setValue(value);
 }
 
 void TransactionsWidget::setAppSettings(std::shared_ptr<ApplicationSettings> appSettings)
@@ -292,15 +335,15 @@ void TransactionsWidget::setAppSettings(std::shared_ptr<ApplicationSettings> app
 void TransactionsWidget::shortcutActivated(ShortcutType s)
 {
    if (s == ShortcutType::Alt_1)
-      ui->treeViewTransactions->activate();
+      ui_->treeViewTransactions->activate();
 }
 
-static inline QStringList walletLeavesIds(WalletsManager::hd_wallet_type wallet)
+static inline QStringList walletLeavesIds(bs::sync::WalletsManager::HDWalletPtr wallet)
 {
    QStringList allLeafIds;
 
    for (const auto &leaf : wallet->getLeaves()) {
-      const QString id = QString::fromStdString(leaf->GetWalletId());
+      const QString id = QString::fromStdString(leaf->walletId());
       allLeafIds << id;
    }
 
@@ -339,37 +382,37 @@ void TransactionsWidget::walletsChanged()
    int currentIndex = -1;
    int primaryWalletIndex = 0;
 
-   ui->walletBox->clear();
-   ui->walletBox->addItem(tr("All Wallets"));
+   ui_->walletBox->clear();
+   ui_->walletBox->addItem(tr("All Wallets"));
    int index = 1;
-   for (unsigned int i = 0; i < walletsManager_->GetHDWalletsCount(); i++) {
-      const auto &hdWallet = walletsManager_->GetHDWallet(i);
-      ui->walletBox->addItem(QString::fromStdString(hdWallet->getName()));
+   for (unsigned int i = 0; i < walletsManager_->hdWalletsCount(); i++) {
+      const auto &hdWallet = walletsManager_->getHDWallet(i);
+      ui_->walletBox->addItem(QString::fromStdString(hdWallet->name()));
       QStringList allLeafIds = walletLeavesIds(hdWallet);
 
       if (exactlyThisLeaf(walletIds, allLeafIds)) {
          currentIndex = index;
       }
 
-      if (hdWallet == walletsManager_->GetPrimaryWallet()) {
+      if (hdWallet == walletsManager_->getPrimaryWallet()) {
          primaryWalletIndex = index;
       }
 
-      ui->walletBox->setItemData(index++, allLeafIds, UiUtils::WalletIdRole);
+      ui_->walletBox->setItemData(index++, allLeafIds, UiUtils::WalletIdRole);
 
       for (const auto &group : hdWallet->getGroups()) {
-         ui->walletBox->addItem(QString::fromStdString("   " + group->getName()));
+         ui_->walletBox->addItem(QString::fromStdString("   " + group->name()));
          const auto groupIndex = index++;
          QStringList groupLeafIds;
          for (const auto &leaf : group->getLeaves()) {
-            groupLeafIds << QString::fromStdString(leaf->GetWalletId());
-            ui->walletBox->addItem(QString::fromStdString("      " + leaf->GetShortName()));
+            groupLeafIds << QString::fromStdString(leaf->walletId());
+            ui_->walletBox->addItem(QString::fromStdString("      " + leaf->shortName()));
 
-            const auto id = QString::fromStdString(leaf->GetWalletId());
+            const auto id = QString::fromStdString(leaf->walletId());
             QStringList ids;
             ids << id;
 
-            ui->walletBox->setItemData(index, ids, UiUtils::WalletIdRole);
+            ui_->walletBox->setItemData(index, ids, UiUtils::WalletIdRole);
 
             if (exactlyThisLeaf(walletIds, ids)) {
                currentIndex = index;
@@ -380,30 +423,30 @@ void TransactionsWidget::walletsChanged()
          if (groupLeafIds.isEmpty()) {
             groupLeafIds << QLatin1String("non-existent");
          }
-         ui->walletBox->setItemData(groupIndex, groupLeafIds, UiUtils::WalletIdRole);
+         ui_->walletBox->setItemData(groupIndex, groupLeafIds, UiUtils::WalletIdRole);
       }
    }
-   const auto &settlWallet = walletsManager_->GetSettlementWallet();
+   const auto settlWallet = walletsManager_->getSettlementWallet();
    if (settlWallet) {
-      ui->walletBox->addItem(QLatin1String("Settlement"));
-      ui->walletBox->setItemData(index++, QStringList() << QString::fromStdString(settlWallet->GetWalletId())
+      ui_->walletBox->addItem(QLatin1String("Settlement"));
+      ui_->walletBox->setItemData(index++, QStringList() << QString::fromStdString(settlWallet->walletId())
          , UiUtils::WalletIdRole);
    }
 
-   ui->typeFilterComboBox->setCurrentIndex(direction);
+   ui_->typeFilterComboBox->setCurrentIndex(direction);
 
    if (currentIndex >= 0) {
-      ui->walletBox->setCurrentIndex(currentIndex);
+      ui_->walletBox->setCurrentIndex(currentIndex);
    } else {
       if (walletIds.contains(c_allWalletsId)) {
-         ui->walletBox->setCurrentIndex(0);
+         ui_->walletBox->setCurrentIndex(0);
       } else {
-         const auto primaryWallet = walletsManager_->GetPrimaryWallet();
+         const auto primaryWallet = walletsManager_->getPrimaryWallet();
 
          if (primaryWallet) {
-            ui->walletBox->setCurrentIndex(primaryWalletIndex);
+            ui_->walletBox->setCurrentIndex(primaryWalletIndex);
          } else {
-            ui->walletBox->setCurrentIndex(0);
+            ui_->walletBox->setCurrentIndex(0);
          }
       }
    }
@@ -414,7 +457,7 @@ void TransactionsWidget::walletsFilterChanged(int index)
    if (index < 0) {
       return;
    }
-   const auto &walletIds = ui->walletBox->itemData(index, UiUtils::WalletIdRole).toStringList();
+   const auto &walletIds = ui_->walletBox->itemData(index, UiUtils::WalletIdRole).toStringList();
    sortFilterModel_->updateFilters(walletIds, sortFilterModel_->searchString, sortFilterModel_->transactionDirection);
 }
 
@@ -425,7 +468,7 @@ void TransactionsWidget::onEnterKeyInTrxPressed(const QModelIndex &index)
 
 void TransactionsWidget::showTransactionDetails(const QModelIndex& index)
 {
-   auto txItem = transactionsModel_->getItem(sortFilterModel_->mapToSource(index).row());
+   auto txItem = transactionsModel_->getItem(sortFilterModel_->mapToSource(index));
 
    TransactionDetailDialog transactionDetailDialog(txItem, walletsManager_, armory_, this);
    transactionDetailDialog.exec();
@@ -434,26 +477,25 @@ void TransactionsWidget::showTransactionDetails(const QModelIndex& index)
 void TransactionsWidget::updateResultCount()
 {
    auto shown = sortFilterModel_->rowCount();
-   auto total = transactionsModel_->rowCount();
-   ui->labelResultCount->setText(tr("Displaying %L1 transactions (of %L2 total).")
+   auto total = transactionsModel_->itemsCount();
+   ui_->labelResultCount->setText(tr("Displaying %L1 transactions (of %L2 total).")
       .arg(shown).arg(total));
-   ui->labelResultCount->show();
+   ui_->labelResultCount->show();
 }
 
 void TransactionsWidget::onCreateRBFDialog()
 {
-   auto txItem = transactionsModel_->getItem(actionRBF_->data().toInt());
+   auto txItem = transactionsModel_->getItem(actionRBF_->data().toModelIndex());
 
    const auto &cbDialog = [this](const TransactionsViewItem *txItem) {
       try {
          auto dlg = CreateTransactionDialogAdvanced::CreateForRBF(armory_
-            , walletsManager_, signContainer_
-            , txItem->tx, txItem->wallet
-            , this);
+            , walletsManager_, signContainer_, logger_, txItem->tx
+            , txItem->wallet, this);
          dlg->exec();
       }
       catch (const std::exception &e) {
-         MessageBoxCritical(tr("RBF Transaction"), tr("Failed to create RBF transaction")
+         BSMessageBox(BSMessageBox::critical, tr("RBF Transaction"), tr("Failed to create RBF transaction")
             , QLatin1String(e.what()), this).exec();
       }
    };
@@ -468,18 +510,17 @@ void TransactionsWidget::onCreateRBFDialog()
 
 void TransactionsWidget::onCreateCPFPDialog()
 {
-   auto txItem = transactionsModel_->getItem(actionCPFP_->data().toInt());
+   auto txItem = transactionsModel_->getItem(actionCPFP_->data().toModelIndex());
 
    const auto &cbDialog = [this](const TransactionsViewItem *txItem) {
       try {
          auto dlg = CreateTransactionDialogAdvanced::CreateForCPFP(armory_
-            , walletsManager_, signContainer_
-            , txItem->wallet, txItem->tx
-            , this);
+            , walletsManager_, signContainer_, txItem->wallet
+            , logger_, txItem->tx, this);
          dlg->exec();
       }
       catch (const std::exception &e) {
-         MessageBoxCritical(tr("CPFP Transaction"), tr("Failed to create CPFP transaction")
+         BSMessageBox(BSMessageBox::critical, tr("CPFP Transaction"), tr("Failed to create CPFP transaction")
             , QLatin1String(e.what()), this).exec();
       }
    };

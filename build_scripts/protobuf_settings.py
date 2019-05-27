@@ -9,16 +9,19 @@ from component_configurator import Configurator
 class ProtobufSettings(Configurator):
     def __init__(self, settings):
         Configurator.__init__(self, settings)
-        self._version = '3.5.2'
+        self._version = '3.7.1'
         self._package_name = 'protobuf-' + self._version
+        self._package_name_url = 'protobuf-cpp-' + self._version
+        self._script_revision = '1'
 
-        self._package_url = 'https://github.com/google/protobuf/archive/v' + self._version + '.tar.gz'
+        self._package_url = 'https://github.com/protocolbuffers/protobuf/releases/download/v' + \
+            self._version + '/' + self._package_name_url + '.tar.gz'
 
     def get_package_name(self):
         return self._package_name
 
     def get_revision_string(self):
-        return self._version
+        return self._version + self._script_revision
 
     def get_url(self):
         return self._package_url
@@ -39,7 +42,12 @@ class ProtobufSettings(Configurator):
                    '-G',
                    self._project_settings.get_cmake_generator(),
                    '-Dprotobuf_BUILD_TESTS=OFF',
-                   '-Dprotobuf_MSVC_STATIC_RUNTIME=ON']
+                   '-Dprotobuf_WITH_ZLIB=OFF']
+
+        if self._project_settings.get_link_mode() == 'shared':
+            command.append('-Dprotobuf_MSVC_STATIC_RUNTIME=OFF')
+        else:
+            command.append('-Dprotobuf_MSVC_STATIC_RUNTIME=ON')
 
         result = subprocess.call(command)
         return result == 0
@@ -65,12 +73,12 @@ class ProtobufSettings(Configurator):
 
     def make_windows(self):
         print('Making protobuf: might take a while')
-        command = ['devenv',
+
+        command = ['msbuild',
                    self.get_solution_file(),
-                   '/build',
-                   self.get_win_build_mode(),
-                   '/project',
-                   'protoc']
+                   '/t:protoc',
+                   '/p:Configuration=' + self.get_win_build_mode(),
+                   '/p:CL_MPCount=' + str(max(1, multiprocessing.cpu_count() - 1))]
 
         result = subprocess.call(command)
         return result == 0
@@ -103,6 +111,8 @@ class ProtobufSettings(Configurator):
         # copy headers
         self.filter_copy(os.path.join(self.get_build_dir(), 'src'), os.path.join(self.get_install_dir(), 'include'),
                          '.h')
+        self.filter_copy(os.path.join(self.get_build_dir(), 'src'), os.path.join(self.get_install_dir(), 'include'),
+                         '.inc', False)
 
         return True
 

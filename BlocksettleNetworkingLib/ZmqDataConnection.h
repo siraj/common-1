@@ -79,7 +79,8 @@ protected:
    std::atomic_flag                 controlSocketLock_ = ATOMIC_FLAG_INIT;
    ZmqContext::sock_ptr             dataSocket_;
    ZmqContext::sock_ptr             monSocket_;
-
+   std::string                      hostAddr_;
+   std::string                      hostPort_;
 private:
    std::string                      socketId_;
 
@@ -93,6 +94,8 @@ private:
    std::vector<std::string>         sendQueue_;
 
    ZMQTransport                     zmqTransport_ = ZMQTransport::TCPTransport;
+
+   std::shared_ptr<bool>            continueExecution_ = nullptr;
 };
 
 #endif // __ZEROMQ_DATA_CONNECTION_H__

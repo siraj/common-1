@@ -1,10 +1,16 @@
+#include <QColor>
+#include <QSize>
+#include <QIcon>
 #include "TransactionOutputsModel.h"
-
 #include "UiUtils.h"
 
 TransactionOutputsModel::TransactionOutputsModel(QObject* parent)
    : QAbstractTableModel{parent}
-{}
+{
+   removeIcon_ = UiUtils::icon(0xeaf1, QVariantMap{
+               { QLatin1String{ "color" }, QColor{ Qt::white } }
+            });
+}
 
 int TransactionOutputsModel::rowCount(const QModelIndex & parent) const
 {
@@ -27,16 +33,40 @@ void TransactionOutputsModel::clear()
    endResetModel();
 }
 
+void TransactionOutputsModel::enableRows(bool flag)
+{
+   if (rowsEnabled_ != flag) {
+      rowsEnabled_ = flag;
+      emit dataChanged(index(0, 0), index(rowCount({}) - 1, columnCount({}) - 1));
+   }
+}
+
+Qt::ItemFlags TransactionOutputsModel::flags(const QModelIndex &index) const
+{
+   if (rowsEnabled_) {
+      return QAbstractTableModel::flags(index);
+   }
+   return Qt::ItemNeverHasChildren;
+}
+
 QVariant TransactionOutputsModel::data(const QModelIndex & index, int role) const
 {
+   // workaround dont working here
+   // TODO:move "Delete output button"
+   // from CreateTransactionDialogAdvanced::onOutputsInserted to model delegate
+  if (role == Qt::SizeHintRole && index.column() == 2) {
+     return QSize(50, 14);
+  }
+
    switch (role) {
    case Qt::TextAlignmentRole:
-      if (index.column() == ColumnAmount) {
-         return Qt::AlignRight;
-      }
-      return Qt::AlignLeft;
+      return int (Qt::AlignLeft | Qt::AlignVCenter);
    case Qt::DisplayRole:
       return getRowData(index.column(), outputs_[index.row()]);
+   case Qt::DecorationRole:
+      return getImageData(index.column());
+   case Qt::TextColorRole:
+      return rowsEnabled_ ? QVariant{} : QColor(Qt::gray);
    }
    return QVariant{};
 }
@@ -48,6 +78,28 @@ void TransactionOutputsModel::AddRecipient(unsigned int recipientId, const QStri
    endInsertRows();
 }
 
+void TransactionOutputsModel::AddRecipients(const std::vector<std::tuple<unsigned int, QString, double>> &recipients)
+{
+   beginInsertRows(QModelIndex{}, (int)outputs_.size(), (int)outputs_.size());
+   for (const auto &recip : recipients) {
+      outputs_.emplace_back(OutputRow{ std::get<0>(recip), std::get<1>(recip), std::get<2>(recip) });
+   }
+   endInsertRows();
+}
+
+void TransactionOutputsModel::UpdateRecipientAmount(unsigned int recipientId, double amount)
+{
+   int row = -1;
+   for (int i = 0; i < outputs_.size(); ++i) {
+      if (outputs_[i].recipientId == recipientId) {
+         row = i;
+         outputs_[i].amount = amount;
+         break;
+      }
+   }
+   emit dataChanged(index(row, ColumnAmount), index(row, ColumnAmount), { Qt::DisplayRole });
+}
+
 void TransactionOutputsModel::RemoveRecipient(int row)
 {
    beginRemoveRows(QModelIndex{}, row, row);
@@ -55,6 +107,11 @@ void TransactionOutputsModel::RemoveRecipient(int row)
    outputs_.erase(outputs_.begin() + row);
 
    endRemoveRows();
+}
+
+bool TransactionOutputsModel::isRemoveColumn(int column)
+{
+   return column == ColumnRemove;
 }
 
 unsigned int TransactionOutputsModel::GetOutputId(int row)
@@ -74,7 +131,7 @@ int TransactionOutputsModel::GetRowById(unsigned int id)
 
 QVariant TransactionOutputsModel::getRowData(int column, const OutputRow& outputRow) const
 {
-   switch(column){
+   switch (column) {
    case ColumnAddress:
       return outputRow.address;
    case ColumnAmount:
@@ -82,6 +139,15 @@ QVariant TransactionOutputsModel::getRowData(int column, const OutputRow& output
    }
 
    return QVariant{};
+}
+
+QVariant TransactionOutputsModel::getImageData(const int column) const
+{
+   if (column == ColumnRemove && rowsEnabled_) {
+      return removeIcon_;
+   }
+
+   return QVariant{};  
 }
 
 QVariant TransactionOutputsModel::headerData(int section, Qt::Orientation orientation, int role) const

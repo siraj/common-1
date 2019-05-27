@@ -2,13 +2,14 @@
 #define __CC_FILE_MANAGER_H__
 
 #include "CCPubConnection.h"
-#include "OTPManager.h"
 
 #include <memory>
 #include <vector>
 
 #include <QString>
 #include <QVariant>
+
+#include "ZMQ_BIP15X_DataConnection.h"
 
 namespace Blocksettle {
    namespace Communication {
@@ -17,16 +18,16 @@ namespace Blocksettle {
 }
 
 class ApplicationSettings;
+class AuthSignManager;
 class CelerClient;
-class OTPManager;
 
 class CCFileManager : public CCPubConnection
 {
 Q_OBJECT
 public:
    CCFileManager(const std::shared_ptr<spdlog::logger> &logger, const std::shared_ptr<ApplicationSettings> &appSettings
-      , const std::shared_ptr<OTPManager>&
-      , const std::shared_ptr<ConnectionManager>&);
+      , const std::shared_ptr<AuthSignManager> &
+      , const std::shared_ptr<ConnectionManager> &, const ZmqBIP15XDataConnection::cbNewKey &cb = nullptr);
    ~CCFileManager() noexcept override = default;
 
    CCFileManager(const CCFileManager&) = delete;
@@ -36,17 +37,15 @@ public:
 
    using CCSecurities = std::vector<bs::network::CCSecurityDef>;
    CCSecurities ccSecurities() const { return ccSecurities_; }
+   bool synchronized() const { return syncFinished_; }
 
    void LoadSavedCCDefinitions();
    void ConnectToCelerClient(const std::shared_ptr<CelerClient> &);
 
-   bool SubmitAddressToPuB(const bs::Address &, uint32_t seed, OTPManager::cbPassword);
+   bool SubmitAddressToPuB(const bs::Address &, uint32_t seed);
    bool wasAddressSubmitted(const bs::Address &);
-   bool needsOTPpassword() const;
 
-   bs::wallet::EncryptionType GetOtpEncType() const { return otpManager_->GetEncType(); }
-   QString GetOtpEncKey() const { return otpManager_->GetEncKey(); }
-   QString GetOtpId() const { return otpManager_->GetShortId(); }
+   bool hasLocalFile() const;
 
 signals:
    void CCSecurityDef(bs::network::CCSecurityDef);
@@ -54,6 +53,8 @@ signals:
    void CCSecurityInfo(QString ccProd, QString ccDesc, unsigned long nbSatoshis, QString genesisAddr);
 
    void CCAddressSubmitted(const QString);
+   void CCInitialSubmitted(const QString);
+   void CCSubmitFailed(const QString address, const QString &err);
    void Loaded();
    void LoadingFailed();
 
@@ -78,13 +79,16 @@ protected:
 private:
    std::shared_ptr<ApplicationSettings>   appSettings_;
    std::shared_ptr<CelerClient>           celerClient_;
-   std::shared_ptr<OTPManager>            otpManager_;
+   std::shared_ptr<AuthSignManager>       authSignManager_;
 
    CCSecurities   ccSecurities_;
 
    // when user changes PuB connection settings - save to file should be disabled.
    // dev build feature only. final release should have single PuB.
    bool saveToFileDisabled_ = false;
+
+   bool syncStarted_ = false;
+   bool syncFinished_ = false;
 
 private:
    bool LoadFromFile(const std::string &path);

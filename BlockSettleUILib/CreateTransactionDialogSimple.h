@@ -16,8 +16,9 @@ Q_OBJECT
 
 public:
    CreateTransactionDialogSimple(const std::shared_ptr<ArmoryConnection> &
-      , const std::shared_ptr<WalletsManager> &
-      , const std::shared_ptr<SignContainer> &, QWidget* parent = nullptr);
+      , const std::shared_ptr<bs::sync::WalletsManager> &
+      , const std::shared_ptr<SignContainer> &
+      , const std::shared_ptr<spdlog::logger>&, QWidget* parent = nullptr);
    ~CreateTransactionDialogSimple() override;
 
    bool userRequestedAdvancedDialog() const;
@@ -41,6 +42,8 @@ protected:
    QPushButton *pushButtonCancel() const override;
    QLabel *feePerByteLabel() const override;
    QLabel *changeLabel() const override;
+   QLabel* labelTXAmount() const override;
+   QLabel* labelTxOutputs() const override;
 
    bs::Address getChangeAddress() const override;
 
@@ -49,26 +52,19 @@ protected slots:
 
 private slots:
    void showAdvanced();
-
    void onAddressTextChanged(const QString &address);
-
    void onXBTAmountChanged(const QString& text);
-
    void createTransaction();
-
    void onImportPressed();
 
 private:
    void initUI();
 
-   void onTransactionUpdated() override;
-
-private:
    std::unique_ptr<Ui::CreateTransactionDialogSimple> ui_;
    unsigned int   recipientId_ = 0;
    bool  advancedDialogRequested_ = false;
 
-   std::vector<bs::wallet::TXSignRequest> offlineTransactions_;
+   std::vector<bs::core::wallet::TXSignRequest> offlineTransactions_;
 };
 
 #endif // __CREATE_TRANSACTION_DIALOG_SIMPLE_H__

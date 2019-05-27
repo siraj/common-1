@@ -9,8 +9,13 @@
 #include <QMenu>
 #include <QPoint>
 #include <QString>
-#include "MetaData.h"
+#include "CoreWallet.h"
 
+namespace bs {
+   namespace sync {
+      class WalletsManager;
+   }
+}
 class ArmoryConnection;
 class QCheckBox;
 class QComboBox;
@@ -23,7 +28,6 @@ class SignContainer;
 class TransactionData;
 class TransactionOutputsModel;
 class UsedInputsModel;
-class WalletsManager;
 class XbtAmountValidator;
 
 
@@ -33,9 +37,10 @@ Q_OBJECT
 
 public:
    CreateTransactionDialog(const std::shared_ptr<ArmoryConnection> &
-      , const std::shared_ptr<WalletsManager> &
+      , const std::shared_ptr<bs::sync::WalletsManager> &
       , const std::shared_ptr<SignContainer> &
-      , bool loadFeeSuggestions, QWidget* parent);
+      , bool loadFeeSuggestions, const std::shared_ptr<spdlog::logger>& logger
+      , QWidget* parent);
    ~CreateTransactionDialog() noexcept override;
 
    int SelectWallet(const std::string& walletId);
@@ -56,7 +61,9 @@ protected:
    virtual QCheckBox *checkBoxRBF() const = 0;
    virtual QLabel *labelBalance() const = 0;
    virtual QLabel *labelAmount() const = 0;
+   virtual QLabel *labelTXAmount() const = 0;
    virtual QLabel *labelTxInputs() const = 0;
+   virtual QLabel *labelTxOutputs() const = 0;
    virtual QLabel *labelEstimatedFee() const = 0;
    virtual QLabel *labelTotalAmount() const = 0;
    virtual QLabel *labelTxSize() const = 0;
@@ -72,9 +79,7 @@ protected:
 
    virtual bool HaveSignedImportedTransaction() const { return false; }
 
-   void updateCreateButtonText();
-
-   std::vector<bs::wallet::TXSignRequest> ImportTransactions();
+   std::vector<bs::core::wallet::TXSignRequest> ImportTransactions();
    bool BroadcastImportedTx();
    bool CreateTransaction();
 
@@ -90,9 +95,13 @@ protected slots:
       , const std::function<void()> &cbInputsReset = nullptr);
    virtual void onMaxPressed();
    void onTXSigned(unsigned int id, BinaryData signedTX, std::string error, bool cancelledByUser);
+   void updateCreateButtonText();
+   void onSignerAuthenticated();
+
+protected:
+   void populateFeeList();
 
 private:
-   void populateFeeList();
    void loadFees();
    void populateWalletsList();
    void startBroadcasting();
@@ -100,9 +109,10 @@ private:
 
 protected:
    std::shared_ptr<ArmoryConnection>   armory_;
-   std::shared_ptr<WalletsManager>  walletsManager_;
-   std::shared_ptr<SignContainer>   signingContainer_;
+   std::shared_ptr<bs::sync::WalletsManager> walletsManager_;
+   std::shared_ptr<SignContainer>   signContainer_;
    std::shared_ptr<TransactionData> transactionData_;
+   std::shared_ptr<spdlog::logger> logger_;
 
    XbtAmountValidator * xbtValidator_ = nullptr;
 
@@ -112,12 +122,13 @@ protected:
    unsigned int   pendingTXSignId_ = 0;
    bool           broadcasting_ = false;
    uint64_t       originalFee_ = 0;
+   float          originalFeePerByte_ = 0.0f;
 
    QString        offlineDir_;
    BinaryData     importedSignedTX_;
 
 private:
-   bs::wallet::TXSignRequest txReq_;
+   bs::core::wallet::TXSignRequest  txReq_;
 };
 
 #endif // __CREATE_TRANSACTION_DIALOG_H__

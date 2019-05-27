@@ -20,7 +20,11 @@ void bs::TxAddressChecker::containsInputAddress(Tx tx, std::function<void(bool)>
    }
    OutPoint op = in.getOutPoint();
 
-   const auto &cbTX = [this, op, cb, lotsize, value](Tx prevTx) {
+   const auto &cbTX = [this, op, cb, lotsize, value](const Tx &prevTx) {
+      if (!prevTx.isInitialized()) {
+         cb(false);
+         return;
+      }
       const TxOut prevOut = prevTx.getTxOutCopy(op.getTxOutIndex());
       const auto txAddr = bs::Address::fromTxOut(prevOut);
       const auto prevOutVal = prevOut.getValue();
@@ -77,7 +81,7 @@ struct recip_compare {
 };
 void CheckRecipSigner::removeDupRecipients()
 {  // can be implemented later in a better way without temporary std::set
-   vector<shared_ptr<ScriptRecipient>> uniqueRecepients;
+   std::vector<std::shared_ptr<ScriptRecipient>> uniqueRecepients;
 
    std::set<std::shared_ptr<ScriptRecipient>, recip_compare> recipSet;
    for (const auto r : recipients_) {
@@ -108,7 +112,7 @@ void CheckRecipSigner::hasInputAddress(const bs::Address &addr, std::function<vo
    auto checker = std::make_shared<TxAddressChecker>(addr, armory_);
    resultFound_ = false;
 
-   const auto &cbTXs = [this, cb, checker, lotsize](std::vector<Tx> txs) {
+   const auto &cbTXs = [this, cb, checker, lotsize](const std::vector<Tx> &txs) {
       for (const auto &tx : txs) {
          const auto &cbContains = [this, cb, tx, checker](bool contains) {
             txHashSet_.erase(tx.getThisHash());
@@ -126,7 +130,12 @@ void CheckRecipSigner::hasInputAddress(const bs::Address &addr, std::function<vo
          }
       }
    };
-   armory_->getTXsByHash(txHashSet_, cbTXs);
+   if (txHashSet_.empty()) {
+      cb(false);
+   }
+   else {
+      armory_->getTXsByHash(txHashSet_, cbTXs);
+   }
 }
 
 bool CheckRecipSigner::hasReceiver() const
@@ -197,7 +206,7 @@ bool CheckRecipSigner::GetInputAddressList(const std::shared_ptr<spdlog::logger>
       return false;
    }
 
-   const auto &cbTXs = [this, result, cb](std::vector<Tx> txs) {
+   const auto &cbTXs = [this, result, cb](const std::vector<Tx> &txs) {
       for (const auto &tx : txs) {
          if (!result) {
             return;
@@ -214,16 +223,21 @@ bool CheckRecipSigner::GetInputAddressList(const std::shared_ptr<spdlog::logger>
          }
       }
    };
-   const auto &cbOutputTXs = [this, cbTXs](std::vector<Tx> txs) {
+   const auto &cbOutputTXs = [this, cbTXs, cb](const std::vector<Tx> &txs) {
       for (const auto &tx : txs) {
          for (size_t i = 0; i < tx.getNumTxIn(); ++i) {
-            TxIn in = tx.getTxInCopy(i);
+            TxIn in = tx.getTxInCopy((int)i);
             OutPoint op = in.getOutPoint();
             txHashSet_.insert(op.getTxHash());
             txOutIdx_[op.getTxHash()].insert(op.getTxOutIndex());
          }
       }
-      armory_->getTXsByHash(txHashSet_, cbTXs);
+      if (txHashSet_.empty()) {
+         cb({});
+      }
+      else {
+         armory_->getTXsByHash(txHashSet_, cbTXs);
+      }
    };
 
    std::set<BinaryData> outputHashSet;
@@ -237,8 +251,13 @@ bool CheckRecipSigner::GetInputAddressList(const std::shared_ptr<spdlog::logger>
          outputHashSet.emplace(std::move(outputHash));
       }
    }
-   armory_->getTXsByHash(outputHashSet, cbOutputTXs);
-
+   if (outputHashSet.empty()) {
+      cb({});
+      return false;
+   }
+   else {
+      armory_->getTXsByHash(outputHashSet, cbOutputTXs);
+   }
    return true;
 }
 
@@ -256,7 +275,7 @@ int TxChecker::receiverIndex(const bs::Address &addr) const
       }
       const auto &txAddr = bs::Address::fromTxOut(out);
       if (addr.id() == txAddr.id()) {
-         return i;
+         return (int)i;
       }
    }
    return -1;
@@ -279,21 +298,19 @@ void TxChecker::hasSpender(const bs::Address &addr, const std::shared_ptr<Armory
       std::set<BinaryData> txHashSet;
       std::map<BinaryData, std::unordered_set<uint32_t>> txOutIdx;
    };
-   auto result = new Result;
+   auto result = std::make_shared<Result>();
 
-   const auto &cbTXs = [result, addr, cb](std::vector<Tx> txs) {
+   const auto &cbTXs = [result, addr, cb](const std::vector<Tx> &txs) {
       for (const auto &tx : txs) {
          for (const auto &txOutIdx : result->txOutIdx[tx.getThisHash()]) {
             const TxOut prevOut = tx.getTxOutCopy(txOutIdx);
             const bs::Address &txAddr = bs::Address::fromTxOut(prevOut);
             if (txAddr.id() == addr.id()) {
-                delete result;
                 cb(true);
                 return;
             }
          }
       }
-      delete result;
       cb(false);
    };
 
@@ -306,7 +323,12 @@ void TxChecker::hasSpender(const bs::Address &addr, const std::shared_ptr<Armory
       result->txHashSet.insert(op.getTxHash());
       result->txOutIdx[op.getTxHash()].insert(op.getTxOutIndex());
    }
-   armory->getTXsByHash(result->txHashSet, cbTXs);
+   if (result->txHashSet.empty()) {
+      cb(false);
+   }
+   else {
+      armory->getTXsByHash(result->txHashSet, cbTXs);
+   }
 }
 
 bool TxChecker::hasInput(const BinaryData &txHash) const

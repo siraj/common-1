@@ -1,6 +1,6 @@
 ////////////////////////////////////////////////////////////////////////////////
 //                                                                            //
-//  Copyright (C) 2017, goatpig                                               //
+//  Copyright (C) 2017-2019, goatpig                                          //
 //  Distributed under the MIT license                                         //
 //  See LICENSE-MIT or https://opensource.org/licenses/MIT                    //
 //                                                                            //
@@ -10,6 +10,8 @@
 #include "BtcUtils.h"
 #include "ScriptRecipient.h"
 #include "make_unique.h"
+
+using namespace std;
 
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
@@ -126,21 +128,18 @@ shared_ptr<AssetEntry> AssetEntry::deserDBValue(
    auto val = brrVal.get_uint8_t();
    auto entryType = AssetEntryType(val & 0x0F);
 
-   switch (entryType)
+   auto getKeyData = [](BinaryRefReader& brr,
+      shared_ptr<Asset_PrivateKey>& privKeyPtr,
+      SecureBinaryData& pubKeyCompressed,
+      SecureBinaryData& pubKeyUncompressed
+   )->void
    {
-   case AssetEntryType_Single:
-   {
-      shared_ptr<Asset_PrivateKey> privKeyPtr = nullptr;
-
-      SecureBinaryData pubKeyCompressed;
-      SecureBinaryData pubKeyUncompressed;
-
       vector<pair<size_t, BinaryDataRef>> dataVec;
 
-      while (brrVal.getSizeRemaining() > 0)
+      while (brr.getSizeRemaining() > 0)
       {
-         auto len = brrVal.get_var_int();
-         auto valref = brrVal.get_BinaryDataRef(len);
+         auto len = brr.get_var_int();
+         auto valref = brr.get_BinaryDataRef(len);
 
          dataVec.push_back(make_pair(len, valref));
       }
@@ -162,7 +161,7 @@ shared_ptr<AssetEntry> AssetEntry::deserDBValue(
 
             pubKeyUncompressed = move(SecureBinaryData(
                brrData.get_BinaryDataRef(
-               brrData.getSizeRemaining())));
+                  brrData.getSizeRemaining())));
 
             break;
          }
@@ -177,7 +176,7 @@ shared_ptr<AssetEntry> AssetEntry::deserDBValue(
 
             pubKeyCompressed = move(SecureBinaryData(
                brrData.get_BinaryDataRef(
-               brrData.getSizeRemaining())));
+                  brrData.getSizeRemaining())));
 
             break;
          }
@@ -199,14 +198,46 @@ shared_ptr<AssetEntry> AssetEntry::deserDBValue(
             throw AssetException("unknown key type byte");
          }
       }
+   };
+
+   switch (entryType)
+   {
+   case AssetEntryType_Single:
+   {
+      shared_ptr<Asset_PrivateKey> privKeyPtr;
+      SecureBinaryData pubKeyCompressed;
+      SecureBinaryData pubKeyUncompressed;
+
+      getKeyData(brrVal, privKeyPtr, pubKeyCompressed, pubKeyUncompressed);
 
       auto addrEntry = make_shared<AssetEntry_Single>(
          index, account_id,
          pubKeyUncompressed, pubKeyCompressed, privKeyPtr);
 
       addrEntry->doNotCommit();
-
       return addrEntry;
+   }
+
+   case AssetEntryType_BIP32Root:
+   {
+      auto depth = brrVal.get_uint8_t();
+      auto leafid = brrVal.get_uint32_t();
+      auto cclen = brrVal.get_var_int();
+      auto&& chaincode = brrVal.get_BinaryData(cclen);
+
+      shared_ptr<Asset_PrivateKey> privKeyPtr;
+      SecureBinaryData pubKeyCompressed;
+      SecureBinaryData pubKeyUncompressed;
+
+      getKeyData(brrVal, privKeyPtr, pubKeyCompressed, pubKeyUncompressed);
+
+      auto rootEntry = make_shared<AssetEntry_BIP32Root>(
+         index, account_id,
+         pubKeyUncompressed, pubKeyCompressed, privKeyPtr,
+         chaincode, depth, leafid);
+
+      rootEntry->doNotCommit();
+      return rootEntry;
    }
 
    default:
@@ -227,6 +258,34 @@ BinaryData AssetEntry_Single::serialize() const
    bw.put_BinaryData(pubkey_->serialize());
    if (privkey_ != nullptr && privkey_->hasData())
       bw.put_BinaryData(privkey_->serialize());
+
+   BinaryWriter finalBw;
+
+   finalBw.put_var_int(bw.getSize());
+   finalBw.put_BinaryData(bw.getData());
+
+   return finalBw.getData();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+BinaryData AssetEntry_BIP32Root::serialize() const
+{
+   BinaryWriter bw;
+   auto entryType = getType();
+   bw.put_uint8_t(entryType);
+
+   bw.put_uint8_t(depth_);
+   bw.put_uint32_t(leafID_);
+   
+   bw.put_var_int(chaincode_.getSize());
+   bw.put_BinaryData(chaincode_);
+
+   auto pubkey = getPubKey();
+   auto privkey = getPrivKey();
+
+   bw.put_BinaryData(pubkey->serialize());
+   if (privkey != nullptr && privkey->hasData())
+      bw.put_BinaryData(privkey->serialize());
 
    BinaryWriter finalBw;
 
@@ -309,6 +368,26 @@ const BinaryData& AssetEntry_Multisig::getPrivateEncryptionKeyId(void) const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+shared_ptr<AssetEntry_Single> AssetEntry_Single::getPublicCopy()
+{
+   auto woCopy = make_shared<AssetEntry_Single>(
+      index_, getAccountID(), pubkey_, nullptr);
+
+   return woCopy;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+shared_ptr<AssetEntry_Single> AssetEntry_BIP32Root::getPublicCopy()
+{
+   auto pubkey = getPubKey();
+   auto woCopy = make_shared<AssetEntry_BIP32Root>(
+      index_, getAccountID(), pubkey, nullptr,
+      chaincode_, depth_, leafID_);
+
+   return woCopy;
+}
+
+////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 //// Asset
 ////////////////////////////////////////////////////////////////////////////////
@@ -320,20 +399,11 @@ Asset_EncryptedData::~Asset_EncryptedData()
 {}
 
 ////////////////////////////////////////////////////////////////////////////////
-unique_ptr<DecryptedEncryptionKey> Asset_EncryptionKey::decrypt(
+unique_ptr<DecryptedData> Asset_EncryptedData::decrypt(
    const SecureBinaryData& key) const
 {
-   auto decryptedData = cypher_->decrypt(key, data_);
-   auto decrPtr = make_unique<DecryptedEncryptionKey>(decryptedData);
-   return move(decrPtr);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-unique_ptr<DecryptedPrivateKey> Asset_PrivateKey::decrypt(
-   const SecureBinaryData& key) const
-{
-   auto&& decryptedData = cypher_->decrypt(key, data_);
-   auto decrPtr = make_unique<DecryptedPrivateKey>(id_, decryptedData);
+   auto&& decryptedData = cipher_->decrypt(key, cipherText_);
+   auto decrPtr = make_unique<DecryptedData>(getId(), decryptedData);
    return move(decrPtr);
 }
 
@@ -358,13 +428,14 @@ BinaryData Asset_PrivateKey::serialize() const
 {
    BinaryWriter bw;
    bw.put_uint8_t(PRIVKEY_BYTE);
-   bw.put_int32_t(id_);
-   bw.put_var_int(data_.getSize());
-   bw.put_BinaryData(data_);
+   bw.put_var_int(id_.getSize());
+   bw.put_BinaryData(id_);
+   bw.put_var_int(cipherText_.getSize());
+   bw.put_BinaryData(cipherText_);
 
-   auto&& cypherData = cypher_->serialize();
-   bw.put_var_int(cypherData.getSize());
-   bw.put_BinaryData(cypherData);
+   auto&& cipherData = cipher_->serialize();
+   bw.put_var_int(cipherData.getSize());
+   bw.put_BinaryData(cipherData);
 
    BinaryWriter finalBw;
    finalBw.put_var_int(bw.getSize());
@@ -379,12 +450,12 @@ BinaryData Asset_EncryptionKey::serialize() const
    bw.put_uint8_t(ENCRYPTIONKEY_BYTE);
    bw.put_var_int(id_.getSize());
    bw.put_BinaryData(id_);
-   bw.put_var_int(data_.getSize());
-   bw.put_BinaryData(data_);
+   bw.put_var_int(cipherText_.getSize());
+   bw.put_BinaryData(cipherText_);
 
-   auto&& cypherData = cypher_->serialize();
-   bw.put_var_int(cypherData.getSize());
-   bw.put_BinaryData(cypherData);
+   auto&& cipherData = cipher_->serialize();
+   bw.put_var_int(cipherData.getSize());
+   bw.put_BinaryData(cipherData);
 
    BinaryWriter finalBw;
    finalBw.put_var_int(bw.getSize());
@@ -399,8 +470,9 @@ bool Asset_PrivateKey::isSame(Asset_EncryptedData* const asset) const
    if (asset_ed == nullptr)
       return false;
 
-   return id_ == asset_ed->id_ && data_ == asset_ed->data_ &&
-      cypher_->isSame(asset_ed->cypher_.get());
+   return id_ == asset_ed->id_ && 
+      cipherText_ == asset_ed->cipherText_ &&
+      cipher_->isSame(asset_ed->cipher_.get());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -410,8 +482,9 @@ bool Asset_EncryptionKey::isSame(Asset_EncryptedData* const asset) const
    if (asset_ed == nullptr)
       return false;
 
-   return id_ == asset_ed->id_ && data_ == asset_ed->data_ &&
-      cypher_->isSame(asset_ed->cypher_.get());
+   return id_ == asset_ed->id_ && 
+      cipherText_ == asset_ed->cipherText_ &&
+      cipher_->isSame(asset_ed->cipher_.get());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -446,20 +519,21 @@ shared_ptr<Asset_EncryptedData> Asset_EncryptedData::deserialize(
    case PRIVKEY_BYTE:
    {
       //id
-      auto&& id = brr.get_int32_t();
+      auto len = brr.get_var_int();
+      auto&& id = brr.get_BinaryData(len);
 
       //data
-      auto len = brr.get_var_int();
+      len = brr.get_var_int();
       auto&& data = brr.get_SecureBinaryData(len);
 
-      //cypher
+      //cipher
       len = brr.get_var_int();
       if (len > brr.getSizeRemaining())
          throw runtime_error("invalid serialized encrypted data len");
-      auto&& cypher = Cypher::deserialize(brr);
+      auto&& cipher = Cipher::deserialize(brr);
 
       //ptr
-      assetPtr = make_shared<Asset_PrivateKey>(id, data, move(cypher));
+      assetPtr = make_shared<Asset_PrivateKey>(id, data, move(cipher));
 
       break;
    }
@@ -474,14 +548,32 @@ shared_ptr<Asset_EncryptedData> Asset_EncryptedData::deserialize(
       len = brr.get_var_int();
       auto&& data = brr.get_SecureBinaryData(len);
 
-      //cypher
+      //cipher
       len = brr.get_var_int();
       if (len > brr.getSizeRemaining())
          throw runtime_error("invalid serialized encrypted data len");
-      auto&& cypher = Cypher::deserialize(brr);
+      auto&& cipher = Cipher::deserialize(brr);
 
       //ptr
-      assetPtr = make_shared<Asset_EncryptionKey>(id, data, move(cypher));
+      assetPtr = make_shared<Asset_EncryptionKey>(id, data, move(cipher));
+
+      break;
+   }
+
+   case WALLET_SEED_BYTE:
+   {
+      //data
+      auto len = brr.get_var_int();
+      auto&& data = brr.get_SecureBinaryData(len);
+
+      //cipher
+      len = brr.get_var_int();
+      if (len > brr.getSizeRemaining())
+         throw runtime_error("invalid serialized encrypted data len");
+      auto&& cipher = Cipher::deserialize(brr);
+
+      //ptr
+      assetPtr = make_shared<EncryptedSeed>(data, move(cipher));
 
       break;
    }
@@ -491,4 +583,395 @@ shared_ptr<Asset_EncryptedData> Asset_EncryptedData::deserialize(
    }
 
    return assetPtr;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+BinaryData EncryptedSeed::serialize() const
+{
+   BinaryWriter bw;
+   bw.put_uint8_t(WALLET_SEED_BYTE);
+   bw.put_var_int(cipherText_.getSize());
+   bw.put_BinaryData(cipherText_);
+
+   auto&& cipherData = cipher_->serialize();
+   bw.put_var_int(cipherData.getSize());
+   bw.put_BinaryData(cipherData);
+
+   BinaryWriter finalBw;
+   finalBw.put_var_int(bw.getSize());
+   finalBw.put_BinaryDataRef(bw.getDataRef());
+   return finalBw.getData();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+bool EncryptedSeed::isSame(Asset_EncryptedData* const seed) const
+{
+   auto asset_ed = dynamic_cast<EncryptedSeed*>(seed);
+   if (asset_ed == nullptr)
+      return false;
+
+   return cipherText_ == asset_ed->cipherText_ &&
+      cipher_->isSame(asset_ed->cipher_.get());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+//// MetaData
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+MetaData::~MetaData()
+{}
+
+shared_ptr<MetaData> MetaData::deserialize(
+   const BinaryDataRef& key, const BinaryDataRef& data)
+{
+   if (key.getSize() != 9)
+      throw AssetException("invalid metadata key size");
+
+   //deser key
+   BinaryRefReader brrKey(key);
+   auto keyPrefix = brrKey.get_uint8_t();
+   auto&& accountID = brrKey.get_BinaryData(4);
+   auto index = brrKey.get_uint32_t(BE);
+
+   //construct object and deser data
+   shared_ptr<MetaData> resultPtr;
+   switch (keyPrefix)
+   {
+   case METADATA_COMMENTS_PREFIX:
+   {
+      throw AssetException("comments metadata not implemented yet");
+   }
+
+   case METADATA_AUTHPEER_PREFIX:
+   {
+      resultPtr = make_shared<PeerPublicData>(accountID, index);
+      resultPtr->deserializeDBValue(data);
+      break;
+   }
+
+   case METADATA_PEERROOT_PREFIX:
+   {
+      resultPtr = make_shared<PeerRootKey>(accountID, index);
+      resultPtr->deserializeDBValue(data);
+      break;
+   }
+
+   case METADATA_ROOTSIG_PREFIX:
+   {
+      resultPtr = make_shared<PeerRootSignature>(accountID, index);
+      resultPtr->deserializeDBValue(data);
+      break;
+   }
+
+   default:
+      throw AssetException("unexpected metadata prefix");
+   }
+
+   return resultPtr;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+//// PeerPublicData
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+BinaryData PeerPublicData::getDbKey() const
+{
+   if (accountID_.getSize() != 4)
+      throw AssetException("invalid accountID");
+
+   BinaryWriter bw;
+   bw.put_uint8_t(METADATA_AUTHPEER_PREFIX);
+   bw.put_BinaryData(accountID_);
+   bw.put_uint32_t(index_, BE);
+
+   return bw.getData();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+BinaryData PeerPublicData::serialize() const
+{
+   //returning an empty serialized string will cause the key to be deleted
+   if (names_.size() == 0)
+      return BinaryData();
+
+   BinaryWriter bw;
+
+   bw.put_var_int(publicKey_.getSize());
+   bw.put_BinaryData(publicKey_);
+
+   bw.put_var_int(names_.size());
+   for (auto& name : names_)
+   {
+      bw.put_var_int(name.size());
+
+      BinaryDataRef bdrName;
+      bdrName.setRef(name);
+      bw.put_BinaryDataRef(bdrName);
+   }
+
+   BinaryWriter bwWithSize;
+   bwWithSize.put_var_int(bw.getSize());
+   bwWithSize.put_BinaryDataRef(bw.getDataRef());
+
+   return bwWithSize.getData();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void PeerPublicData::deserializeDBValue(const BinaryDataRef& data)
+{
+   BinaryRefReader brrData(data);
+   auto len = brrData.get_var_int();
+   if (len != brrData.getSizeRemaining())
+      throw AssetException("size mismatch in metadata entry");
+
+   auto keyLen = brrData.get_var_int();
+   publicKey_ = brrData.get_BinaryData(keyLen);
+   
+   //check pubket is valid
+   if(!CryptoECDSA().VerifyPublicKeyValid(publicKey_))
+      throw AssetException("invalid pubkey in peer metadata");
+
+   auto count = brrData.get_var_int();
+   for (unsigned i = 0; i < count; i++)
+   {
+      auto nameLen = brrData.get_var_int();
+      auto bdrName = brrData.get_BinaryDataRef(nameLen);
+
+      string name((char*)bdrName.getPtr(), nameLen);
+      names_.emplace(name);
+   }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void PeerPublicData::setPublicKey(const SecureBinaryData& key)
+{
+   publicKey_ = key;
+   flagForCommit();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void PeerPublicData::addName(const string& name)
+{
+   names_.insert(name);
+   flagForCommit();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+bool PeerPublicData::eraseName(const string& name)
+{
+   auto iter = names_.find(name);
+   if (iter == names_.end())
+      return false;
+
+   names_.erase(iter);
+   flagForCommit();
+   return true;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void PeerPublicData::clear()
+{
+   names_.clear();
+   flagForCommit();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+shared_ptr<MetaData> PeerPublicData::copy() const
+{
+   auto copyPtr = make_shared<PeerPublicData>(getAccountID(), getIndex());
+   copyPtr->names_ = names_;
+   copyPtr->publicKey_ = publicKey_;
+
+   return copyPtr;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+//// PeerRootKey
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+BinaryData PeerRootKey::getDbKey() const
+{
+   if (accountID_.getSize() != 4)
+      throw AssetException("invalid accountID");
+
+   BinaryWriter bw;
+   bw.put_uint8_t(METADATA_PEERROOT_PREFIX);
+   bw.put_BinaryData(accountID_);
+   bw.put_uint32_t(index_, BE);
+
+   return bw.getData();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+BinaryData PeerRootKey::serialize() const
+{
+   //returning an empty serialized string will cause the key to be deleted
+   if (publicKey_.getSize() == 0)
+      return BinaryData();
+
+   BinaryWriter bw;
+   bw.put_var_int(publicKey_.getSize());
+   bw.put_BinaryData(publicKey_);
+
+   bw.put_var_int(description_.size());
+   if (description_.size() > 0)
+   {
+      BinaryDataRef descBdr;
+      descBdr.setRef(description_);
+      bw.put_BinaryDataRef(descBdr);
+   }
+
+   BinaryWriter bwWithSize;
+   bwWithSize.put_var_int(bw.getSize());
+   bwWithSize.put_BinaryDataRef(bw.getDataRef());
+
+   return bwWithSize.getData();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void PeerRootKey::deserializeDBValue(const BinaryDataRef& data)
+{
+   BinaryRefReader brrData(data);
+   auto len = brrData.get_var_int();
+   if (len != brrData.getSizeRemaining())
+      throw AssetException("size mismatch in metadata entry");
+
+   auto keyLen = brrData.get_var_int();
+   publicKey_ = brrData.get_BinaryData(keyLen);
+
+   //check pubket is valid
+   if (!CryptoECDSA().VerifyPublicKeyValid(publicKey_))
+      throw AssetException("invalid pubkey in peer metadata");
+
+   auto descLen = brrData.get_var_int();
+   if (descLen == 0)
+      return;
+
+   auto descBdr = brrData.get_BinaryDataRef(descLen);
+   description_ = string(descBdr.toCharPtr(), descBdr.getSize());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void PeerRootKey::clear()
+{
+   publicKey_.clear();
+   description_.clear();
+   flagForCommit();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void PeerRootKey::set(const string& desc, const SecureBinaryData& key)
+{
+   if (publicKey_.getSize() != 0)
+      throw AssetException("peer root key already set");
+
+   if (!CryptoECDSA().VerifyPublicKeyValid(key))
+      throw AssetException("invalid pubkey for peer root");
+
+   publicKey_ = key;
+   description_ = desc;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+shared_ptr<MetaData> PeerRootKey::copy() const
+{
+   auto copyPtr = make_shared<PeerRootKey>(getAccountID(), getIndex());
+   copyPtr->publicKey_ = publicKey_;
+   copyPtr->description_ = description_;
+
+   return copyPtr;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+//// PeerRootSignature
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+BinaryData PeerRootSignature::getDbKey() const
+{
+   if (accountID_.getSize() != 4)
+      throw AssetException("invalid accountID");
+
+   BinaryWriter bw;
+   bw.put_uint8_t(METADATA_ROOTSIG_PREFIX);
+   bw.put_BinaryData(accountID_);
+   bw.put_uint32_t(index_, BE);
+
+   return bw.getData();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+BinaryData PeerRootSignature::serialize() const
+{
+   //returning an empty serialized string will cause the key to be deleted
+   if (publicKey_.getSize() == 0)
+      return BinaryData();
+
+   BinaryWriter bw;
+   bw.put_var_int(publicKey_.getSize());
+   bw.put_BinaryData(publicKey_);
+
+   bw.put_var_int(signature_.getSize());
+   bw.put_BinaryData(signature_);
+
+   BinaryWriter bwWithSize;
+   bwWithSize.put_var_int(bw.getSize());
+   bwWithSize.put_BinaryDataRef(bw.getDataRef());
+
+   return bwWithSize.getData();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void PeerRootSignature::deserializeDBValue(const BinaryDataRef& data)
+{
+   BinaryRefReader brrData(data);
+   auto len = brrData.get_var_int();
+   if (len != brrData.getSizeRemaining())
+      throw AssetException("size mismatch in metadata entry");
+
+   auto keyLen = brrData.get_var_int();
+   publicKey_ = brrData.get_BinaryData(keyLen);
+
+   //check pubket is valid
+   if (!CryptoECDSA().VerifyPublicKeyValid(publicKey_))
+      throw AssetException("invalid pubkey in peer metadata");
+
+   len = brrData.get_var_int();
+   signature_ = brrData.get_BinaryDataRef(len);
+
+   //cannot check sig is valid until full peer account is loaded
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void PeerRootSignature::clear()
+{
+   publicKey_.clear();
+   signature_.clear();
+   flagForCommit();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void PeerRootSignature::set(
+   const SecureBinaryData& key, const SecureBinaryData& sig)
+{
+   if (publicKey_.getSize() != 0)
+      throw AssetException("peer root key already set");
+
+   //check pubkey and sig prior to calling this
+
+   publicKey_ = key;
+   signature_ = sig;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+shared_ptr<MetaData> PeerRootSignature::copy() const
+{
+   auto copyPtr = make_shared<PeerRootSignature>(getAccountID(), getIndex());
+   copyPtr->publicKey_ = publicKey_;
+   copyPtr->signature_ = signature_;
+
+   return copyPtr;
 }

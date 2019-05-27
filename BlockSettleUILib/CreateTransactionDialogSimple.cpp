@@ -5,23 +5,22 @@
 #include "Address.h"
 #include "ArmoryConnection.h"
 #include "CreateTransactionDialogAdvanced.h"
-#include "MessageBoxCritical.h"
-#include "MessageBoxInfo.h"
-#include "OfflineSigner.h"
 #include "SignContainer.h"
 #include "TransactionData.h"
 #include "UiUtils.h"
-#include "WalletsManager.h"
+#include "Wallets/SyncWalletsManager.h"
 #include "XbtAmountValidator.h"
 
 #include <QFileDialog>
 #include <QDebug>
 
 CreateTransactionDialogSimple::CreateTransactionDialogSimple(const std::shared_ptr<ArmoryConnection> &armory
-   , const std::shared_ptr<WalletsManager>& walletManager
-   , const std::shared_ptr<SignContainer> &container, QWidget* parent)
- : CreateTransactionDialog(armory, walletManager, container, true, parent)
- , ui_(new Ui::CreateTransactionDialogSimple)
+   , const std::shared_ptr<bs::sync::WalletsManager>& walletManager
+   , const std::shared_ptr<SignContainer> &container
+   , const std::shared_ptr<spdlog::logger>& logger, QWidget* parent)
+   : CreateTransactionDialog(armory, walletManager, container, true, logger,
+                           parent)
+   , ui_(new Ui::CreateTransactionDialogSimple)
 {
    ui_->setupUi(this);
    initUI();
@@ -34,8 +33,6 @@ void CreateTransactionDialogSimple::initUI()
    CreateTransactionDialog::init();
 
    recipientId_ = transactionData_->RegisterNewRecipient();
-
-   connect(ui_->comboBoxWallets, SIGNAL(currentIndexChanged(int)), this, SLOT(selectedWalletChanged(int)));
 
    connect(ui_->lineEditAddress, &QLineEdit::textEdited, this, &CreateTransactionDialogSimple::onAddressTextChanged);
    connect(ui_->lineEditAmount, &QLineEdit::textChanged, this, &CreateTransactionDialogSimple::onXBTAmountChanged);
@@ -134,22 +131,18 @@ QLabel* CreateTransactionDialogSimple::changeLabel() const
 
 void CreateTransactionDialogSimple::onAddressTextChanged(const QString &addressString)
 {
+   bool addrStateOk = true;
    try {
-      bs::Address address{addressString.trimmed()};
-      transactionData_->UpdateRecipientAddress(recipientId_, address);
-      if (address.isValid()) {
-         ui_->pushButtonMax->setEnabled(true);
-         UiUtils::setWrongState(ui_->lineEditAddress, false);
-         return;
-      } else {
-         UiUtils::setWrongState(ui_->lineEditAddress, true);
+      bs::Address address{ addressString.trimmed().toStdString() };
+      addrStateOk = address.isValid() && (address.format() != bs::Address::Format::Hex);
+      if (addrStateOk) {
+         transactionData_->UpdateRecipientAddress(recipientId_, address);
       }
-   } catch(...) {
-      UiUtils::setWrongState(ui_->lineEditAddress, true);
+   } catch (...) {
+      addrStateOk = false;
    }
-
-   ui_->pushButtonMax->setEnabled(false);
-   transactionData_->ResetRecipientAddress(recipientId_);
+   UiUtils::setWrongState(ui_->lineEditAddress, !addrStateOk);
+   ui_->pushButtonMax->setEnabled(addrStateOk);
 }
 
 void CreateTransactionDialogSimple::onXBTAmountChanged(const QString &text)
@@ -170,18 +163,11 @@ void CreateTransactionDialogSimple::showAdvanced()
    accept();
 }
 
-void CreateTransactionDialogSimple::onTransactionUpdated()
-{
-   CreateTransactionDialog::onTransactionUpdated();
-
-   ui_->pushButtonCreate->setEnabled(transactionData_->IsTransactionValid());
-}
-
 bs::Address CreateTransactionDialogSimple::getChangeAddress() const
 {
    bs::Address result;
    if (transactionData_->GetTransactionSummary().hasChange) {
-      result = transactionData_->GetWallet()->GetNewChangeAddress();
+      result = transactionData_->getWallet()->getNewChangeAddress();
    }
    return result;
 }
@@ -213,7 +199,7 @@ bool CreateTransactionDialogSimple::userRequestedAdvancedDialog() const
 std::shared_ptr<CreateTransactionDialogAdvanced> CreateTransactionDialogSimple::CreateAdvancedDialog()
 {
    auto advancedDialog = std::make_shared<CreateTransactionDialogAdvanced>(armory_, walletsManager_
-      , signingContainer_, true, parentWidget());
+      , signContainer_, true, logger_, transactionData_, parentWidget());
 
    if (!offlineTransactions_.empty()) {
       advancedDialog->SetImportedTransactions(offlineTransactions_);
@@ -247,4 +233,14 @@ void CreateTransactionDialogSimple::onImportPressed()
    }
 
    showAdvanced();
+}
+
+QLabel* CreateTransactionDialogSimple::labelTXAmount() const
+{
+   return ui_->labelTransactionAmount;
+}
+
+QLabel* CreateTransactionDialogSimple::labelTxOutputs() const
+{
+   return ui_->labelTXOutputs;
 }

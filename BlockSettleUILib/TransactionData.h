@@ -6,17 +6,18 @@
 #include <string>
 #include <unordered_map>
 #include "Address.h"
-#include "MetaData.h"
 #include "UtxoReservation.h"
-
+#include "Wallets/SyncWallet.h"
 
 class CoinSelection;
 class RecipientContainer;
 class ScriptRecipient;
 class SelectedTransactionInputs;
+struct UtxoSelection;
+struct PaymentStruct;
 
-namespace bs {
-   class Wallet;
+namespace spdlog {
+   class logger;
 }
 
 class TransactionData
@@ -28,6 +29,9 @@ public:
       // usedTransactions - count of utxo that will be used in transaction
       size_t   usedTransactions;
 
+      // outputsCount - number of recipients ( without change )
+      size_t   outputsCount;
+
       // availableBalance - total available balance. in case of manual selection - same as selectedBalance
       double   availableBalance;
 
@@ -35,9 +39,9 @@ public:
       double   selectedBalance;
 
       // balanceToSpent - total amount received by recipients
-      double   balanceToSpent;
+      double   balanceToSpend;
 
-      size_t   transactionSize;
+      size_t   txVirtSize;
       uint64_t totalFee;
       double   feePerByte;
 
@@ -48,66 +52,72 @@ public:
    using onTransactionChanged = std::function<void()>;
 
 public:
-   TransactionData(onTransactionChanged changedCallback = onTransactionChanged()
+   TransactionData(const onTransactionChanged &changedCallback = nullptr
+      , const std::shared_ptr<spdlog::logger> &logger = nullptr
       , bool SWOnly = false, bool confirmedOnly = false);
    ~TransactionData() noexcept;
 
    TransactionData(const TransactionData&) = delete;
    TransactionData& operator = (const TransactionData&) = delete;
-
    TransactionData(TransactionData&&) = delete;
    TransactionData& operator = (TransactionData&&) = delete;
 
-   bool SetWallet(const std::shared_ptr<bs::Wallet> &, uint32_t topBlock
+   // should be used only if you could not set CB in ctor
+   void SetCallback(onTransactionChanged changedCallback);
+
+   bool setWallet(const std::shared_ptr<bs::sync::Wallet> &, uint32_t topBlock
       , bool resetInputs = false, const std::function<void()> &cbInputsReset = nullptr);
-   bool SetWalletAndInputs(const std::shared_ptr<bs::Wallet> &, const std::vector<UTXO> &, uint32_t topBlock);
-   void SetSigningWallet(const std::shared_ptr<bs::Wallet>& wallet) { signWallet_ = wallet; }
-   std::shared_ptr<bs::Wallet> GetWallet() const { return wallet_; }
-   std::shared_ptr<bs::Wallet> GetSigningWallet() const { return signWallet_; }
-   bool SetFeePerByte(float feePerByte);
-   float FeePerByte() const { return feePerByte_; }
-   void SetTotalFee(uint64_t fee);
+   bool setWalletAndInputs(const std::shared_ptr<bs::sync::Wallet> &, const std::vector<UTXO> &, uint32_t topBlock);
+   void setSigningWallet(const std::shared_ptr<bs::sync::Wallet>& wallet) { signWallet_ = wallet; }
+   std::shared_ptr<bs::sync::Wallet> getWallet() const { return wallet_; }
+   std::shared_ptr<bs::sync::Wallet> getSigningWallet() const { return signWallet_; }
+   void setFeePerByte(float feePerByte);
+   void setTotalFee(uint64_t fee, bool overrideFeePerByte = true);
+   void setMinTotalFee(uint64_t fee) { minTotalFee_ = fee; }
+   float feePerByte() const;
+   uint64_t totalFee() const;
 
    bool IsTransactionValid() const;
+   bool InputsLoadedFromArmory() const;
 
    size_t GetRecipientsCount() const;
    std::vector<unsigned int> GetRecipientIdList() const;
 
    unsigned int RegisterNewRecipient();
+   std::vector<unsigned int> allRecipientIds() const;
    bool UpdateRecipientAddress(unsigned int recipientId, const bs::Address &);
-   bool UpdateRecipientAddress(unsigned int recipientId, const std::shared_ptr<AddressEntry> &);
    void ResetRecipientAddress(unsigned int recipientId);
    bool UpdateRecipientAmount(unsigned int recipientId, double amount, bool isMax = false);
    bool UpdateRecipient(unsigned int recipientId, double amount, const bs::Address &);
    void RemoveRecipient(unsigned int recipientId);
+
+   void ClearAllRecipients();
 
    void SetFallbackRecvAddress(const bs::Address &addr) { fallbackRecvAddress_ = addr; }
    bs::Address GetFallbackRecvAddress();
 
    bs::Address GetRecipientAddress(unsigned int recipientId) const;
    BTCNumericTypes::balance_type GetRecipientAmount(unsigned int recipientId) const;
+   BTCNumericTypes::balance_type  GetTotalRecipientsAmount() const;
    bool IsMaxAmount(unsigned int recipientId) const;
 
-   bs::wallet::TXSignRequest CreateUnsignedTransaction(bool isRBF = false, const bs::Address &changeAddr = {});
-   bs::wallet::TXSignRequest GetSignTXRequest() const;
+   bs::core::wallet::TXSignRequest createUnsignedTransaction(bool isRBF = false, const bs::Address &changeAddr = {});
+   bs::core::wallet::TXSignRequest getSignTXRequest() const;
 
-   bs::wallet::TXSignRequest CreateTXRequest(bool isRBF = false, const bs::Address &changeAddr = {}) const;
-   bs::wallet::TXSignRequest CreatePartialTXRequest(uint64_t spendVal, float feePerByte
+   bs::core::wallet::TXSignRequest createTXRequest(bool isRBF = false
+                                             , const bs::Address &changeAddr = {}
+                                             , const uint64_t& origFee = 0) const;
+   bs::core::wallet::TXSignRequest createPartialTXRequest(uint64_t spendVal, float feePerByte
       , const std::vector<std::shared_ptr<ScriptRecipient>> &, const BinaryData &prevData
       , const std::vector<UTXO> &inputs = {});
 
    std::shared_ptr<SelectedTransactionInputs> GetSelectedInputs();
    TransactionSummary GetTransactionSummary() const;
 
-   double CalculateMaxAmount(const bs::Address &recipient = {}) const;
+   double CalculateMaxAmount(const bs::Address &recipient = {}, bool force = false) const;
 
    void ReserveUtxosFor(double amount, const std::string &reserveId, const bs::Address &addr = {});
    void ReloadSelection(const std::vector<UTXO> &);
-
-   void createAddress(const bs::Address &addr, const std::shared_ptr<bs::Wallet> &wallet = nullptr);
-   const std::vector<std::pair<std::shared_ptr<bs::Wallet>, bs::Address>> &createAddresses() const {
-      return createAddresses_;
-   }
 
    void clear();
    std::vector<UTXO> inputs() const;
@@ -123,40 +133,48 @@ private:
    void InvalidateTransactionData();
    bool UpdateTransactionData();
    bool RecipientsReady() const;
+   std::vector<UTXO> decorateUTXOs(const std::vector<UTXO> &inUTXOs = {}) const;
+   UtxoSelection computeSizeAndFee(const std::vector<UTXO>& inUTXOs
+      , const PaymentStruct& inPS) const;
+
+   // Temporary function until some Armory changes are accepted upstream.
+   size_t getVirtSize(const UtxoSelection& inUTXOSel) const;
 
    std::vector<std::shared_ptr<ScriptRecipient>> GetRecipientList() const;
 
 private:
-   std::shared_ptr<bs::Wallet>   wallet_, signWallet_;
+   onTransactionChanged             changedCallback_;
+   std::shared_ptr<spdlog::logger>  logger_;
 
-   std::shared_ptr<SelectedTransactionInputs> selectedInputs_;
+   std::shared_ptr<bs::sync::Wallet>            wallet_, signWallet_;
+   std::shared_ptr<SelectedTransactionInputs>   selectedInputs_;
 
    float       feePerByte_;
    uint64_t    totalFee_ = 0;
+   uint64_t    minTotalFee_ = 0;
+   mutable double maxAmount_ = 0;
    // recipients
    unsigned int nextId_;
    std::unordered_map<unsigned int, std::shared_ptr<RecipientContainer>> recipients_;
    mutable bs::Address              fallbackRecvAddress_;
    std::shared_ptr<CoinSelection>   coinSelection_;
 
-   std::vector<UTXO>    usedUTXO_;
+   mutable std::vector<UTXO>  usedUTXO_;
    TransactionSummary   summary_;
    bool     maxSpendAmount_ = false;
 
-   bs::wallet::TXSignRequest  unsignedTxReq_;
+   bs::core::wallet::TXSignRequest  unsignedTxReq_;
 
    const bool  swTransactionsOnly_;
    const bool  confirmedInputs_;
 
-   onTransactionChanged changedCallback_;
-
    std::vector<UTXO>    reservedUTXO_;
    std::shared_ptr<bs::UtxoReservation::Adapter>   utxoAdapter_;
 
-   std::vector<std::pair<std::shared_ptr<bs::Wallet>, bs::Address>>  createAddresses_;
-
    bool transactionUpdateEnabled_ = true;
    bool transactionUpdateRequired_ = false;
+
+   bool inputsLoaded_ = false;
 };
 
 #endif // __TRANSACTION_DATA_H__

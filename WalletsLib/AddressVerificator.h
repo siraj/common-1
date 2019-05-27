@@ -12,7 +12,6 @@
 #include <thread>
 #include <unordered_map>
 #include <unordered_set>
-#include <QObject>
 #include "AsyncClient.h"
 #include "AuthAddress.h"
 
@@ -29,9 +28,8 @@ class ArmoryConnection;
 // once we could connect to a super node we should not wait for refresh signals from armory
 // we could just get info for address.
 // Probably this could be saved for users if they want to use own armory but not in supernode mode
-class AddressVerificator : public QObject
+class AddressVerificator
 {
-   Q_OBJECT
 public:
    using verification_callback = std::function<void (const std::shared_ptr<AuthAddress>& address, AddressVerificationState state)>;
 
@@ -63,9 +61,6 @@ public:
    void GetVerificationInputs(std::function<void(std::vector<UTXO>)>) const;
    void GetRevokeInputs(std::function<void(std::vector<UTXO>)>) const;
 
-private slots:
-   void OnRefresh(std::vector<BinaryData> ids);
-
 private:
    bool startCommandQueue();
    bool stopCommandQueue();
@@ -73,18 +68,18 @@ private:
    void commandQueueThreadFunction();
 
    void AddCommandToQueue(ExecutionCommand&& command);
-   void AddCommandToWaitingUpdateQueue(ExecutionCommand&& command);
+   void AddCommandToWaitingUpdateQueue(const std::string &key, ExecutionCommand&& command);
 
    ExecutionCommand CreateAddressValidationCommand(const std::shared_ptr<AuthAddress>& address);
    ExecutionCommand CreateAddressValidationCommand(const std::shared_ptr<AddressVerificationData>& state);
 
    ExecutionCommand CreateBSAddressValidationCommand(const std::shared_ptr<AddressVerificationData>& state);
 
-private:
+   void onRefresh(std::vector<BinaryData> ids);
+
    bool AddressWasRegistered(const std::shared_ptr<AuthAddress>& address) const;
    bool RegisterUserAddress(const std::shared_ptr<AuthAddress>& address);
 
-private:
    void ValidateAddress(const std::shared_ptr<AddressVerificationData>& state);
    void doValidateAddress(const std::shared_ptr<AddressVerificationData>& state);
    void CheckBSAddressState(const std::shared_ptr<AddressVerificationData>& state);
@@ -108,7 +103,7 @@ private:
 
    //bsAddressList_ - list received from public bridge
    std::set<BinaryData>       bsAddressList_;
-   std::map<BinaryData, Tx>   bsTXs_;
+   std::vector<Tx>            bsTXs_;
 
    // addresses that were added to a wallet
    // user auth address list
@@ -118,7 +113,7 @@ private:
    std::set<BinaryData>             pendingRegAddresses_;
    mutable std::atomic_flag         pendingRegAddressFlag_ = ATOMIC_FLAG_INIT;
 
-   std::queue<ExecutionCommand>     waitingForUpdateQueue_;
+   std::unordered_map<std::string, ExecutionCommand>  waitingForUpdateQueue_;
    std::atomic_flag                 waitingForUpdateQueueFlag_ = ATOMIC_FLAG_INIT;
 
    // command queue
@@ -131,6 +126,8 @@ private:
    std::shared_ptr<AsyncClient::BtcWallet>   internalWallet_;
 
    std::map<BinaryData, unsigned int> addressRetries_;
+
+   unsigned int reqId_ = 0;
 };
 
 #endif // __AUTH_ADDRESS_VERIFICATOR_H__

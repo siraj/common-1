@@ -73,17 +73,10 @@ void RequestingQuoteWidget::onCancel()
    requestTimer_.stop();
    if (quote_.quotingType == bs::network::Quote::Tradeable) {
       emit requestTimedOut();
-   }
-   else {
+   } else {
       utxoAdapter_->unreserve(rfq_.requestId);
-      emit requestCancelled();
+      emit cancelRFQ(QString::fromStdString(rfq_.requestId));
    }
-}
-
-void RequestingQuoteWidget::cancel()
-{
-   emit cancelRFQ(QString::fromStdString(rfq_.requestId));
-   rfq_ = bs::network::RFQ{};
 }
 
 void RequestingQuoteWidget::ticker()
@@ -99,6 +92,9 @@ void RequestingQuoteWidget::ticker()
       ui_->progressBar->setValue(timeDiff);
       ui_->progressBar->setFormat(tr("%1 second(s) remaining")
          .arg(QString::number(timeDiff > 0 ? timeDiff/1000 : 0)));
+
+      ui_->labelTimeLeft->setText(tr("%1 second(s) remaining")
+                                  .arg(QString::number(timeDiff > 0 ? timeDiff/1000 : 0)));
    }
 }
 

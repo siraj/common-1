@@ -8,6 +8,8 @@
 
 #include "Addresses.h"
 
+using namespace std;
+
 ////////////////////////////////////////////////////////////////////////////////
 AddressEntry::~AddressEntry()
 {}
@@ -59,7 +61,7 @@ const BinaryData& AddressEntry_P2PKH::getPrefixedHash() const
       auto& hash = getHash();
 
       //get and prepend network byte
-      auto networkByte = BlockDataManagerConfig::getPubkeyHashPrefix();
+      auto networkByte = NetworkConfig::getPubkeyHashPrefix();
 
       prefixedHash_.append(networkByte);
       prefixedHash_.append(hash);
@@ -434,7 +436,7 @@ const BinaryData& AddressEntry_P2SH::getPrefixedHash() const
       auto& hash = getHash();
 
       BinaryWriter bw;
-      bw.put_uint8_t(BlockDataManagerConfig::getScriptHashPrefix());
+      bw.put_uint8_t(NetworkConfig::getScriptHashPrefix());
       bw.put_BinaryData(hash);
 
       prefixedHash_ = bw.getData();
@@ -485,6 +487,15 @@ const BinaryData& AddressEntry_P2SH::getAddress() const
       address_ = move(BtcUtils::scrAddrToBase58(getPrefixedHash()));
 
    return address_;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+AddressEntryType AddressEntry_P2SH::getType() const
+{
+   auto nestedType = AddressEntry::getType();
+   auto baseType = getPredecessor()->getType();
+
+   return AddressEntryType(baseType | nestedType);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -547,7 +558,7 @@ shared_ptr<ScriptRecipient> AddressEntry_P2WSH::getRecipient(
    uint64_t value) const
 {
    auto& hash = getHash();
-   return make_shared<Recipient_PW2SH>(hash, value);
+   return make_shared<Recipient_P2WSH>(hash, value);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -578,11 +589,22 @@ const BinaryData& AddressEntry_P2WSH::getScript() const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+AddressEntryType AddressEntry_P2WSH::getType() const
+{
+   auto nestedType = AddressEntry::getType();
+   auto baseType = getPredecessor()->getType();
+
+   return AddressEntryType(baseType | nestedType);
+}
+
+
+////////////////////////////////////////////////////////////////////////////////
 //// static methods
 ////////////////////////////////////////////////////////////////////////////////
 shared_ptr<AddressEntry> AddressEntry::instantiate(
    shared_ptr<AssetEntry> assetPtr, AddressEntryType aeType)
 {
+   /*creates an address entry based on an asset and an address type*/
    shared_ptr<AddressEntry> addressPtr = nullptr;
 
    bool isCompressed = aeType && ADDRESS_COMPRESSED_MASK;
@@ -635,4 +657,51 @@ shared_ptr<AddressEntry> AddressEntry::instantiate(
    }
 
    return addressPtr;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+uint8_t AddressEntry::getPrefixByte(AddressEntryType aeType)
+{
+   /*return the prefix bye for a given AddressEntryType*/
+
+   auto nested = aeType & ADDRESS_NESTED_MASK;
+   if (nested != 0)
+   {
+      switch (nested)
+      {
+      case AddressEntryType_P2SH:
+         return NetworkConfig::getScriptHashPrefix();
+
+      case AddressEntryType_P2WSH:
+         return SCRIPT_PREFIX_P2WSH;
+
+      default:
+         throw AddressException("unexpected AddressEntry nested type");
+      }
+   }
+
+   switch (aeType & ADDRESS_TYPE_MASK)
+   {
+   case AddressEntryType_Default:
+      throw AddressException("invalid address entry type");
+      break;
+
+   case AddressEntryType_P2PKH:
+      return NetworkConfig::getPubkeyHashPrefix();
+
+   case AddressEntryType_P2PK:
+      throw AddressException("native P2PK doesnt come hashed");
+
+   case AddressEntryType_P2WPKH:
+      return SCRIPT_PREFIX_P2WPKH;
+
+   case AddressEntryType_Multisig:
+      throw AddressException("native multisig scripts do not come hashed");
+
+   default:
+      throw AddressException("invalid AddressEntryType");
+   }
+
+   throw AddressException("invalid AddressEntryType");
+   return UINT8_MAX;
 }

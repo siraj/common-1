@@ -1,7 +1,7 @@
 #include "AddressListModel.h"
-#include "WalletsManager.h"
+#include <QColor>
+#include "Wallets/SyncWalletsManager.h"
 #include "UiUtils.h"
-
 
 bool AddressListModel::AddressRow::isMultiLineComment() const
 {
@@ -27,33 +27,37 @@ QString AddressListModel::AddressRow::getAddress() const
 }
 
 
-AddressListModel::AddressListModel(std::shared_ptr<WalletsManager> walletsManager, QObject* parent
-   , AddressType addrType)
+AddressListModel::AddressListModel(const std::shared_ptr<bs::sync::WalletsManager> &walletsMgr
+   , QObject* parent, AddressType addrType)
    : QAbstractTableModel(parent)
    , addrType_(addrType)
    , processing_(false)
 {
-   connect(walletsManager.get(), &WalletsManager::walletsReady, this, &AddressListModel::updateData);
-//   connect(walletsManager.get(), &WalletsManager::walletChanged, this, &AddressListModel::updateData);
-   connect(walletsManager.get(), &WalletsManager::blockchainEvent, this, &AddressListModel::updateData);
+   connect(walletsMgr.get(), &bs::sync::WalletsManager::walletsReady, this
+           , &AddressListModel::updateData);
+   connect(walletsMgr.get(), &bs::sync::WalletsManager::blockchainEvent, this
+           , &AddressListModel::updateData);
 }
 
 bool AddressListModel::setWallets(const Wallets &wallets)
 {
    for (const auto &wallet : wallets_) {
-      disconnect(wallet.get(), &bs::Wallet::addressAdded, this, &AddressListModel::updateData);
+      disconnect(wallet.get(), &bs::sync::Wallet::addressAdded, this, &AddressListModel::updateData);
    }
 
    wallets_ = wallets;
    for (const auto &wallet : wallets_) {
-      connect(wallet.get(), &bs::Wallet::addressAdded, this, &AddressListModel::updateData, static_cast<Qt::ConnectionType>(Qt::QueuedConnection | Qt::UniqueConnection));
+      connect(wallet.get(), &bs::sync::Wallet::addressAdded, this
+              , &AddressListModel::updateData
+              , static_cast<Qt::ConnectionType>(Qt::QueuedConnection | Qt::UniqueConnection));
    }
 
    updateData();
    return true;
 }
 
-AddressListModel::AddressRow AddressListModel::createRow(const bs::Address &addr, const std::shared_ptr<bs::Wallet> &wallet) const
+AddressListModel::AddressRow AddressListModel::createRow(const bs::Address &addr
+   , const std::shared_ptr<bs::sync::Wallet> &wallet) const
 {
    AddressRow row;
 
@@ -62,27 +66,28 @@ AddressListModel::AddressRow AddressListModel::createRow(const bs::Address &addr
    row.transactionCount = -1;
    row.balance = 0;
 
-   if (wallet->GetType() == bs::wallet::Type::Authentication) {
+   if (wallet->type() == bs::core::wallet::Type::Authentication) {
       row.comment = tr("Authentication PubKey");
-      const auto rootId = (wallet == nullptr) ? BinaryData() : wallet->getRootId();
+      const BinaryData rootId;
       row.displayedAddress = rootId.isNull() ? tr("empty") : QString::fromStdString(BtcUtils::base58_encode(rootId).toBinStr());
       row.isExternal = true;
    }
    else {
-      row.comment = QString::fromStdString(wallet->GetAddressComment(addr));
-      row.displayedAddress = addr.display();
-      row.walletName = QString::fromStdString(wallet->GetShortName());
-      row.walletId = QString::fromStdString(wallet->GetWalletId());
-      row.isExternal = wallet->IsExternalAddress(addr);
+      row.comment = QString::fromStdString(wallet->getAddressComment(addr));
+      row.displayedAddress = QString::fromStdString(addr.display());
+      row.walletName = QString::fromStdString(wallet->shortName());
+      row.walletId = QString::fromStdString(wallet->walletId());
+      row.isExternal = wallet->isExternalAddress(addr);
    }
-   row.wltType = wallet->GetType();
+   row.wltType = wallet->type();
    return row;
 }
 
 void AddressListModel::updateData()
 {
    bool expected = false;
-   if (!std::atomic_compare_exchange_strong(&processing_, &expected, true)) {
+   bool desired = true;
+   if (!std::atomic_compare_exchange_strong(&processing_, &expected, desired)) {
       return;
    }
    beginResetModel();
@@ -95,25 +100,28 @@ void AddressListModel::updateData()
    processing_.store(false);
 }
 
-void AddressListModel::updateWallet(const std::shared_ptr<bs::Wallet> &wallet)
+void AddressListModel::updateWallet(const std::shared_ptr<bs::sync::Wallet> &wallet)
 {
-   if (wallet->GetType() == bs::wallet::Type::Authentication) {
+   if (wallet->type() == bs::core::wallet::Type::Authentication) {
       const auto addr = bs::Address();
       auto row = createRow(addr, wallet);
       addressRows_.emplace_back(std::move(row));
    } else {
+      if ((wallets_.size() > 1) && (wallet->type() == bs::core::wallet::Type::ColorCoin)) {
+         return;  // don't populate PM addresses when multiple wallets selected
+      }
       std::vector<bs::Address> addressList;
       switch (addrType_) {
       case AddressType::External:
-         addressList = wallet->GetExtAddressList();
+         addressList = wallet->getExtAddressList();
          break;
       case AddressType::Internal:
-         addressList = wallet->GetIntAddressList();
+         addressList = wallet->getIntAddressList();
          break;
       case AddressType::All:
       case AddressType::ExtAndNonEmptyInt:
       default:
-         addressList = wallet->GetUsedAddressList();
+         addressList = wallet->getUsedAddressList();
          break;
       }
 
@@ -124,7 +132,7 @@ void AddressListModel::updateWallet(const std::shared_ptr<bs::Wallet> &wallet)
 
          auto row = createRow(addr, wallet);
          row.addrIndex = i;
-         row.comment = QString::fromStdString(wallet->GetAddressComment(addr));
+         row.comment = QString::fromStdString(wallet->getAddressComment(addr));
 
          addressRows_.emplace_back(std::move(row));
       }
@@ -133,38 +141,78 @@ void AddressListModel::updateWallet(const std::shared_ptr<bs::Wallet> &wallet)
 
 void AddressListModel::updateWalletData()
 {
-   auto nbTxNs = std::make_shared<int>(addressRows_.size());
-   auto nbBalances = std::make_shared<int>(addressRows_.size());
+   auto nbTxNs = std::make_shared<int>((int)addressRows_.size());
+   auto nbBalances = std::make_shared<int>((int)addressRows_.size());
+
+   auto addrTxNs = std::make_shared<std::vector<uint32_t>>();
+   addrTxNs->resize(addressRows_.size());
+   auto addrBalances = std::make_shared<std::vector<uint64_t>>();
+   addrBalances->resize(addressRows_.size());
+
    for (size_t i = 0; i < addressRows_.size(); ++i) {
-      auto &addrRow = addressRows_[i];
-      const auto &cbTxN = [this, &addrRow, i, nbTxNs](uint32_t txn) {
+      // Callback for address's # of TXs.
+      const auto &cbTxN = [this, addrTxNs, i, nbTxNs](uint32_t txn) {
          --(*nbTxNs);
          if (i >= addressRows_.size()) {
             return;
          }
-         addrRow.transactionCount = txn;
+         (*addrTxNs)[i] = txn;
+
+         // On the final address, set the TX count for all addresses and emit
+         // any required signals.
          if (*nbTxNs <= 0) {
-            emit dataChanged(index(0, ColumnTxCount), index(addressRows_.size()-1, ColumnTxCount));
-            emit updated();
+            for (size_t j = 0;
+                 j < std::min(addressRows_.size(), addrTxNs->size());
+                 ++j) {
+               addressRows_[j].transactionCount = (*addrTxNs)[j];
+            }
+            QMetaObject::invokeMethod(this, [this] {
+               emit dataChanged(index(0, ColumnTxCount)
+                  , index(addressRows_.size() - 1, ColumnTxCount));
+            });
          }
       };
 
-      const auto &cbBalance = [this, &addrRow, i, nbBalances](std::vector<uint64_t> balances) {
+      // Callback for address's balance.
+      const auto &cbBalance = [this, addrBalances, i, nbBalances](std::vector<uint64_t> balances) {
          --(*nbBalances);
          if (i >= addressRows_.size()) {
             return;
          }
-         addrRow.balance = balances[0];
+         if (balances.size() == 3) {
+            (*addrBalances)[i] = balances[0];
+         }
+         else {
+            (*addrBalances)[i] = 0;
+         }
+
+         // On the final address, set the balance for all addresses and emit
+         // any required signals.
          if (*nbBalances <= 0) {
-            emit dataChanged(index(0, ColumnBalance), index(addressRows_.size() - 1, ColumnBalance));
-            emit updated();
+            for (size_t j = 0;
+                 j < std::min(addressRows_.size(), addrBalances->size());
+                 ++j) {
+               addressRows_[j].balance = (*addrBalances)[j];
+            }
+            QMetaObject::invokeMethod(this, [this] {
+               emit dataChanged(index(0, ColumnBalance)
+                  , index(addressRows_.size() - 1, ColumnBalance));
+            });
          }
       };
-      if (!addrRow.wallet->getAddrTxN(addrRow.address, cbTxN)) {
-         return;
-      }
-      if (!addrRow.wallet->getAddrBalance(addrRow.address, cbBalance)) {
-         return;
+
+      // Get an address's balance & # of TXs from Armory via the wallet.
+      const auto &wallet = addressRows_[i].wallet;
+      const auto &address = addressRows_[i].address;
+      if (wallet) {
+         if (!wallet->getAddrTxN(address, cbTxN)) {
+            cbTxN(0);
+            continue;
+         }
+         if (!wallet->getAddrBalance(address, cbBalance)) {
+            cbBalance({});
+            continue;
+         }
       }
    }
 }
@@ -172,7 +220,8 @@ void AddressListModel::updateWalletData()
 void AddressListModel::removeEmptyIntAddresses()
 {
    bool expected = false;
-   if (!std::atomic_compare_exchange_strong(&processing_, &expected, true)) {
+   bool desired = true;
+   if (!std::atomic_compare_exchange_strong(&processing_, &expected, desired)) {
       return;
    }
 
@@ -206,7 +255,7 @@ int AddressListModel::columnCount(const QModelIndex &) const
    if (wallets_.size() == 1) {
       return ColumnsNbSingle;
    }
-   return ColumnsNbMultiple;
+   return ColumnsNbSingle;
 }
 
 int AddressListModel::rowCount(const QModelIndex& parent) const
@@ -215,7 +264,7 @@ int AddressListModel::rowCount(const QModelIndex& parent) const
       return 0;
    }
 
-   if ((wallets_.size() == 1) && (wallets_[0]->GetType() == bs::wallet::Type::Authentication)) {
+   if ((wallets_.size() == 1) && (wallets_[0]->type() == bs::core::wallet::Type::Authentication)) {
       return 1;
    }
 
@@ -257,8 +306,17 @@ QVariant AddressListModel::dataForRow(const AddressListModel::AddressRow &row, i
       case AddressListModel::ColumnAddress:
          return row.getAddress();
       case AddressListModel::ColumnBalance:
-         return (row.wltType == bs::wallet::Type::ColorCoin) ? UiUtils::displayCCAmount(row.balance)
-            : UiUtils::displayAmount(row.balance);
+         if (row.wltType == bs::core::wallet::Type::ColorCoin) {
+            if (wallets_.size() == 1) {
+               return UiUtils::displayCCAmount(row.balance);
+            }
+            else {
+               return {};
+            }
+         }
+         else {
+            return UiUtils::displayAmount(row.balance);
+         }
       case AddressListModel::ColumnTxCount:
          return row.transactionCount;
       case AddressListModel::ColumnComment:
@@ -286,7 +344,7 @@ QVariant AddressListModel::data(const QModelIndex& index, int role) const
       return {};
    }
 
-   const auto& row = addressRows_[index.row()];
+   const auto row = addressRows_[index.row()];
 
    switch (role) {
       case Qt::DisplayRole:
@@ -317,6 +375,13 @@ QVariant AddressListModel::data(const QModelIndex& index, int role) const
          else {
             return dataForRow(row, index.column());
          }
+         break;
+
+      case Qt::TextColorRole:
+/*         if (!row.isExternal) {
+            return QColor(Qt::gray);
+         }*/   // don't remove completely in case someone decides to revert back
+         break;
 
       default:
          break;

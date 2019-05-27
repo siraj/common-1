@@ -18,6 +18,7 @@
 #include "bitcoin/DownstreamBitcoinTransactionSigningProto.pb.h"
 
 #include <spdlog/spdlog.h>
+#include <chrono>
 
 #include <QDateTime>
 
@@ -119,6 +120,7 @@ QuoteProvider::QuoteProvider(const std::shared_ptr<AssetManager>& assetManager
  , assetManager_(assetManager)
  , dealerPayins_(logger)
  , debugTraffic_(debugTraffic)
+ , celerLoggedInTimestampUtcInMillis_(0)
 {
 }
 
@@ -163,6 +165,9 @@ void QuoteProvider::ConnectToCelerClient(const std::shared_ptr<CelerClient>& cel
 
 void QuoteProvider::onConnectedToCeler()
 {
+   const auto timestamp = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch());
+   celerLoggedInTimestampUtcInMillis_ =  timestamp.count();
+
    auto sequence = std::make_shared<CelerFindAllOrdersSequence>(logger_);
    sequence->SetCallback([this](const CelerFindAllOrdersSequence::Messages &msgs) {
       for (const auto &msg : msgs) {
@@ -261,6 +266,15 @@ bool QuoteProvider::onQuoteResponse(const std::string& data)
       }
    }
    else {
+      if (response.legquotegroup_size() != 1) {
+         logger_->error("[QuoteProvider::onQuoteResponse] invalid leg number: {}\n{}"
+            , response.legquotegroup_size()
+            , response.DebugString());
+         return false;
+      }
+
+      const auto& grp = response.legquotegroup(0);
+
       if (quote.assetType == bs::network::Asset::SpotXBT) {
          quote.dealerAuthPublicKey = response.dealerauthenticationaddress();
          quote.requestorAuthPublicKey = itRFQ->second.requestorAuthPublicKey;
@@ -277,17 +291,14 @@ bool QuoteProvider::onQuoteResponse(const std::string& data)
 
       if ((quote.side == bs::network::Side::Sell) ^ (itRFQ->second.product != cp.NumCurrency())) {
          quote.price = response.offerpx();
-         quote.quantity = response.offersize();
+         quote.quantity = grp.offersize();
       }
       else {
          quote.price = response.bidpx();
-         quote.quantity = response.bidsize();
+         quote.quantity = grp.bidsize();
       }
 
-      if (response.legquotegroup_size() > 0) {
-         QuoteDownstreamEvent::LegQuoteGroup grp = response.legquotegroup(0);
-         quote.product = grp.currency();
-      }
+      quote.product = grp.currency();
 
       if (quote.quotingType == bs::network::Quote::Tradeable) {
          submittedRFQs_.erase(itRFQ);
@@ -549,16 +560,6 @@ bool QuoteProvider::onBitcoinOrderSnapshot(const std::string& data, bool resync)
    auto orderDate = QDateTime::fromMSecsSinceEpoch(response.createdtimestamputcinmillis());
    auto ageSeconds = orderDate.secsTo(QDateTime::currentDateTime());
 
-   // older than 2 days
-   if (ageSeconds > 60*60*24*2) {
-      logger_->debug("[QuoteProvider::onBitcoinOrderSnapshot] old order. try to cancel");
-      auto command = std::make_shared<CelerCancelOrderSequence>(response.orderid()
-         , response.externalclorderid(), logger_);
-
-      celerClient_->ExecuteSequence(command);
-      return true;
-   }
-
    Order order;
    order.exchOrderId = QString::number(response.orderid());
    order.clOrderId = response.externalclorderid();
@@ -577,7 +578,8 @@ bool QuoteProvider::onBitcoinOrderSnapshot(const std::string& data, bool resync)
    order.status = mapBtcOrderStatus(response.orderstatus());
    order.pendingStatus = response.info();
 
-   if (!resync) {
+   if (!resync && response.updatedtimestamputcinmillis() > celerLoggedInTimestampUtcInMillis_) {
+
       switch(order.status)
       {
          case Order::Failed:
@@ -587,6 +589,7 @@ bool QuoteProvider::onBitcoinOrderSnapshot(const std::string& data, bool resync)
             CleanupXBTOrder(order);
             break;
       }
+
    }
 
    emit orderUpdated(order);
@@ -603,7 +606,7 @@ bool QuoteProvider::onFxOrderSnapshot(const std::string& data, bool resync) cons
       return false;
    }
    if (debugTraffic_) {
-      logger_->debug("[FxOrderSnapshot] {}", response.DebugString());
+      logger_->debug("[QuoteProvider::FxOrderSnapshot] {}", response.DebugString());
    }
 
    if (!resync && (response.orderstatus() == FILLED)) {
@@ -624,6 +627,7 @@ bool QuoteProvider::onFxOrderSnapshot(const std::string& data, bool resync) cons
    order.assetType = bs::network::Asset::SpotFX;
 
    order.status = mapFxOrderStatus(response.orderstatus());
+
    if (!resync && (order.status == Order::Failed)) {
       emit orderFailed(response.quoteid(), response.info());
    }
@@ -642,7 +646,7 @@ bool QuoteProvider::onQuoteCancelled(const std::string& data)
    }
 
    if (debugTraffic_) {
-      logger_->debug("[QuoteCancel] {}", response.DebugString());
+      logger_->debug("[QuoteProvider::onQuoteCancelled] {}", response.DebugString());
    }
 
    cleanQuoteRequestCcy(response.quoterequestid());
@@ -662,7 +666,7 @@ bool QuoteProvider::onSignTxNotif(const std::string& data)
       return false;
    }
    if (debugTraffic_) {
-      logger_->debug("[SignTxNotification] {}", response.DebugString());
+      logger_->debug("[QuoteProvider::onSignTxNotif] {}", response.DebugString());
    }
 
    emit signTxRequested(QString::fromStdString(response.orderid()), QString::fromStdString(response.quoterequestid()));
@@ -712,13 +716,22 @@ bool QuoteProvider::onQuoteReqNotification(const std::string& data)
       return false;
    }  // For SpotFX and SpotXBT there should be only 1 group
 
-   QuoteRequestNotificationGroup respgrp = response.quoterequestnotificationgroup(0);
+   const QuoteRequestNotificationGroup& respgrp = response.quoterequestnotificationgroup(0);
+
+   if (respgrp.quoterequestnotificationleggroup_size() != 1) {
+      logger_->error("[QuoteProvider::onQuoteReqNotification] wrong leg group size: {}\n{}"
+         , respgrp.quoterequestnotificationleggroup_size()
+         , response.DebugString());
+      return false;
+   }
+
+   const auto& legGroup = respgrp.quoterequestnotificationleggroup(0);
 
    QuoteReqNotification qrn;
    qrn.quoteRequestId = response.quoterequestid();
    qrn.security = respgrp.securitycode();
    qrn.sessionToken = response.requestorsessiontoken();
-   qrn.quantity = respgrp.qty();
+   qrn.quantity = legGroup.qty();
    qrn.product = respgrp.currency();
    qrn.party = respgrp.partyid();
    qrn.reason = response.reason();
@@ -727,7 +740,7 @@ bool QuoteProvider::onQuoteReqNotification(const std::string& data)
    qrn.celerTimestamp = response.timestampinutcinmillis();
    qrn.timeSkewMs = QDateTime::fromMSecsSinceEpoch(response.timestampinutcinmillis()).msecsTo(QDateTime::currentDateTime());
 
-   qrn.side = bs::network::Side::fromCeler(respgrp.side());
+   qrn.side = bs::network::Side::fromCeler(legGroup.side());
    qrn.assetType = bs::network::Asset::fromCelerProductType(respgrp.producttype());
 
    switch (response.quotenotificationtype()) {
