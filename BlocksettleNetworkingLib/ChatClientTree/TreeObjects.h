@@ -61,6 +61,19 @@ protected:
    std::shared_ptr<Chat::OTCResponseData> activeOtcResponse_;
 };
 
+class ChatContactRequestElement : public CategoryElement {
+public:
+   ChatContactRequestElement(std::shared_ptr<Chat::ContactRecordData> data)
+      : CategoryElement(ChatUIDefinitions::ChatTreeNodeType::ContactsRequestElement,
+                        std::vector<ChatUIDefinitions::ChatTreeNodeType>{
+                        ChatUIDefinitions::ChatTreeNodeType::MessageDataNode},
+                        data)
+   {}
+
+   std::shared_ptr<Chat::ContactRecordData> getContactData() const;
+
+};
+
 class ChatSearchElement : public CategoryElement {
 public:
    ChatSearchElement(std::shared_ptr<Chat::UserData> data)

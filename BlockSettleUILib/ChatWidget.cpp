@@ -780,7 +780,7 @@ void ChatWidget::OTCSwitchToContact(std::shared_ptr<Chat::ContactRecordData>& co
    ui_->stackedWidgetMessages->setCurrentIndex(0);
    if (contact->getContactStatus() == Chat::ContactStatus::Accepted) {
       if (onlineStatus) {
-         auto cNode = client_->getDataModel()->findContactNode(contact->getContactId().toStdString());
+         auto cNode = static_cast<ChatContactElement*>(client_->getDataModel()->findContactNode(contact->getContactId().toStdString()));
          if (!cNode->isHaveActiveOTC()) {
             return DisplayCreateOTCWidget();
          }

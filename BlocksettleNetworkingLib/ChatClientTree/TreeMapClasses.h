@@ -6,7 +6,7 @@
 #include "ChatProtocol/DataObjects.h"
 
 class DisplayableDataNode;
-class ChatContactElement;
+class CategoryElement;
 
 class RootItem : public TreeItem
 {
@@ -20,6 +20,7 @@ public:
 
    bool insertRoomObject(std::shared_ptr<Chat::RoomData> data);
    bool insertContactObject(std::shared_ptr<Chat::ContactRecordData> data, bool isOnline = false);
+   bool insertContactRequestObject(std::shared_ptr<Chat::ContactRecordData> data, bool isOnline = false);
    bool insertGeneralUserObject(std::shared_ptr<Chat::UserData> data);
    bool insertSearchUserObject(std::shared_ptr<Chat::UserData> data);
    TreeItem* resolveMessageTargetNode(DisplayableDataNode *massageNode);
@@ -27,7 +28,7 @@ public:
    std::vector<std::shared_ptr<Chat::ContactRecordData>> getAllContacts();
    bool removeContactNode(const std::string& contactId);
    std::shared_ptr<Chat::ContactRecordData> findContactItem(const std::string& contactId);
-   ChatContactElement *findContactNode(const std::string& contactId);
+   CategoryElement *findContactNode(const std::string& contactId);
    std::shared_ptr<Chat::MessageData> findMessageItem(const std::string& chatId, const std::string& messgeId);
    void clear();
    void clearSearch();

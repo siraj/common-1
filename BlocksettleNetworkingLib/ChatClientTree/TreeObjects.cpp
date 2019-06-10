@@ -196,3 +196,8 @@ std::shared_ptr<Chat::DataObject> DisplayableDataNode::getDataObject() const
 {
    return data_;
 }
+
+std::shared_ptr<Chat::ContactRecordData> ChatContactRequestElement::getContactData() const
+{
+   return std::dynamic_pointer_cast<Chat::ContactRecordData>(getDataObject());
+}

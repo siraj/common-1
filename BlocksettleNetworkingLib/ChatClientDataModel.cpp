@@ -15,6 +15,7 @@ void ChatClientDataModel::initTreeCategoryGroup()
    beginResetModel();
    root_->insertItem(new TreeCategoryGroup(ChatUIDefinitions::ChatTreeNodeType::RoomsElement, tr("Chat rooms")));
    root_->insertItem(new TreeCategoryGroup(ChatUIDefinitions::ChatTreeNodeType::ContactsElement, tr("Contacts")));
+   root_->insertItem(new TreeCategoryGroup(ChatUIDefinitions::ChatTreeNodeType::ContactsRequestElement, tr("Contact Requests")));
    root_->insertItem(new TreeCategoryGroup(ChatUIDefinitions::ChatTreeNodeType::AllUsersElement, tr("Users")));
    root_->insertItem(new TreeCategoryGroup(ChatUIDefinitions::ChatTreeNodeType::OTCReceivedResponsesElement, tr("Received Responses")));
    root_->insertItem(new TreeCategoryGroup(ChatUIDefinitions::ChatTreeNodeType::OTCSentResponsesElement, tr("Sent Responses")));
@@ -56,10 +57,17 @@ bool ChatClientDataModel::insertRoomObject(std::shared_ptr<Chat::RoomData> data)
 
 bool ChatClientDataModel::insertContactObject(std::shared_ptr<Chat::ContactRecordData> data, bool isOnline)
 {
-   beginChatInsertRows(ChatUIDefinitions::ChatTreeNodeType::ContactsElement);
-   bool res = root_->insertContactObject(data, isOnline);
-   endInsertRows();
-   return res;
+   if (data->getContactStatus() == Chat::ContactStatus::Accepted) {
+      beginChatInsertRows(ChatUIDefinitions::ChatTreeNodeType::ContactsElement);
+      bool res = root_->insertContactObject(data, isOnline);
+      endInsertRows();
+      return res;
+   } else {
+      beginChatInsertRows(ChatUIDefinitions::ChatTreeNodeType::ContactsRequestElement);
+      bool res = root_->insertContactRequestObject(data, isOnline);
+      endInsertRows();
+      return res;
+   }
 }
 
 bool ChatClientDataModel::insertGeneralUserObject(std::shared_ptr<Chat::UserData> data)
@@ -190,7 +198,7 @@ bool ChatClientDataModel::removeContactNode(const std::string &contactId)
    const QModelIndex index = createIndex(item->selfIndex(), 0, item);
 
    //Trying to find contact node that contains ContactRecordData with contactId
-   ChatContactElement * contactNode = root_->findContactNode(contactId);
+   CategoryElement * contactNode = root_->findContactNode(contactId);
 
    if (!contactNode){
       //If not found, then nothing to remove, and returning false
@@ -213,7 +221,7 @@ std::shared_ptr<Chat::ContactRecordData> ChatClientDataModel::findContactItem(co
    return root_->findContactItem(contactId);
 }
 
-ChatContactElement *ChatClientDataModel::findContactNode(const std::string &contactId)
+CategoryElement *ChatClientDataModel::findContactNode(const std::string &contactId)
 {
    return root_->findContactNode(contactId);
 }
@@ -411,7 +419,36 @@ QVariant ChatClientDataModel::contactData(const TreeItem *item, int role) const
          default:
             return QVariant();
       }
+
+   } else if (item->getType() == ChatUIDefinitions::ChatTreeNodeType::ContactsRequestElement) {
+      const ChatContactRequestElement * contact_r_element = static_cast<const ChatContactRequestElement*>(item);
+      auto contact = contact_r_element->getContactData();
+
+      if (!contact) {
+         return QVariant();
+      }
+
+      switch (role) {
+         case ContactTitleRole:
+            if (contact->getDisplayName().isEmpty()) {
+               return contact->getContactId();
+            }
+            return contact->getDisplayName();
+         case ContactIdRole:
+            return contact->getContactId();
+         case ContactStatusRole:
+            return QVariant::fromValue(contact->getContactStatus());
+         case ContactOnlineStatusRole:
+            return QVariant::fromValue(ChatContactElement::OnlineStatus::Offline);
+         case Qt::EditRole:
+            return contact->getDisplayName();
+         default:
+            return QVariant();
+      }
    }
+
+
+
    return QVariant();
 }
 

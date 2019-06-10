@@ -43,7 +43,7 @@ public:
    std::vector<std::shared_ptr<Chat::ContactRecordData>> getAllContacts();
    bool removeContactNode(const std::string& contactId);
    std::shared_ptr<Chat::ContactRecordData> findContactItem(const std::string& contactId);
-   ChatContactElement *findContactNode(const std::string& contactId);
+   CategoryElement *findContactNode(const std::string& contactId);
    std::shared_ptr<Chat::MessageData> findMessageItem(const std::string& chatId, const std::string& messgeId);
    std::string currentUser() const;
    void setCurrentUser(const std::string &currentUser);

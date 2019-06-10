@@ -232,11 +232,15 @@ void ChatClient::OnContactsActionResponseDirect(const Chat::ContactsActionRespon
          chatDb_->addKey(senderId, response.getSenderPublicKey());
 
          auto contactNode = model_->findContactNode(senderId.toStdString());
-         if (contactNode) {
-            auto data = contactNode->getContactData();
-            data->setContactStatus(Chat::ContactStatus::Accepted);
-            contactNode->setOnlineStatus(ChatContactElement::OnlineStatus::Online);
-            model_->notifyContactChanged(data);
+         if (contactNode && contactNode->getType() == ChatUIDefinitions::ChatTreeNodeType::ContactsRequestElement) {
+            auto holdData = static_cast<ChatContactRequestElement*>(contactNode)->getContactData();
+            holdData->setContactStatus(Chat::ContactStatus::Accepted);
+            //Remove Nore from request
+            model_->removeContactNode(holdData->getContactId().toStdString());
+            //Add node to Contacts
+            model_->insertContactObject(holdData, true);
+            //contactNode->setOnlineStatus(ChatContactElement::OnlineStatus::Online);
+            //model_->notifyContactChanged(data);
          }
 
          addOrUpdateContact(senderId, Chat::ContactStatus::Accepted);
@@ -256,11 +260,11 @@ void ChatClient::OnContactsActionResponseDirect(const Chat::ContactsActionRespon
          actionString = "ContactsAction::Reject";
          addOrUpdateContact(QString::fromStdString(response.senderId()), Chat::ContactStatus::Rejected);
          auto contactNode = model_->findContactNode(response.senderId());
-         if (contactNode){
-            auto data = contactNode->getContactData();
-            data->setContactStatus(Chat::ContactStatus::Rejected);
-            contactNode->setOnlineStatus(ChatContactElement::OnlineStatus::Online);
-            model_->notifyContactChanged(data);
+         if (contactNode && contactNode->getType() == ChatUIDefinitions::ChatTreeNodeType::ContactsRequestElement){
+            auto holdData = static_cast<ChatContactRequestElement*>(contactNode)->getContactData();
+            holdData->setContactStatus(Chat::ContactStatus::Rejected);
+            //contactNode->setOnlineStatus(ChatContactElement::OnlineStatus::Online);
+            model_->notifyContactChanged(holdData);
          }
          auto requestS =
                std::make_shared<Chat::ContactActionRequestServer>(
@@ -283,11 +287,15 @@ void ChatClient::OnContactsActionResponseDirect(const Chat::ContactsActionRespon
          chatDb_->addKey(contactId, response.getSenderPublicKey());
 
          auto contactNode = model_->findContactNode(response.senderId());
-         if (contactNode){
-            auto data = contactNode->getContactData();
-            data->setContactStatus(Chat::ContactStatus::Accepted);
-            contactNode->setOnlineStatus(ChatContactElement::OnlineStatus::Online);
-            model_->notifyContactChanged(data);
+         if (contactNode && contactNode->getType() == ChatUIDefinitions::ChatTreeNodeType::ContactsRequestElement){
+            auto holdData = static_cast<ChatContactRequestElement*>(contactNode)->getContactData();
+            holdData->setContactStatus(Chat::ContactStatus::Accepted);
+            //Remove Nore from request
+            model_->removeContactNode(holdData->getContactId().toStdString());
+            //Add node to Contacts
+            model_->insertContactObject(holdData, true);
+            //contactNode->setOnlineStatus(ChatContactElement::OnlineStatus::Online);
+            //model_->notifyContactChanged(data);
          } else {
             auto contact =
                   std::make_shared<Chat::ContactRecordData>(
@@ -591,7 +599,7 @@ void ChatClient::OnUsersList(const Chat::UsersListResponse &response)
    std::for_each(dataList.begin(), dataList.end(), [response, this](const std::string& user)
    {
       auto contact = model_->findContactNode(user);
-      if (contact) {
+      if (contact && contact->getType() == ChatUIDefinitions::ChatTreeNodeType::ContactsElement) {
          ChatContactElement::OnlineStatus status = ChatContactElement::OnlineStatus::Offline;
          switch (response.command()) {
             case Chat::UsersListResponse::Command::Replace:
@@ -607,8 +615,8 @@ void ChatClient::OnUsersList(const Chat::UsersListResponse &response)
          // if status changed clear session keys for contact 
          chatSessionKeyPtr_->clearSessionForUser(user);
 
-         contact->setOnlineStatus(status);
-         model_->notifyContactChanged(contact->getContactData());
+         static_cast<ChatContactElement*>(contact)->setOnlineStatus(status);
+         model_->notifyContactChanged(static_cast<ChatContactElement*>(contact)->getContactData());
       }
 
    });
@@ -1171,9 +1179,15 @@ void ChatClient::onActionAcceptContactRequest(std::shared_ptr<Chat::ContactRecor
 
    crecord->setContactStatus(Chat::ContactStatus::Accepted);
 
+
+
    addOrUpdateContact(crecord->getContactId(),
                       crecord->getContactStatus(), crecord->getDisplayName());
    model_->notifyContactChanged(crecord);
+   //Removes for Contact requests
+   model_->removeContactNode(crecord->getContactId().toStdString());
+   //Now it adds to Contacts
+   model_->insertContactObject(crecord);
    retrieveUserMessages(crecord->getContactId());
 
    auto request =
@@ -1466,15 +1480,15 @@ void ChatClient::HandlePrivateOTCRequestAccepted(const std::shared_ptr<Chat::OTC
 {
    auto cNode = model_->findContactNode(liveOTCRequest->targetId());
 
-   if (!cNode){
+   if (!cNode || cNode->getType() != ChatUIDefinitions::ChatTreeNodeType::ContactsElement){
       logger_->error("[ChatClient::HandlePrivateOTCRequestAccepted] OTC request for {}"
                      "accepted but corresponding node on found",
                      liveOTCRequest->targetId());
    }
 
-   cNode->setActiveOtcRequest(liveOTCRequest);
+   static_cast<ChatContactElement*>(cNode)->setActiveOtcRequest(liveOTCRequest);
    model_->insertPrivateOTCReceivedResponseData(liveOTCRequest);
-   model_->notifyContactChanged(cNode->getContactData());
+   model_->notifyContactChanged(static_cast<ChatContactElement*>(cNode)->getContactData());
 
 }
 
@@ -1499,30 +1513,30 @@ void ChatClient::HandlePrivateOTCRequest(const std::shared_ptr<Chat::OTCRequestD
 {
    auto cNode = model_->findContactNode(liveOTCRequest->requestorId());
 
-   if (!cNode){
+   if (!cNode || cNode->getType() != ChatUIDefinitions::ChatTreeNodeType::ContactsElement){
       logger_->error("[ChatClient::HandlePrivateOTCRequest]  Not found corresponding node"
                      " {} for accepted OTC", liveOTCRequest->requestorId());
    }
 
-   cNode->setActiveOtcRequest(liveOTCRequest);
+   static_cast<ChatContactElement*>(cNode)->setActiveOtcRequest(liveOTCRequest);
    model_->insertPrivateOTCReceivedResponseData(liveOTCRequest);
-   model_->notifyContactChanged(cNode->getContactData());
+   model_->notifyContactChanged(static_cast<ChatContactElement*>(cNode)->getContactData());
 }
 
 void ChatClient::HandleAcceptedPrivateOTCResponse(const std::shared_ptr<Chat::OTCResponseData> &response)
 {
    auto cNode = model_->findContactNode(response->requestorId());
 
-   if (!cNode){
+   if (!cNode || cNode->getType() != ChatUIDefinitions::ChatTreeNodeType::ContactsElement){
       logger_->error("[ChatClient::HandleAcceptedPrivateOTCResponse] OTC response for {}"
                      "accepted but corresponding node on found",
                      response->initialTargetId());
       return;
    }
 
-   cNode->setActiveOtcResponse(response);
+   static_cast<ChatContactElement*>(cNode)->setActiveOtcResponse(response);
    model_->insertPrivateOTCReceivedResponseData(response);
-   model_->notifyContactChanged(cNode->getContactData());
+   model_->notifyContactChanged(static_cast<ChatContactElement*>(cNode)->getContactData());
 }
 
 void ChatClient::HandleRejectedPrivateOTCResponse(const std::string &otcId, const std::string &reason)
@@ -1534,14 +1548,14 @@ void ChatClient::HandlePrivateOTCResponse(const std::shared_ptr<Chat::OTCRespons
 {
    auto cNode = model_->findContactNode(response->responderId());
 
-   if (!cNode){
+   if (!cNode || cNode->getType() != ChatUIDefinitions::ChatTreeNodeType::ContactsElement){
       logger_->error("[ChatClient::HandlePrivateOTCResponse]  Not found corresponding node"
                      " {} for accepted OTC", response->requestorId());
    }
 
-   cNode->setActiveOtcResponse(response);
+   static_cast<ChatContactElement*>(cNode)->setActiveOtcResponse(response);
    model_->insertPrivateOTCReceivedResponseData(response);
-   model_->notifyContactChanged(cNode->getContactData());
+   model_->notifyContactChanged(static_cast<ChatContactElement*>(cNode)->getContactData());
 }
 
 // cancel current OTC request sent to OTC chat
@@ -1562,13 +1576,13 @@ bool ChatClient::PullPrivateOTCRequest(const std::string &targetId, const std::s
 {
    auto cNode = model_->findContactNode(targetId);
 
-   if (!cNode) {
+   if (!cNode || cNode->getType() != ChatUIDefinitions::ChatTreeNodeType::ContactsElement) {
       logger_->error("[ChatClient::PullPrivateOTCRequest] Target {} not found"
                      , targetId);
       return false;
    }
 
-   if (cNode->getActiveOtcRequest()->serverRequestId() != serverOTCId) {
+   if (static_cast<ChatContactElement*>(cNode)->getActiveOtcRequest()->serverRequestId() != serverOTCId) {
       logger_->error("[ChatClient::PullPrivateOTCRequest] invalid OTC ID for {}"
                      , targetId);
       return false;

@@ -65,6 +65,7 @@ bool ChatTreeModelWrapper::filterAcceptsRow(int source_row, const QModelIndex &s
       return true;
    case NodeType::RoomsElement:
    case NodeType::ContactsElement:
+   case NodeType::ContactsRequestElement:
    case NodeType::AllUsersElement:
    case NodeType::OTCReceivedResponsesElement:
    case NodeType::OTCSentResponsesElement: {

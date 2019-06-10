@@ -41,6 +41,11 @@ public:
          currentContact_ = citem->getContactData();
          prepareContactMenu();
          return exec(view_->viewport()->mapToGlobal(point));
+      } else if (item && item->getType() == ChatUIDefinitions::ChatTreeNodeType::ContactsRequestElement) {
+         auto citem = static_cast<ChatContactRequestElement*>(item);
+         currentContact_ = citem->getContactData();
+         prepareContactMenu();
+         return exec(view_->viewport()->mapToGlobal(point));
       }
 
       view_->selectionModel()->clearSelection();
@@ -321,6 +326,7 @@ void ChatClientUserView::dataChanged(const QModelIndex &topLeft, const QModelInd
          break;
          case ChatUIDefinitions::ChatTreeNodeType::RoomsElement:
          case ChatUIDefinitions::ChatTreeNodeType::ContactsElement:
+         case ChatUIDefinitions::ChatTreeNodeType::ContactsRequestElement:
          case ChatUIDefinitions::ChatTreeNodeType::OTCSentResponsesElement:
          case ChatUIDefinitions::ChatTreeNodeType::OTCReceivedResponsesElement:{
             auto node = static_cast<CategoryElement*>(item);
