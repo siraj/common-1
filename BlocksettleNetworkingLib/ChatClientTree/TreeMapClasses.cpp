@@ -151,7 +151,8 @@ std::vector<std::shared_ptr<Chat::ContactRecordData> > RootItem::getAllContacts(
 bool RootItem::removeContactNode(const std::string &contactId)
 {
    for (auto child : children_){ // through all categories
-      if (child->isChildTypeSupported(ChatUIDefinitions::ChatTreeNodeType::ContactsElement)) {
+      if (child->isChildTypeSupported(ChatUIDefinitions::ChatTreeNodeType::ContactsElement)
+          || child->isChildTypeSupported(ChatUIDefinitions::ChatTreeNodeType::ContactsRequestElement)) {
          for (auto cchild : child->getChildren()){
             auto data = static_cast<CategoryElement*>(cchild)->getDataObject();
             if (data->getType() == Chat::DataObject::Type::ContactRecordData) {

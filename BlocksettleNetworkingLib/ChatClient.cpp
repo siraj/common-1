@@ -236,7 +236,7 @@ void ChatClient::OnContactsActionResponseDirect(const Chat::ContactsActionRespon
             auto holdData = static_cast<ChatContactRequestElement*>(contactNode)->getContactData();
             holdData->setContactStatus(Chat::ContactStatus::Accepted);
             //Remove Nore from request
-            model_->removeContactNode(holdData->getContactId().toStdString());
+            model_->removeContactRequestNode(holdData->getContactId().toStdString());
             //Add node to Contacts
             model_->insertContactObject(holdData, true);
             //contactNode->setOnlineStatus(ChatContactElement::OnlineStatus::Online);
@@ -1185,7 +1185,7 @@ void ChatClient::onActionAcceptContactRequest(std::shared_ptr<Chat::ContactRecor
                       crecord->getContactStatus(), crecord->getDisplayName());
    model_->notifyContactChanged(crecord);
    //Removes for Contact requests
-   model_->removeContactNode(crecord->getContactId().toStdString());
+   model_->removeContactRequestNode(crecord->getContactId().toStdString());
    //Now it adds to Contacts
    model_->insertContactObject(crecord);
    retrieveUserMessages(crecord->getContactId());
