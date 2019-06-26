@@ -196,6 +196,7 @@ void PublisherConnection::listenFunction()
    int errorCount = 0;
 
    while(true) {
+      logger_->debug("[PublisherConnection::listenFunction] start poll");
       result = zmq_poll(poll_items, 2, -1);
       if (result == -1) {
          errorCount++;
@@ -307,6 +308,9 @@ void PublisherConnection::BroadcastPendingData()
       pendingData.swap(dataQueue_);
    }
 
+   logger_->debug("[PublisherConnection::BroadcastPendingData] broadcasting {} packets"
+                  , pendingData.size());
+
    for (const auto &data : pendingData) {
       auto result = zmq_send(dataSocket_.get(), data.c_str(), data.size(), 0);
       if (result != data.size()) {
@@ -316,6 +320,8 @@ void PublisherConnection::BroadcastPendingData()
          break;
       }
    }
+
+   logger_->debug("[PublisherConnection::BroadcastPendingData] broadcasting completed");
 }
 
 bool PublisherConnection::PublishData(const std::string& data)
