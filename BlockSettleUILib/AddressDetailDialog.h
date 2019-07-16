@@ -18,7 +18,7 @@ namespace bs {
       class WalletsManager;
    }
 }
-class ArmoryObject;
+class ArmoryConnection;
 class Tx;
 
 class AddressDetailDialog : public QDialog
@@ -29,14 +29,14 @@ public:
    AddressDetailDialog(const bs::Address &address
                        , const std::shared_ptr<bs::sync::Wallet> &wallet
                        , const std::shared_ptr<bs::sync::WalletsManager>& walletsManager
-                       , const std::shared_ptr<ArmoryObject> &armory
+                       , const std::shared_ptr<ArmoryConnection> &armory
                        , const std::shared_ptr<spdlog::logger> &logger
                        , QWidget* parent = nullptr );
    ~AddressDetailDialog() override;
 
 private slots:
    void onCopyClicked() const;
-   void onAddrBalanceReceived(std::vector<uint64_t>);
+   void onAddrBalanceReceived(const std::vector<uint64_t> &);
    void onAddrTxNReceived(uint32_t);
    void onInputAddrContextMenu(const QPoint &pos);
    void onOutputAddrContextMenu(const QPoint &pos);
@@ -50,7 +50,7 @@ private:
    std::shared_ptr<spdlog::logger>     logger_;
    const bs::Address          address_;
    std::shared_ptr<bs::sync::WalletsManager> walletsManager_;
-   std::shared_ptr<ArmoryObject>       armory_;
+   std::shared_ptr<ArmoryConnection>       armory_;
    std::shared_ptr<bs::sync::Wallet>   wallet_;
 };
 

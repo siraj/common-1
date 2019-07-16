@@ -10,16 +10,17 @@ namespace bs {
    namespace network {
 
       struct ChatOTCSide {
+         // Keep in sync with Chat.OtcSide
          enum Type {
             Undefined,
             Buy,
             Sell
          };
 
-         static const char *toString(Type side) {
+         static std::string toString(Type side) {
             switch (side) {
-               case Buy:   return QT_TR_NOOP("BUY");
-               case Sell:  return QT_TR_NOOP("SELL");
+               case Buy:   return "BUY";
+               case Sell:  return "SELL";
                default:    return "unknown";
             }
          }
@@ -40,6 +41,7 @@ namespace bs {
 
       struct OTCRangeID
       {
+         // Keep in sync with Chat.OtcRangeType
          enum class Type : int
          {
             Range1_5,
@@ -100,25 +102,21 @@ namespace bs {
 
       struct OTCRequest
       {
-         ChatOTCSide::Type        side;
-         OTCRangeID::Type  amountRange;
-
-         // XXX
-         // ownRequest - temporary field used for test purpose until OTC goes through chat server
-         bool              ownRequest;
-
-         // fakeReplyRequired - chat server will simulate "reply"
-         bool              fakeReplyRequired;
+         ChatOTCSide::Type    side;
+         OTCRangeID::Type     amountRange;
       };
 
       struct OTCResponse
       {
-         QString     serverRequestId;
-         QString     requestorId;
-         QString     initialTargetId;
+         ChatOTCSide::Type    side;
+         OTCPriceRange        priceRange;
+         OTCQuantityRange     quantityRange;
+      };
 
-         OTCPriceRange     priceRange;
-         OTCQuantityRange  quantityRange;
+      struct OTCUpdate
+      {
+         uint64_t amount;
+         uint64_t price;
       };
    }
 }

@@ -28,6 +28,30 @@ class WalletManager;
 class WalletContainer;
 
 ///////////////////////////////////////////////////////////////////////////////
+struct OutpointData
+{
+   BinaryData txHash_;
+   unsigned txOutIndex_;
+   
+   unsigned txHeight_ = UINT32_MAX;
+   unsigned txIndex_ = UINT32_MAX;
+
+   uint64_t value_;
+   bool isSpent_;
+
+   BinaryData spenderHash_;
+};
+
+////
+struct OutpointBatch
+{
+   unsigned heightCutoff_;
+   unsigned zcIndexCutoff_;
+
+   std::map<BinaryData, std::vector<OutpointData>> outpoints_;
+};
+
+///////////////////////////////////////////////////////////////////////////////
 class ClientMessageError : public std::runtime_error
 {
 public:
@@ -126,6 +150,11 @@ struct CombinedBalances
    bool operator<(const CombinedBalances& rhs) const
    {
       return walletId_ < rhs.walletId_;
+   }
+
+   bool operator<(const BinaryData& rhs) const
+   {
+      return walletId_ < rhs;
    }
 };
 
@@ -420,14 +449,30 @@ namespace AsyncClient
       //combined methods
       void getCombinedBalances(
          const std::vector<std::string>&,
-         std::function<void(ReturnMessage<std::set<CombinedBalances>>)>);
+         std::function<void(
+            ReturnMessage<std::map<std::string, CombinedBalances>>)>);
       
       void getCombinedAddrTxnCounts(
          const std::vector<std::string>&,
-         std::function<void(ReturnMessage<std::set<CombinedCounts>>)>);
+         std::function<void(
+            ReturnMessage<std::map<std::string, CombinedCounts>>)>);
 
       void getCombinedSpendableTxOutListForValue(
          const std::vector<std::string>&, uint64_t value,
+         std::function<void(ReturnMessage<std::vector<UTXO>>)>);
+   
+      void getCombinedSpendableZcOutputs(const std::vector<std::string>&, 
+         std::function<void(ReturnMessage<std::vector<UTXO>>)>);
+
+      void getCombinedRBFTxOuts(const std::vector<std::string>&, 
+         std::function<void(ReturnMessage<std::vector<UTXO>>)>);
+
+      //outpoints
+      void getOutpointsForAddresses(const std::vector<BinaryData>&, 
+         unsigned startHeight, unsigned zcIndexCutoff,
+         std::function<void(ReturnMessage<OutpointBatch>)>);
+
+      void getUTXOsForAddress(const BinaryData&, bool,
          std::function<void(ReturnMessage<std::vector<UTXO>>)>);
    };
 
@@ -765,12 +810,13 @@ public:
 struct CallbackReturn_CombinedBalances : public CallbackReturn_WebSocket
 {
 private:
-   std::function<void(ReturnMessage<std::set<CombinedBalances>>)> 
+   std::function<void(ReturnMessage<std::map<std::string, CombinedBalances>>)> 
       userCallbackLambda_;
 
 public:
    CallbackReturn_CombinedBalances(
-      std::function<void(ReturnMessage<std::set<CombinedBalances>>)> lbd) :
+      std::function<void(
+         ReturnMessage<std::map<std::string, CombinedBalances>>)> lbd) :
       userCallbackLambda_(lbd)
    {}
    
@@ -782,15 +828,34 @@ public:
 struct CallbackReturn_CombinedCounts : public CallbackReturn_WebSocket
 {
 private:
-   std::function<void(ReturnMessage<std::set<CombinedCounts>>)> 
+   std::function<void(ReturnMessage<std::map<std::string, CombinedCounts>>)> 
       userCallbackLambda_;
 
 public:
    CallbackReturn_CombinedCounts(
-      std::function<void(ReturnMessage<std::set<CombinedCounts>>)> lbd) :
+      std::function<void(
+         ReturnMessage<std::map<std::string, CombinedCounts>>)> lbd) :
       userCallbackLambda_(lbd)
    {}
    
+   //virtual
+   void callback(const WebSocketMessagePartial&);
+};
+
+///////////////////////////////////////////////////////////////////////////////
+struct CallbackReturn_AddrOutpoints : public CallbackReturn_WebSocket
+{
+private:
+   std::function<void(ReturnMessage<OutpointBatch>)>
+      userCallbackLambda_;
+
+public:
+   CallbackReturn_AddrOutpoints(
+      std::function<void(
+         ReturnMessage<OutpointBatch>)> lbd) :
+      userCallbackLambda_(lbd)
+   {}
+
    //virtual
    void callback(const WebSocketMessagePartial&);
 };

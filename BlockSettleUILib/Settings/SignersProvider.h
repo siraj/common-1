@@ -20,6 +20,16 @@ struct SignerHost
       return !(*this == other);
    }
 
+   bool isValid() const {
+      if (port < 1 || port > USHRT_MAX) {
+         return false;
+      }
+      if (name.isEmpty()) {
+         return false;
+      }
+      return true;
+   }
+
    static SignerHost fromTextSettings(const QString &text) {
       SignerHost signer;
       if (text.split(QStringLiteral(":")).size() != 4) {
@@ -64,6 +74,8 @@ public:
    int indexOf(const SignerHost &server) const;
    int indexOfIpPort(const std::string &srvIPPort) const;
 
+   bool currentSignerIsLocal();
+
    bool add(const SignerHost &signer);
    bool replace(int index, const SignerHost &signer);
    bool remove(int index);
@@ -75,12 +87,17 @@ public:
    void setConnectedSignerHost(const SignerHost &connectedSignerHost);
 
    void setupSigner(int index, bool needUpdate = true);
+
+   std::string remoteSignerKeysDir() const;
+   std::string remoteSignerKeysFile() const;
+   BinaryData remoteSignerOwnKey() const;
 signals:
    void dataChanged();
 private:
    std::shared_ptr<ApplicationSettings> appSettings_;
 
    SignerHost connectedSignerHost_;  // latest connected signer
+   mutable BinaryData remoteSignerOwnKey_;
 };
 
 #endif // SIGNERS_PROVIDER_H

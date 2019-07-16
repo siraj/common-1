@@ -855,7 +855,7 @@ pair<unsigned, unsigned> AsyncClient::BlockDataViewer::getRekeyCount() const
 ///////////////////////////////////////////////////////////////////////////////
 void AsyncClient::BlockDataViewer::getCombinedBalances(
    const vector<string>& wltIDs,
-   function<void(ReturnMessage<set<CombinedBalances>>)> callback)
+   function<void(ReturnMessage<map<string, CombinedBalances>>)> callback)
 {
    auto payload = BlockDataViewer::make_payload(
       Methods::getCombinedBalances, bdvID_);
@@ -873,10 +873,10 @@ void AsyncClient::BlockDataViewer::getCombinedBalances(
 ///////////////////////////////////////////////////////////////////////////////
 void AsyncClient::BlockDataViewer::getCombinedAddrTxnCounts(
    const vector<string>& wltIDs,
-   function<void(ReturnMessage<set<CombinedCounts>>)> callback)
+   function<void(ReturnMessage<map<string, CombinedCounts>>)> callback)
 {
    auto payload = BlockDataViewer::make_payload(
-      Methods::getCombinedBalances, bdvID_);
+      Methods::getCombinedAddrTxnCounts, bdvID_);
    auto command = dynamic_cast<BDVCommand*>(payload->message_.get());
 
    for (auto& id : wltIDs)
@@ -894,7 +894,7 @@ void AsyncClient::BlockDataViewer::getCombinedSpendableTxOutListForValue(
    function<void(ReturnMessage<vector<UTXO>>)> callback)
 {
    auto payload = BlockDataViewer::make_payload(
-      Methods::getCombinedBalances, bdvID_);
+      Methods::getCombinedSpendableTxOutListForValue, bdvID_);
    auto command = dynamic_cast<BDVCommand*>(payload->message_.get());
 
    for (auto& id : wltIDs)
@@ -905,6 +905,82 @@ void AsyncClient::BlockDataViewer::getCombinedSpendableTxOutListForValue(
    auto read_payload = make_shared<Socket_ReadPayload>();
    read_payload->callbackReturn_ = 
       make_unique<CallbackReturn_VectorUTXO>(callback);   
+   sock_->pushPayload(move(payload), read_payload);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+void AsyncClient::BlockDataViewer::getCombinedSpendableZcOutputs(
+   const vector<string>& wltIDs, 
+   function<void(ReturnMessage<vector<UTXO>>)> callback)
+{
+   auto payload = BlockDataViewer::make_payload(
+      Methods::getCombinedSpendableZcOutputs, bdvID_);
+   auto command = dynamic_cast<BDVCommand*>(payload->message_.get());
+
+   for (auto& id : wltIDs)
+      command->add_bindata(id);
+
+   auto read_payload = make_shared<Socket_ReadPayload>();
+   read_payload->callbackReturn_ =
+      make_unique<CallbackReturn_VectorUTXO>(callback);
+   sock_->pushPayload(move(payload), read_payload);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+void AsyncClient::BlockDataViewer::getCombinedRBFTxOuts(
+   const vector<string>& wltIDs,
+   function<void(ReturnMessage<vector<UTXO>>)> callback)
+{
+   auto payload = BlockDataViewer::make_payload(
+      Methods::getCombinedRBFTxOuts, bdvID_);
+   auto command = dynamic_cast<BDVCommand*>(payload->message_.get());
+
+   for (auto& id : wltIDs)
+      command->add_bindata(id);
+
+   auto read_payload = make_shared<Socket_ReadPayload>();
+   read_payload->callbackReturn_ =
+      make_unique<CallbackReturn_VectorUTXO>(callback);
+   sock_->pushPayload(move(payload), read_payload);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+void AsyncClient::BlockDataViewer::getOutpointsForAddresses(
+   const std::vector<BinaryData>& addrVec, 
+   unsigned startHeight, unsigned zcIndexCutoff, 
+   std::function<void(ReturnMessage<OutpointBatch>)> callback)
+{
+   auto payload = BlockDataViewer::make_payload(
+      Methods::getOutpointsForAddresses, bdvID_);
+   auto command = dynamic_cast<BDVCommand*>(payload->message_.get());
+
+   for (auto& id : addrVec)
+      command->add_bindata(id.getCharPtr(), id.getSize());
+
+   command->set_height(startHeight);
+   command->set_zcid(zcIndexCutoff);
+
+   auto read_payload = make_shared<Socket_ReadPayload>();
+   read_payload->callbackReturn_ =
+      make_unique<CallbackReturn_AddrOutpoints>(callback);
+   sock_->pushPayload(move(payload), read_payload);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+void AsyncClient::BlockDataViewer::getUTXOsForAddress(
+   const BinaryData& scrAddr, bool withZc,
+   std::function<void(ReturnMessage<std::vector<UTXO>>)> callback)
+{
+   auto payload = BlockDataViewer::make_payload(
+      Methods::getUTXOsForAddress, bdvID_);
+   auto command = dynamic_cast<BDVCommand*>(payload->message_.get());
+
+   command->set_scraddr(scrAddr.getCharPtr(), scrAddr.getSize());
+   command->set_flag(withZc);
+
+   auto read_payload = make_shared<Socket_ReadPayload>();
+   read_payload->callbackReturn_ =
+      make_unique<CallbackReturn_VectorUTXO>(callback);
    sock_->pushPayload(move(payload), read_payload);
 }
 
@@ -1593,7 +1669,7 @@ void CallbackReturn_CombinedBalances::callback(
       ::Codec_AddressData::ManyCombinedData msg;
       AsyncClient::deserialize(&msg, partialMsg);
 
-      set<CombinedBalances> result;
+      map<string, CombinedBalances> result;
 
       for (unsigned i=0; i<msg.packedbalance_size(); i++)
       {
@@ -1618,10 +1694,10 @@ void CallbackReturn_CombinedBalances::callback(
             cbal.addressBalances_.insert(make_pair(scrAddr, abl));
          }
 
-         result.insert(cbal);
+         result.insert(make_pair(wltVals.id(), cbal));
       }
       
-      ReturnMessage<set<CombinedBalances>> rm(result);
+      ReturnMessage<map<string, CombinedBalances>> rm(result);
 
       if (runInCaller())
       {
@@ -1636,7 +1712,7 @@ void CallbackReturn_CombinedBalances::callback(
    }
    catch (ClientMessageError& e)
    {
-      ReturnMessage<set<CombinedBalances>> rm(e);
+      ReturnMessage<map<string, CombinedBalances>> rm(e);
       userCallbackLambda_(move(rm));
    }  
 }
@@ -1650,7 +1726,7 @@ void CallbackReturn_CombinedCounts::callback(
       ::Codec_AddressData::ManyCombinedData msg;
       AsyncClient::deserialize(&msg, partialMsg);
 
-      set<CombinedCounts> result;
+      map<string, CombinedCounts> result;
 
       for (unsigned i=0; i<msg.packedbalance_size(); i++)
       {
@@ -1669,10 +1745,10 @@ void CallbackReturn_CombinedCounts::callback(
             cbal.addressTxnCounts_.insert(make_pair(scrAddr, bl));
          }
 
-         result.insert(cbal);
+         result.insert(make_pair(wltVals.id(), cbal));
       }
       
-      ReturnMessage<set<CombinedCounts>> rm(result);
+      ReturnMessage<map<string, CombinedCounts>> rm(result);
 
       if (runInCaller())
       {
@@ -1687,9 +1763,66 @@ void CallbackReturn_CombinedCounts::callback(
    }
    catch (ClientMessageError& e)
    {
-      ReturnMessage<set<CombinedCounts>> rm(e);
+      ReturnMessage<map<string, CombinedCounts>> rm(e);
       userCallbackLambda_(move(rm));
    }  
+}
+
+///////////////////////////////////////////////////////////////////////////////
+void CallbackReturn_AddrOutpoints::callback(
+   const WebSocketMessagePartial& partialMsg)
+{
+   try
+   {
+      ::Codec_Utxo::AddressOutpointsData msg;
+      AsyncClient::deserialize(&msg, partialMsg);
+
+      OutpointBatch result;
+      result.heightCutoff_ = msg.heightcutoff();
+      result.zcIndexCutoff_ = msg.zcindexcutoff();
+
+      for (unsigned i = 0; i < msg.addroutpoints_size(); i++)
+      {
+         auto& addrOutpoints = msg.addroutpoints(i);
+         BinaryData scrAddr(addrOutpoints.scraddr());
+
+         vector<OutpointData> outpointVec(addrOutpoints.outpoints_size());
+         for (unsigned y = 0; y < addrOutpoints.outpoints_size(); y++)
+         {
+            auto& outpoint = addrOutpoints.outpoints(y);
+            auto& opData = outpointVec[y];
+
+            opData.value_ = outpoint.value();
+            opData.txHeight_ = outpoint.txheight();
+            opData.txOutIndex_ = outpoint.txoutindex();
+            opData.txHash_.copyFrom(outpoint.txhash());
+            opData.isSpent_ = outpoint.isspent();
+            opData.txIndex_ = outpoint.txindex();
+            if(opData.isSpent_)
+               opData.spenderHash_ = outpoint.spenderhash();
+         }
+
+         result.outpoints_.insert(make_pair(scrAddr, outpointVec));
+      }
+
+      ReturnMessage<OutpointBatch> rm(result);
+
+      if (runInCaller())
+      {
+         userCallbackLambda_(move(rm));
+      }
+      else
+      {
+         thread thr(userCallbackLambda_, move(rm));
+         if (thr.joinable())
+            thr.detach();
+      }
+   }
+   catch (ClientMessageError& e)
+   {
+      ReturnMessage<OutpointBatch> rm(e);
+      userCallbackLambda_(move(rm));
+   }
 }
 
 ///////////////////////////////////////////////////////////////////////////////

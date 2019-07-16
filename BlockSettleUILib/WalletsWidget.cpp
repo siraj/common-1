@@ -28,7 +28,6 @@
 #include "Wallets/SyncWalletsManager.h"
 #include "TreeViewWithEnterKey.h"
 #include "NewWalletSeedConfirmDialog.h"
-#include "ManageEncryption/WalletDeleteDialog.h"
 #include "ManageEncryption/RootWalletPropertiesDialog.h"
 
 #include "SignerUiDefs.h"
@@ -177,7 +176,7 @@ void WalletsWidget::init(const std::shared_ptr<spdlog::logger> &logger
    , const std::shared_ptr<ConnectionManager> &connectionManager
    , const std::shared_ptr<AssetManager> &assetMgr
    , const std::shared_ptr<AuthAddressManager> &authMgr
-   , const std::shared_ptr<ArmoryObject> &armory)
+   , const std::shared_ptr<ArmoryConnection> &armory)
 {
    logger_ = logger;
    walletsManager_ = manager;
@@ -253,7 +252,7 @@ void WalletsWidget::InitWalletsView(const std::string& defaultWalletId)
    updateAddresses();
    connect(ui_->treeViewWallets->selectionModel(), &QItemSelectionModel::selectionChanged, this, &WalletsWidget::updateAddresses);
    connect(walletsModel_, &WalletsViewModel::updateAddresses, this, &WalletsWidget::updateAddresses);
-   connect(walletsManager_.get(), &bs::sync::WalletsManager::walletBalanceChanged, this, &WalletsWidget::onWalletBalanceChanged, Qt::QueuedConnection);
+   connect(walletsManager_.get(), &bs::sync::WalletsManager::walletBalanceUpdated, this, &WalletsWidget::onWalletBalanceChanged, Qt::QueuedConnection);
    connect(ui_->treeViewAddresses->model(), &QAbstractItemModel::layoutChanged, this, &WalletsWidget::treeViewAddressesLayoutChanged);
    connect(ui_->treeViewAddresses->selectionModel(), &QItemSelectionModel::selectionChanged, this, &WalletsWidget::treeViewAddressesSelectionChanged);
 
@@ -303,9 +302,6 @@ void WalletsWidget::showWalletProperties(const QModelIndex& index)
 
    const auto &hdWallet = node->hdWallet();
    if (hdWallet != nullptr) {
-//      RootWalletPropertiesDialog(logger_, hdWallet, walletsManager_, armory_, signingContainer_
-//         , walletsModel_, appSettings_, assetManager_, this).exec();
-
       RootWalletPropertiesDialog(logger_, hdWallet, walletsManager_, armory_, signingContainer_
          , walletsModel_, appSettings_, connectionManager_, assetManager_, this).exec();
    }
@@ -320,15 +316,17 @@ void WalletsWidget::showAddressProperties(const QModelIndex& index)
       return;
    }
 
+   // Prevent crash in the AddressDetailDialog::AddressDetailDialog if armory is not ready
+   if (!wallet->isBalanceAvailable()) {
+      return;
+   }
+
    const auto &addresses = wallet->getUsedAddressList();
    const size_t addrIndex = addressModel_->data(sourceIndex, AddressListModel::AddrIndexRole).toUInt();
    const auto address = (addrIndex < addresses.size()) ? addresses[addrIndex] : bs::Address();
 
-   AddressDetailDialog* dialog = new AddressDetailDialog(address, wallet,
-                                                         walletsManager_,
-                                                         armory_, logger_,
-                                                         this);
-   dialog->exec();
+   AddressDetailDialog dialog(address, wallet, walletsManager_, armory_, logger_, this);
+   dialog.exec();
 }
 
 void WalletsWidget::onAddressContextMenu(const QPoint &p)
@@ -355,16 +353,20 @@ void WalletsWidget::onAddressContextMenu(const QPoint &p)
    }
    contextMenu->addAction(actEditComment_);
 
-   const auto &cbAddrBalance = [this, p, contextMenu](std::vector<uint64_t> balances) {
+   const auto &cbAddrBalance = [this, p, contextMenu](std::vector<uint64_t> balances) 
+   {
       if ((curWallet_ == walletsManager_->getSettlementWallet()) && walletsManager_->getAuthWallet()
          /*&& (curWallet_->getAddrTxN(curAddress_) == 1)*/ && balances[0]) {
          contextMenu->addAction(actRevokeSettl_);
       }
       emit showContextMenu(contextMenu, ui_->treeViewAddresses->mapToGlobal(p));
    };
-   if (!curWallet_->getAddrBalance(curAddress_, cbAddrBalance)) {
+
+   auto balanceVec = curWallet_->getAddrBalance(curAddress_);
+   if (balanceVec.size() == 0)
       emit showContextMenu(contextMenu, ui_->treeViewAddresses->mapToGlobal(p));
-   }
+   else
+      cbAddrBalance(balanceVec);
 }
 
 void WalletsWidget::onShowContextMenu(QMenu *menu, QPoint where)
@@ -602,9 +604,10 @@ void WalletsWidget::onEditAddrComment()
       return;
    }
    bool isOk = false;
+   const auto oldComment = curWallet_->getAddressComment(curAddress_);
    const auto comment = QInputDialog::getText(this, tr("Edit Comment")
       , tr("Enter new comment for address %1:").arg(QString::fromStdString(curAddress_.display()))
-      , QLineEdit::Normal, QString::fromStdString(curWallet_->getAddressComment(curAddress_)), &isOk);
+      , QLineEdit::Normal, QString::fromStdString(oldComment), &isOk);
    if (isOk) {
       if (!curWallet_->setAddressComment(curAddress_, comment.toStdString())) {
          BSMessageBox(BSMessageBox::critical, tr("Address Comment"), tr("Failed to save comment")).exec();
@@ -654,16 +657,15 @@ void WalletsWidget::onRevokeSettlement()
    settlWallet->getInputFor(ae, cbSettlInput, false);
 }
 
-void WalletsWidget::onTXSigned(unsigned int id, BinaryData signedTX,
-   std::string error, bool cancelledByUser)
+void WalletsWidget::onTXSigned(unsigned int id, BinaryData signedTX, bs::error::ErrorCode result)
 {
    if (!revokeReqId_ || (revokeReqId_ != id)) {
       return;
    }
    revokeReqId_ = 0;
    const auto &title = tr("Settlement Revoke");
-   if (!error.empty()) {
-      BSMessageBox(BSMessageBox::critical, title, tr("Failed to sign revoke pay-out"), QString::fromStdString(error)).exec();
+   if (result != bs::error::ErrorCode::NoError) {
+      BSMessageBox(BSMessageBox::critical, title, tr("Failed to sign revoke pay-out"), bs::error::ErrorCodeToString(result)).exec();
       return;
    }
 

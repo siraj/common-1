@@ -13,6 +13,8 @@
 #include "CommonTypes.h"
 #include "WalletEncryption.h"
 #include "ZMQ_BIP15X_DataConnection.h"
+#include "BSErrorCode.h"
+#include "BSErrorCodeStrings.h"
 
 #include "bs_communication.pb.h"
 
@@ -64,7 +66,7 @@ public:
 
    size_t GetAddressCount();
    bs::Address GetAddress(size_t index);
-   virtual BinaryData GetPublicKey(size_t index);
+//   virtual BinaryData GetPublicKey(size_t index);
 
    AddressVerificationState GetState(const bs::Address &addr) const;
    void SetState(const bs::Address &addr, AddressVerificationState state);
@@ -99,8 +101,8 @@ public:
 private slots:
    void VerifyWalletAddresses();
    void onAuthWalletChanged();
-   void authAddressAdded();
-   void onTXSigned(unsigned int id, BinaryData signedTX, std::string error, bool cancelledByUser);
+   void onWalletChanged(const std::string &walletId);
+   void onTXSigned(unsigned int id, BinaryData signedTX, bs::error::ErrorCode result, const std::string &errorReason);
    void onWalletCreated(unsigned int id, const std::shared_ptr<bs::sync::hd::Leaf> &);
    void onWalletFailed(unsigned int id, std::string errMsg);
 

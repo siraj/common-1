@@ -7,6 +7,13 @@
 #include <spdlog/spdlog.h>
 #include <zmq.h>
 
+namespace
+{
+
+   const std::chrono::seconds kHearthbeatCheckPeriod(1);
+
+} // namespace
+
 ZmqServerConnection::ZmqServerConnection(
    const std::shared_ptr<spdlog::logger>& logger
    , const std::shared_ptr<ZmqContext>& context)
@@ -23,8 +30,15 @@ ZmqServerConnection::ZmqServerConnection(
 
 ZmqServerConnection::~ZmqServerConnection() noexcept
 {
-   listener_ = nullptr;
    stopServer();
+
+   // Update listener after thread is stopped
+   listener_ = nullptr;
+
+   if (listenThread_.joinable()) {
+      // This is not normally needed but good to have to prevent crash in case stopServer fails
+      listenThread_.join();
+   }
 }
 
 bool ZmqServerConnection::isActive() const
@@ -87,6 +101,16 @@ bool ZmqServerConnection::BindConnection(const std::string& host , const std::st
       logger_->error("[{}] failed to create monitor {}", __func__
          , tempConnectionName);
       return false;
+   }
+
+   for (const std::string &fromAddress : fromAddresses_) {
+      // ZMQ_TCP_ACCEPT_FILTER is deprecated in favor of ZAP API.
+      // But let's use it for now because our future ZMQ usage is not yet clear.
+      int result = zmq_setsockopt(tempDataSocket.get(), ZMQ_TCP_ACCEPT_FILTER, fromAddress.c_str(), fromAddress.size());
+      if (result != 0) {
+         SPDLOG_LOGGER_ERROR(logger_, "can't set ZMQ_TCP_ACCEPT_FILTER for {}", fromAddress);
+         return false;
+      }
    }
 
    result = zmq_connect(tempMonSocket.get(), monitorConnectionName_.c_str());
@@ -175,8 +199,10 @@ void ZmqServerConnection::listenFunction()
 
    int errorCount = 0;
 
-   while(true) {
-      int result = zmq_poll(poll_items, 3, -1);
+   while (true) {
+      int periodMs = std::chrono::duration_cast<std::chrono::milliseconds>(kHearthbeatCheckPeriod).count();
+      int result = zmq_poll(poll_items, 3, periodMs);
+
       if (result == -1) {
          errorCount++;
          if ((zmq_errno() != EINTR) || (errorCount > 10)) {
@@ -232,7 +258,7 @@ void ZmqServerConnection::listenFunction()
                   listener_->OnPeerConnected(cliIP);
                }
             }
-               break;
+            break;
 
             case ZMQ_EVENT_DISCONNECTED :
             case ZMQ_EVENT_CLOSED :
@@ -246,14 +272,23 @@ void ZmqServerConnection::listenFunction()
                   connectedPeers_.erase(it);
                }
             }
-               break;
+            break;
          }
       }
+
+      onPeriodicCheck();
    }
 
    zmq_socket_monitor(dataSocket_.get(), nullptr, ZMQ_EVENT_ALL);
    dataSocket_ = context_->CreateNullSocket();
    monSocket_ = context_->CreateNullSocket();
+
+   if (listener_) {
+      for (const auto &peer : connectedPeers_) {
+         listener_->OnPeerDisconnected(peer.second);
+      }
+   }
+   connectedPeers_.clear();
 
    logger_->debug("[{}] poll thread stopped for {}", __func__, connectionName_);
 }
@@ -261,8 +296,6 @@ void ZmqServerConnection::listenFunction()
 void ZmqServerConnection::stopServer()
 {
    if (!isActive()) {
-      logger_->debug("[{}] connection already stopped {}", __func__
-         , connectionName_);
       return;
    }
 
@@ -283,6 +316,16 @@ void ZmqServerConnection::stopServer()
    }
 
    listenThread_.join();
+}
+
+void ZmqServerConnection::requestPeriodicCheck()
+{
+   SendDataCommand();
+}
+
+std::thread::id ZmqServerConnection::listenThreadId() const
+{
+   return listenThread_.get_id();
 }
 
 bool ZmqServerConnection::SendDataCommand()
@@ -332,6 +375,13 @@ void ZmqServerConnection::notifyListenerOnClientError(const std::string& clientI
    }
 }
 
+void ZmqServerConnection::notifyListenerOnClientError(const std::string &clientId, ServerConnectionListener::ClientError errorCode, int socket)
+{
+   if (listener_) {
+      listener_->onClientError(clientId, errorCode, socket);
+   }
+}
+
 std::string ZmqServerConnection::GetClientInfo(const std::string &clientId) const
 {
    const auto &it = clientInfo_.find(clientId);
@@ -350,6 +400,10 @@ bool ZmqServerConnection::QueueDataToSend(const std::string& clientId, const std
    }
 
    return SendDataCommand();
+}
+
+void ZmqServerConnection::onPeriodicCheck()
+{
 }
 
 void ZmqServerConnection::SendDataToDataSocket()
@@ -395,10 +449,15 @@ bool ZmqServerConnection::SetZMQTransport(ZMQTransport transport)
    case ZMQTransport::InprocTransport:
       zmqTransport_ = transport;
       return true;
-   default:
-      logger_->error("[{}] undefined transport", __func__);
-      return false;
    }
+
+   logger_->error("[{}] undefined transport", __func__);
+   return false;
+}
+
+void ZmqServerConnection::setListenFrom(const std::vector<std::string> &fromAddresses)
+{
+   fromAddresses_ = fromAddresses;
 }
 
 bool ZmqServerConnection::ConfigDataSocket(const ZmqContext::sock_ptr &dataSocket)

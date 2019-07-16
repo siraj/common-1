@@ -17,7 +17,7 @@ namespace bs {
       class WalletsManager;
    }
 }
-class ArmoryObject;
+class ArmoryConnection;
 class AssetManager;
 class SignContainer;
 class TransactionData;
@@ -29,14 +29,14 @@ class ReqCCSettlementContainer : public bs::SettlementContainer
 public:
    ReqCCSettlementContainer(const std::shared_ptr<spdlog::logger> &
       , const std::shared_ptr<SignContainer> &
-      , const std::shared_ptr<ArmoryObject> &
+      , const std::shared_ptr<ArmoryConnection> &
       , const std::shared_ptr<AssetManager> &
       , const std::shared_ptr<bs::sync::WalletsManager> &
       , const bs::network::RFQ &, const bs::network::Quote &
       , const std::shared_ptr<TransactionData> &);
    ~ReqCCSettlementContainer() override;
 
-   bool accept(const SecureBinaryData &password = {}) override;
+   bool startSigning();
    bool cancel() override;
 
    bool isAcceptable() const override;
@@ -67,11 +67,9 @@ signals:
 
 private slots:
    void onWalletInfo(unsigned int reqId, const bs::hd::WalletInfo& walletInfo);
-   void onTXSigned(unsigned int reqId, BinaryData signedTX, std::string error, bool cancelledByUser);
 
 private:
    bool createCCUnsignedTXdata();
-   bool createCCSignedTXdata(const SecureBinaryData &password);
 
 private:
    std::shared_ptr<spdlog::logger>     logger_;

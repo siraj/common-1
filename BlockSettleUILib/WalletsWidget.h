@@ -7,6 +7,8 @@
 #include <QItemSelection>
 #include "Address.h"
 #include "TabWithShortcut.h"
+#include "BSErrorCode.h"
+#include "BSErrorCodeStrings.h"
 
 
 namespace Ui {
@@ -27,7 +29,7 @@ namespace bs {
 class AddressListModel;
 class AddressSortFilterModel;
 class ApplicationSettings;
-class ArmoryObject;
+class ArmoryConnection;
 class AssetManager;
 class AuthAddressManager;
 class QAction;
@@ -51,7 +53,7 @@ public:
       , const std::shared_ptr<ConnectionManager> &connectionManager
       , const std::shared_ptr<AssetManager> &
       , const std::shared_ptr<AuthAddressManager> &
-      , const std::shared_ptr<ArmoryObject> &);
+      , const std::shared_ptr<ArmoryConnection> &);
 
    void setUsername(const QString& username);
 
@@ -87,7 +89,7 @@ private slots:
    void onCopyAddress();
    void onEditAddrComment();
    void onRevokeSettlement();
-   void onTXSigned(unsigned int id, BinaryData signedTX, std::string error, bool cancelledByUser);
+   void onTXSigned(unsigned int id, BinaryData signedTX, bs::error::ErrorCode result);
    void onDeleteWallet();
    void onFilterSettingsChanged();
    void onEnterKeyInAddressesPressed(const QModelIndex &index);
@@ -109,7 +111,7 @@ private:
    std::shared_ptr<ConnectionManager>     connectionManager_;
    std::shared_ptr<AssetManager>          assetManager_;
    std::shared_ptr<AuthAddressManager>    authMgr_;
-   std::shared_ptr<ArmoryObject>          armory_;
+   std::shared_ptr<ArmoryConnection>      armory_;
    WalletsViewModel        *  walletsModel_;
    AddressListModel        *  addressModel_;
    AddressSortFilterModel  *  addressSortFilterModel_;

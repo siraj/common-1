@@ -1,19 +1,23 @@
 syntax = "proto3";
 
 package Blocksettle.Communication.signer;
-
+import "Blocksettle_Communication_Internal.proto";
 
 enum PacketType
 {
    HeadlessReadyType = 0;
    PeerConnectedType = 1;
    PeerDisconnectedType = 2;
-   PasswordRequestType = 3;
+   SignTxRequestType = 3;
    TxSignedType = 4;
    CancelTxSignType = 5;
    XbtSpentType = 6;
+
+   // Send wallet id and wallet password to headless to enable auto signing
+   // Request from ui, response from headless
    AutoSignActType = 7;
-   SignTxRequestType = 8;
+
+   SignOfflineTxRequestType = 8;
    SyncWalletInfoType = 9;
    SyncHDWalletType = 10;
    SyncWalletType = 11;
@@ -22,9 +26,12 @@ enum PacketType
    SetLimitsType = 14;
    PasswordReceivedType = 15;
    RequestCloseType = 16;
-   ReconnectTerminalType = 17;
    ReloadWalletsType = 18;
+
+   // Execute QML dialog by it's name
+   // Request from headless, no response from ui
    ExecCustomDialogRequestType = 19;
+
    ChangePasswordRequestType   = 20;
 
    // Uses messages from headless
@@ -42,6 +49,11 @@ enum PacketType
    UpdateStatusType = 26;
 
    ImportWoWalletType = 27;
+
+   SignSettlementTxRequestType = 28;
+
+   // Sent from headless signer when unknown terminal is trying to connect
+   TerminalHandshakeFailedType = 29;
 }
 
 message Packet
@@ -68,15 +80,22 @@ enum Setting {
    ExportWalletsDir = 4;
    AutoSignWallet = 5;
    ListenAddress = 6;
-   ListenPort = 7;
-   LimitManualXBT = 8;
-   LimitAutoSignXBT = 9;
-   LimitAutoSignTime = 10;
-   LimitManualPwKeep = 11;
-   HideEidInfoBox = 12;
-   TrustedTerminals = 13;
-   TwoWaySignerAuth = 14;
+   AcceptFrom = 7;
+   ListenPort = 8;
+   LimitManualXBT = 9;
+   LimitAutoSignXBT = 10;
+   LimitAutoSignTime = 11;
+   LimitManualPwKeep = 12;
+   HideEidInfoBox = 13;
+   TrustedTerminals = 14;
+   TwoWaySignerAuth = 15;
 };
+
+enum TwoWayAuth
+{
+   TWO_WAY_AUTH_ENABLED = 0;
+   TWO_WAY_AUTH_DISABLED = 1;
+}
 
 message Settings
 {
@@ -84,16 +103,17 @@ message Settings
    bool test_net = 2;
    bool watching_only = 3;
    string export_wallets_dir = 4;
-   string auto_sign_wallet = 11;
-   string listen_address = 5;
-   int32 listen_port = 6;
-   uint64 limit_manual_xbt = 7;
-   uint64 limit_auto_sign_xbt = 8;
-   int32 limit_auto_sign_time = 9;
-   int32 limit_pass_keep_time = 10;
-   bool hide_eid_info_box = 12;
-   repeated KeyPair trusted_terminals = 13;
-   bool two_way_signer_auth = 14;
+   string auto_sign_wallet = 5;
+   string listen_address = 6;
+   string accept_from = 7;
+   int32 listen_port = 8;
+   uint64 limit_manual_xbt = 9;
+   uint64 limit_auto_sign_xbt = 10;
+   int32 limit_auto_sign_time = 11;
+   int32 limit_pass_keep_time = 12;
+   bool hide_eid_info_box = 13;
+   repeated KeyPair trusted_terminals = 14;
+   TwoWayAuth two_way_signer_auth = 15;
 }
 
 // Keep in sync with bs::signer::BindStatus
@@ -106,19 +126,12 @@ enum BindStatus
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message ReadyEvent
-{
-   bool  ready = 1;
-   int32 cur_wallet = 2;
-   int32 total_wallets = 3;
-}
-
 message PeerEvent
 {
    string ip_address = 1;
 }
 
-message PasswordEvent
+message SignTxRequest
 {
    message Change {
       bytes    address = 1;
@@ -126,7 +139,6 @@ message PasswordEvent
       uint64   value = 3;
    }
 
-   bool   auto_sign = 1;
    string prompt = 2;
    string wallet_id = 3;
    repeated bytes inputs = 4;
@@ -136,12 +148,22 @@ message PasswordEvent
    Change         change = 8;
 }
 
-message TxSignEvent
+message SignTxEvent
 {
-   oneof data {
-      bytes  tx = 1;
-      bytes  tx_hash = 2;
-   }
+   uint32         errorCode = 1;
+   bytes          signedTX = 2;
+   //bytes          tx_hash = 3;
+}
+
+message SignTxCancelRequest
+{
+   bytes  tx_hash = 1;
+}
+
+message SignSettlementTxRequest
+{
+   SignTxRequest signTXRequest                                        = 1;
+   Blocksettle.Communication.Internal.SettlementInfo settlementInfo   = 2;
 }
 
 message XbtSpentEvent
@@ -150,16 +172,10 @@ message XbtSpentEvent
    bool  auto_sign = 2;
 }
 
-message AutoSignActEvent
-{
-   bool   activated = 1;
-   string wallet_id = 2;
-}
 
-
-message SignTxRequest
+message SignOfflineTxRequest
 {
-   PasswordEvent tx_request = 1;
+   SignTxRequest tx_request = 1;
    bytes password = 2;
 }
 
@@ -219,20 +235,23 @@ message SyncWalletResponse
    repeated bytes encryption_keys = 3;
    uint32 key_rank_m = 4;
    uint32 key_rank_n = 5;
+   uint32 net_type = 6;
+   uint32 highest_ext_index = 7;
+   uint32 highest_int_index = 8;
 
    message Address {
       string index = 1;
       string address = 2;
    }
-   repeated Address   addresses = 6;
+   repeated Address   addresses = 9;
 }
 
 
-message DecryptWalletRequest
+message DecryptWalletEvent
 {
-   string wallet_id = 1;
-   bytes  password = 2;
-   bool   cancelled_by_user = 3;
+   uint32   errorCode = 1;
+   string   wallet_id = 2;
+   bytes    password = 3;
 }
 
 message CreateWatchingOnlyResponse
@@ -275,14 +294,6 @@ message SetLimitsRequest
    uint32 password_keep_in_mem = 5;
 }
 
-
-message ReconnectRequest
-{
-   bool   online = 1;
-   string listen_address = 2;
-   string listen_port = 3;
-}
-
 message ReloadWalletsRequest
 {
    string path = 1;
@@ -297,7 +308,7 @@ message CustomDialogRequest
 
 message PasswordData
 {
-   string   password = 1;
+   bytes    password = 1;
    uint32   encType = 2;
    bytes    encKey = 3;
 }
@@ -305,7 +316,7 @@ message PasswordData
 message ChangePasswordRequest
 {
    string   rootWalletId = 1;
-   string   oldPassword = 2;
+   bytes    oldPassword = 2;
    repeated PasswordData newPassword = 3;
    uint32   rankM = 4;
    uint32   rankN = 5;
@@ -329,15 +340,33 @@ message HeadlessPubKeyResponse
    string pubKey = 1;
 }
 
+message AutoSignActRequest
+{
+   string   rootWalletId = 1;
+   bytes    password = 2;
+   bool     activateAutoSign = 3;
+}
+
+message AutoSignActResponse
+{
+   uint32   errorCode = 1;
+   string   rootWalletId = 2;
+   bool     autoSignActive = 3;
+}
+
 // Would be sent from headless process to the GUI when some status changes
 message UpdateStatus
 {
    BindStatus signer_bind_status = 1;
 }
 
-
 message ImportWoWalletRequest
 {
    string filename = 1;
    bytes  content = 2;
+}
+
+message TerminalHandshakeFailed
+{
+   string peerAddress = 1;
 }

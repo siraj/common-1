@@ -10,12 +10,14 @@
 #include <QPoint>
 #include <QString>
 #include "CoreWallet.h"
+#include "BSErrorCodeStrings.h"
 
 namespace bs {
    namespace sync {
       class WalletsManager;
    }
 }
+class ApplicationSettings;
 class ArmoryConnection;
 class QCheckBox;
 class QComboBox;
@@ -40,11 +42,11 @@ public:
       , const std::shared_ptr<bs::sync::WalletsManager> &
       , const std::shared_ptr<SignContainer> &
       , bool loadFeeSuggestions, const std::shared_ptr<spdlog::logger>& logger
+      , const std::shared_ptr<ApplicationSettings> &applicationSettings
       , QWidget* parent);
    ~CreateTransactionDialog() noexcept override;
 
    int SelectWallet(const std::string& walletId);
-   void setOfflineDir(const QString &dir) { offlineDir_ = dir; }
 
 protected:
    virtual void init();
@@ -94,7 +96,7 @@ protected slots:
    virtual void selectedWalletChanged(int, bool resetInputs = false
       , const std::function<void()> &cbInputsReset = nullptr);
    virtual void onMaxPressed();
-   void onTXSigned(unsigned int id, BinaryData signedTX, std::string error, bool cancelledByUser);
+   void onTXSigned(unsigned int id, BinaryData signedTX, bs::error::ErrorCode result);
    void updateCreateButtonText();
    void onSignerAuthenticated();
 
@@ -113,6 +115,7 @@ protected:
    std::shared_ptr<SignContainer>   signContainer_;
    std::shared_ptr<TransactionData> transactionData_;
    std::shared_ptr<spdlog::logger> logger_;
+   std::shared_ptr<ApplicationSettings> applicationSettings_;
 
    XbtAmountValidator * xbtValidator_ = nullptr;
 
@@ -124,9 +127,7 @@ protected:
    uint64_t       originalFee_ = 0;
    float          originalFeePerByte_ = 0.0f;
 
-   QString        offlineDir_;
    BinaryData     importedSignedTX_;
-
 private:
    bs::core::wallet::TXSignRequest  txReq_;
 };

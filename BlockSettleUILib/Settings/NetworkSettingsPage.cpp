@@ -24,15 +24,6 @@ bool operator == (const EnvSettings& l, const EnvSettings& r)
       && l.pubPort == r.pubPort;
 }
 
-static const EnvSettings StagingEnvSettings {
-   QLatin1String("185.213.153.45"), 9091 };
-
-static const EnvSettings UATEnvSettings{
-   QLatin1String("185.213.153.44"), 9091 };
-
-static const EnvSettings PRODEnvSettings{
-   QLatin1String("185.213.153.36"), 9091 };
-
 NetworkSettingsPage::NetworkSettingsPage(QWidget* parent)
    : SettingsPage{parent}
    , ui_{new Ui::NetworkSettingsPage}
@@ -94,27 +85,6 @@ NetworkSettingsPage::NetworkSettingsPage(QWidget* parent)
       }
    });
 
-   connect(ui_->pushButtonArmoryTerminalKeyCopy, &QPushButton::clicked, this, [this](){
-      qApp->clipboard()->setText(ui_->labelArmoryTerminalKey->text());
-      ui_->pushButtonArmoryTerminalKeyCopy->setEnabled(false);
-      ui_->pushButtonArmoryTerminalKeyCopy->setText(tr("Copied"));
-      QTimer::singleShot(2000, [this](){
-         ui_->pushButtonArmoryTerminalKeyCopy->setEnabled(true);
-         ui_->pushButtonArmoryTerminalKeyCopy->setText(tr("Copy"));
-      });
-   });
-   connect(ui_->pushButtonArmoryTerminalKeySave, &QPushButton::clicked, this, [this](){
-      QString fileName = QFileDialog::getSaveFileName(this
-                                   , tr("Save Armory Public Key")
-                                   , QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation) + QDir::separator() + QStringLiteral("Terminal_Public_Key.pub")
-                                   , tr("Key files (*.pub)"));
-
-      QFile file(fileName);
-      if (file.open(QIODevice::WriteOnly)) {
-         file.write(ui_->labelArmoryTerminalKey->text().toLatin1());
-      }
-   });
-
    connect(armoryServersProvider_.get(), &ArmoryServersProvider::dataChanged, this, &NetworkSettingsPage::display);
 }
 
@@ -139,26 +109,6 @@ void NetworkSettingsPage::display()
 
    displayArmorySettings();
    displayEnvironmentSettings();
-}
-
-void NetworkSettingsPage::DetectEnvironmentSettings()
-{
-   ApplicationSettings::EnvConfiguration conf = ApplicationSettings::EnvConfiguration::Custom;
-
-   EnvSettings currentConfiguration{
-      ui_->lineEditPublicBridgeHost->text(),
-      ui_->spinBoxPublicBridgePort->value()
-   };
-
-   if (currentConfiguration == StagingEnvSettings) {
-      conf = ApplicationSettings::EnvConfiguration::Staging;
-   } else if (currentConfiguration == UATEnvSettings) {
-      conf = ApplicationSettings::EnvConfiguration::UAT;
-   } else if (currentConfiguration == PRODEnvSettings) {
-      conf = ApplicationSettings::EnvConfiguration::PROD;
-   }
-
-   ui_->comboBoxEnvironment->setCurrentIndex(int(conf));
 }
 
 void NetworkSettingsPage::displayArmorySettings()
@@ -186,26 +136,15 @@ void NetworkSettingsPage::displayArmorySettings()
    else {
       ui_->labelConfChanged->setVisible(false);
    }
-
-   try {
-      RemoteSigner *remoteSigner = qobject_cast<RemoteSigner *>(signContainer_.get());
-      if (remoteSigner) {
-         SecureBinaryData ownKey = remoteSigner->getOwnPubKey();
-         ui_->labelArmoryTerminalKey->setText(QString::fromStdString(ownKey.toHexStr()));
-      }
-   }
-   catch (...) {
-      ui_->labelArmoryTerminalKey->setText(tr("Unknown"));
-   }
 }
 
 void NetworkSettingsPage::displayEnvironmentSettings()
 {
-   ui_->lineEditPublicBridgeHost->setText(appSettings_->get<QString>(ApplicationSettings::pubBridgeHost));
-   ui_->spinBoxPublicBridgePort->setValue(appSettings_->get<int>(ApplicationSettings::pubBridgePort));
-   ui_->spinBoxPublicBridgePort->setEnabled(false);
-
-   DetectEnvironmentSettings();
+   auto env = appSettings_->get<int>(ApplicationSettings::envConfiguration);
+   ui_->comboBoxEnvironment->setCurrentIndex(env);
+   ui_->lineEditCustomPubBridgeHost->setText(appSettings_->get<QString>(ApplicationSettings::customPubBridgeHost));
+   ui_->spinBoxCustomPubBridgePort->setValue(appSettings_->get<int>(ApplicationSettings::customPubBridgePort));
+   onEnvSelected(env);
 }
 
 void NetworkSettingsPage::reset()
@@ -213,8 +152,9 @@ void NetworkSettingsPage::reset()
    for (const auto &setting : {
         ApplicationSettings::runArmoryLocally,
         ApplicationSettings::netType,
-        ApplicationSettings::pubBridgeHost,
-        ApplicationSettings::pubBridgePort,
+        ApplicationSettings::envConfiguration,
+        ApplicationSettings::customPubBridgeHost,
+        ApplicationSettings::customPubBridgePort,
         ApplicationSettings::armoryDbIp,
         ApplicationSettings::armoryDbPort}) {
       appSettings_->reset(setting, false);
@@ -226,38 +166,17 @@ void NetworkSettingsPage::apply()
 {
    armoryServersProvider_->setupServer(ui_->comboBoxArmoryServer->currentIndex());
 
-   appSettings_->set(ApplicationSettings::pubBridgeHost, ui_->lineEditPublicBridgeHost->text());
-   appSettings_->set(ApplicationSettings::pubBridgePort, ui_->spinBoxPublicBridgePort->value());
-
    appSettings_->set(ApplicationSettings::envConfiguration, ui_->comboBoxEnvironment->currentIndex());
+   appSettings_->set(ApplicationSettings::customPubBridgeHost, ui_->lineEditCustomPubBridgeHost->text());
+   appSettings_->set(ApplicationSettings::customPubBridgePort, ui_->spinBoxCustomPubBridgePort->value());
 }
 
 void NetworkSettingsPage::onEnvSelected(int index)
 {
-   ApplicationSettings::EnvConfiguration conf = ApplicationSettings::EnvConfiguration(index);
-
-   if (conf == ApplicationSettings::EnvConfiguration::Custom) {
-      ui_->lineEditPublicBridgeHost->setEnabled(true);
-      ui_->spinBoxPublicBridgePort->setEnabled(true);
-      return;
-   }
-
-   const EnvSettings *settings = nullptr;
-
-   switch (conf) {
-   case ApplicationSettings::EnvConfiguration::UAT:
-      settings = &UATEnvSettings;
-      break;
-   case ApplicationSettings::EnvConfiguration::Staging:
-      settings = &StagingEnvSettings;
-      break;
-   default:
-      settings = &PRODEnvSettings;
-      break;
-   }
-
-   ui_->lineEditPublicBridgeHost->setText(settings->pubHost);
-   ui_->lineEditPublicBridgeHost->setEnabled(false);
-   ui_->spinBoxPublicBridgePort->setValue(settings->pubPort);
-   ui_->spinBoxPublicBridgePort->setEnabled(false);
+   auto env = ApplicationSettings::EnvConfiguration(index);
+   const bool isCustom = (env == ApplicationSettings::Custom);
+   ui_->lineEditCustomPubBridgeHost->setVisible(isCustom);
+   ui_->spinBoxCustomPubBridgePort->setVisible(isCustom);
+   ui_->labelCustomPubBridgeHost->setVisible(isCustom);
+   ui_->labelCustomPubBridgePort->setVisible(isCustom);
 }

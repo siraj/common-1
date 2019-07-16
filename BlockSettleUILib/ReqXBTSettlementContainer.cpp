@@ -19,7 +19,7 @@ Q_DECLARE_METATYPE(AddressVerificationState)
 
 ReqXBTSettlementContainer::ReqXBTSettlementContainer(const std::shared_ptr<spdlog::logger> &logger
    , const std::shared_ptr<AuthAddressManager> &authAddrMgr, const std::shared_ptr<AssetManager> &assetMgr
-   , const std::shared_ptr<SignContainer> &signContainer, const std::shared_ptr<ArmoryObject> &armory
+   , const std::shared_ptr<SignContainer> &signContainer, const std::shared_ptr<ArmoryConnection> &armory
    , const std::shared_ptr<bs::sync::WalletsManager> &walletsMgr, const bs::network::RFQ &rfq
    , const bs::network::Quote &quote, const std::shared_ptr<TransactionData> &txData)
    : bs::SettlementContainer(armory)
@@ -40,7 +40,9 @@ ReqXBTSettlementContainer::ReqXBTSettlementContainer(const std::shared_ptr<spdlo
    bs::UtxoReservation::addAdapter(utxoAdapter_);
 
    connect(signContainer_.get(), &SignContainer::QWalletInfo, this, &ReqXBTSettlementContainer::onWalletInfo);
-   connect(signContainer_.get(), &SignContainer::TXSigned, this, &ReqXBTSettlementContainer::onTXSigned);
+
+   // FIXME: Settlement containers will be reimplemented to use another function
+   //connect(signContainer_.get(), &SignContainer::TXSigned, this, &ReqXBTSettlementContainer::onTXSigned);
 
    connect(this, &ReqXBTSettlementContainer::timerExpired, this, &ReqXBTSettlementContainer::onTimerExpired);
 
@@ -70,7 +72,7 @@ unsigned int ReqXBTSettlementContainer::createPayoutTx(const BinaryData& payinHa
       const auto authAddr = bs::Address::fromPubKey(userKey_, AddressEntryType_P2WPKH);
       logger_->debug("[ReqXBTSettlementContainer] pay-out fee={}, payin hash={}", txReq.fee, payinHash.toHexStr(true));
 
-      return signContainer_->signPayoutTXRequest(txReq, authAddr, wallet->getAddressIndex(settlAddr_), false, password);
+      //return signContainer_->signPayoutTXRequest(txReq, authAddr, wallet->getAddressIndex(settlAddr_), false, password);
    }
    catch (const std::exception &e) {
       logger_->warn("[ReqXBTSettlementContainer] failed to create pay-out transaction based on {}: {}"
@@ -83,13 +85,13 @@ unsigned int ReqXBTSettlementContainer::createPayoutTx(const BinaryData& payinHa
 void ReqXBTSettlementContainer::acceptSpotXBT(const SecureBinaryData &password)
 {
    emit info(tr("Waiting for transactions signing..."));
-   if (clientSells_) {
-      const auto hasChange = transactionData_->GetTransactionSummary().hasChange;
+   if (clientSells_) {  //FIXME: send new type of message to signer here
+/*      const auto hasChange = transactionData_->GetTransactionSummary().hasChange;
       const auto changeAddr = hasChange ? transactionData_->getWallet()->getNewChangeAddress() : bs::Address();
       const auto payinTxReq = transactionData_->createTXRequest(false, changeAddr);
       payinSignId_ = signContainer_->signTXRequest(payinTxReq, false, SignContainer::TXSignMode::Full
          , password);
-      payoutPassword_ = password;
+      payoutPassword_ = password;*/
    }
    else {
       try {    // create payout based on dealer TX
@@ -109,14 +111,15 @@ void ReqXBTSettlementContainer::acceptSpotXBT(const SecureBinaryData &password)
    }
 }
 
-bool ReqXBTSettlementContainer::accept(const SecureBinaryData &password)
+bool ReqXBTSettlementContainer::startSigning()
 {
-   if (!payinReceived()) {
-      acceptSpotXBT(password);
-   }
-   else {
-      payoutSignId_ = createPayoutTx(Tx(payinData_).getThisHash(), amount_, recvAddr_, password);
-   }
+   // FIXME: reimlement
+//   if (!payinReceived()) {
+//      acceptSpotXBT(password);
+//   }
+//   else {
+//      payoutSignId_ = createPayoutTx(Tx(payinData_).getThisHash(), amount_, recvAddr_, password);
+//   }
    return true;
 }
 
@@ -249,7 +252,7 @@ void ReqXBTSettlementContainer::deactivate()
    }
 }
 
-void ReqXBTSettlementContainer::zcReceived(const std::vector<bs::TXEntry>)
+void ReqXBTSettlementContainer::onZCReceived(const std::vector<bs::TXEntry> &)
 {
    if (monitor_) {
       monitor_->checkNewEntries();

@@ -1,7 +1,7 @@
 #ifndef __TRANSACTIONDETAILSWIDGET_H__
 #define __TRANSACTIONDETAILSWIDGET_H__
 
-#include "ArmoryObject.h"
+#include "ArmoryConnection.h"
 #include "BinaryData.h"
 #include "CCFileManager.h"
 #include "TxClasses.h"
@@ -26,6 +26,7 @@ namespace Ui {
 }
 namespace bs {
    namespace sync {
+      class CCDataResolver;
       class WalletsManager;
    }
 }
@@ -79,10 +80,10 @@ public:
    explicit TransactionDetailsWidget(QWidget *parent = nullptr);
    ~TransactionDetailsWidget() override;
 
-   void init(const std::shared_ptr<ArmoryObject> &
+   void init(const std::shared_ptr<ArmoryConnection> &
       , const std::shared_ptr<spdlog::logger> &
       , const std::shared_ptr<bs::sync::WalletsManager> &
-      , const CCFileManager::CCSecurities &);
+      , const std::shared_ptr<bs::sync::CCDataResolver> &);
 
    void populateTransactionWidget(BinaryTXID rpcTXID,
       const bool& firstPass = true);
@@ -112,20 +113,21 @@ private:
    void setTxGUIValues();
    void clear();
    void updateCCInputs();
+   void checkTxForCC(const Tx &, QTreeWidget *);
 
    void processTxData(Tx tx);
 
    void addItem(QTreeWidget *tree, const QString &address, const uint64_t amount
       , const QString &wallet, const BinaryData &txHash, const int txIndex = -1);
 
-   static void updateTreeCC(QTreeWidget *, const bs::network::CCSecurityDef &);
+   static void updateTreeCC(QTreeWidget *, const std::string &product, uint64_t lotSize);
 
 private:
    std::unique_ptr<Ui::TransactionDetailsWidget>   ui_;
-   std::shared_ptr<ArmoryObject>   armory_;
-   std::shared_ptr<spdlog::logger> logger_;
+   std::shared_ptr<ArmoryConnection>   armoryPtr_;
+   std::shared_ptr<spdlog::logger>     logger_;
    std::shared_ptr<bs::sync::WalletsManager> walletsMgr_;
-   CCFileManager::CCSecurities      ccSecurities_;
+   std::shared_ptr<bs::sync::CCDataResolver> ccResolver_;
 
    Tx curTx_; // The Tx being analyzed in the widget.
 
@@ -134,6 +136,19 @@ private:
 
    QMap<QString, QTreeWidgetItem *> inputItems_;
    QMap<QString, QTreeWidgetItem *> outputItems_;
+
+   class TxDetailsACT : ArmoryCallbackTarget
+   {
+   public:
+      TxDetailsACT(ArmoryConnection *armory, TransactionDetailsWidget *parent)
+         : ArmoryCallbackTarget(armory), parent_(parent) {}
+      void onNewBlock(unsigned int height) override {
+         QMetaObject::invokeMethod(parent_, [this, height] { parent_->onNewBlock(height); });
+      }
+   private:
+      TransactionDetailsWidget *parent_;
+   };
+   std::unique_ptr<TxDetailsACT> act_;
 };
 
 #endif // TRANSACTIONDETAILSWIDGET_H

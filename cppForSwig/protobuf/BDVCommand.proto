@@ -54,11 +54,15 @@ enum Methods
 	getUTXOsForAddrList = 64;
 
 	getCombinedSpendableTxOutListForValue = 65;
+	getCombinedSpendableZcOutputs = 66;
+	getCombinedRBFTxOuts = 67;
 
 	broadcastZC = 70;
 	broadcastThroughRPC = 71;
 
 	getTxByHash = 80;
+	getOutpointsForAddresses = 81;
+	getUTXOsForAddress = 82;
 
 	getNodeStatus = 90;
 	estimateFee = 91;
@@ -86,8 +90,9 @@ message BDVCommand
 	optional uint32 height = 8;
 	optional uint32 pageID = 9;
 	optional bool flag = 10;
+	optional uint32 zcID = 11;
 	
-	repeated bytes binData = 11;
+	repeated bytes binData = 20;
 }
 
 enum NotificationType

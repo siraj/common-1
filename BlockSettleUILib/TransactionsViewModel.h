@@ -26,7 +26,6 @@ namespace bs {
 }
 class SafeLedgerDelegate;
 
-
 struct TransactionsViewItem
 {
    bs::TXEntry txEntry;
@@ -51,7 +50,7 @@ struct TransactionsViewItem
    BinaryData  groupId;
 
    bool isSet() const { return (!txEntry.txHash.isNull() && !walletID.isEmpty()); }
-   void initialize(const std::shared_ptr<ArmoryConnection> &
+   void initialize(ArmoryConnection *
       , const std::shared_ptr<bs::sync::WalletsManager> &
       , std::function<void(const TransactionsViewItem *)>);
    void calcAmount(const std::shared_ptr<bs::sync::WalletsManager> &);
@@ -61,6 +60,7 @@ struct TransactionsViewItem
    bool isCPFPeligible() const;
 
    std::string id() const;
+   bs::Address filterAddress;
 
 private:
    bool     txHashesReceived{ false };
@@ -111,21 +111,22 @@ Q_DECLARE_METATYPE(TransactionsViewItem)
 Q_DECLARE_METATYPE(TransactionItems)
 
 
-class TransactionsViewModel : public QAbstractItemModel
+class TransactionsViewModel : public QAbstractItemModel, public ArmoryCallbackTarget
 {
 Q_OBJECT
 public:
-    TransactionsViewModel(const std::shared_ptr<ArmoryObject> &
+   TransactionsViewModel(const std::shared_ptr<ArmoryConnection> &
                           , const std::shared_ptr<bs::sync::WalletsManager> &
                           , const std::shared_ptr<AsyncClient::LedgerDelegate> &
                           , const std::shared_ptr<spdlog::logger> &
-                          , QObject* parent
-                          , const std::shared_ptr<bs::sync::Wallet> &defWlt);
-    TransactionsViewModel(const std::shared_ptr<ArmoryObject> &
+                          , const std::shared_ptr<bs::sync::Wallet> &defWlt
+                          , const bs::Address &filterAddress = bs::Address()
+                          , QObject* parent = nullptr);
+   TransactionsViewModel(const std::shared_ptr<ArmoryConnection> &
                           , const std::shared_ptr<bs::sync::WalletsManager> &
                           , const std::shared_ptr<spdlog::logger> &
                           , QObject* parent = nullptr);
-    ~TransactionsViewModel() noexcept;
+   ~TransactionsViewModel() noexcept override;
 
    TransactionsViewModel(const TransactionsViewModel&) = delete;
    TransactionsViewModel& operator = (const TransactionsViewModel&) = delete;
@@ -156,22 +157,24 @@ private slots:
    void onNewItems(const std::unordered_map<std::string, std::pair<TransactionPtr, TXNode *>> &);
    void onDelRows(std::vector<int> rows);
 
-   void onArmoryStateChanged(ArmoryConnection::State);
-   void onNewTransactions(const std::vector<bs::TXEntry> &);
-   void onDelTransactions(const std::vector<bs::TXEntry> &);
    void onItemConfirmed(const TransactionPtr);
 
 private:
+   void onNewBlock(unsigned int) override;
+   void onStateChanged(ArmoryState) override;
+   void onZCReceived(const std::vector<bs::TXEntry> &) override;
+   void onZCInvalidated(const std::vector<bs::TXEntry> &) override;
+
    void init();
    void clear();
    void loadLedgerEntries();
-   void ledgerToTxData();
+   void ledgerToTxData(const std::map<int, std::vector<bs::TXEntry>> &rawData);
    std::pair<size_t, size_t> updateTransactionsPage(const std::vector<bs::TXEntry> &);
    void updateBlockHeight(const std::vector<std::shared_ptr<TransactionsViewItem>> &);
    void updateTransactionDetails(const std::shared_ptr<TransactionsViewItem> &item
       , const std::function<void(const TransactionsViewItem *itemPtr)> &cb);
    std::shared_ptr<TransactionsViewItem> itemFromTransaction(const bs::TXEntry &);
-   bool txKeyExists(const std::string &key);
+   std::shared_ptr<TransactionsViewItem> getTxEntry(const std::string &key);
 
 signals:
    void dataLoaded(int count);
@@ -202,11 +205,9 @@ public:
    };
 
 private:
-   TXNode   *  rootNode_;
+   std::unique_ptr<TXNode> rootNode_;
    TransactionsViewItem oldestItem_;
-   std::map<uint32_t, std::vector<bs::TXEntry>> rawData_;
    std::unordered_map<std::string, std::shared_ptr<TransactionsViewItem>>  currentItems_;
-   std::shared_ptr<ArmoryObject>       armory_;
    std::shared_ptr<spdlog::logger>     logger_;
    std::shared_ptr<AsyncClient::LedgerDelegate> ledgerDelegate_;
    std::shared_ptr<bs::sync::WalletsManager>    walletsManager_;
@@ -214,8 +215,14 @@ private:
    std::shared_ptr<bs::sync::Wallet>   defaultWallet_;
    std::atomic_bool  signalOnEndLoading_{ false };
    const bool        allWallets_;
-   std::atomic_bool  stopped_;
+   std::shared_ptr<std::atomic_bool>  stopped_;
    std::atomic_bool  initialLoadCompleted_{ true };
+
+   // If set, amount field will show only related address balance changes
+   // (without fees because fees are related to transaction, not address).
+   // Right now used with AddressDetailDialog only.
+   // See BST-1982 and BST-1983 for details.
+   const bs::Address filterAddress_;
 };
 
 #endif // __TRANSACTIONS_VIEW_MODEL_H__

@@ -17,9 +17,10 @@
 CreateTransactionDialogSimple::CreateTransactionDialogSimple(const std::shared_ptr<ArmoryConnection> &armory
    , const std::shared_ptr<bs::sync::WalletsManager>& walletManager
    , const std::shared_ptr<SignContainer> &container
-   , const std::shared_ptr<spdlog::logger>& logger, QWidget* parent)
-   : CreateTransactionDialog(armory, walletManager, container, true, logger,
-                           parent)
+   , const std::shared_ptr<spdlog::logger>& logger
+   , const std::shared_ptr<ApplicationSettings> &applicationSettings
+   , QWidget* parent)
+   : CreateTransactionDialog(armory, walletManager, container, true, logger, applicationSettings, parent)
    , ui_(new Ui::CreateTransactionDialogSimple)
 {
    ui_->setupUi(this);
@@ -165,11 +166,16 @@ void CreateTransactionDialogSimple::showAdvanced()
 
 bs::Address CreateTransactionDialogSimple::getChangeAddress() const
 {
-   bs::Address result;
+   auto promAddr = std::make_shared<std::promise<bs::Address>>();
+   auto futAddr = promAddr->get_future();
+   const auto &cbAddr = [promAddr](const bs::Address &addr) {
+      promAddr->set_value(addr);
+   };
    if (transactionData_->GetTransactionSummary().hasChange) {
-      result = transactionData_->getWallet()->getNewChangeAddress();
+      transactionData_->getWallet()->getNewChangeAddress(cbAddr);
+      return futAddr.get();
    }
-   return result;
+   return {};
 }
 
 void CreateTransactionDialogSimple::createTransaction()
@@ -199,7 +205,7 @@ bool CreateTransactionDialogSimple::userRequestedAdvancedDialog() const
 std::shared_ptr<CreateTransactionDialogAdvanced> CreateTransactionDialogSimple::CreateAdvancedDialog()
 {
    auto advancedDialog = std::make_shared<CreateTransactionDialogAdvanced>(armory_, walletsManager_
-      , signContainer_, true, logger_, transactionData_, parentWidget());
+      , signContainer_, true, logger_, applicationSettings_, transactionData_, parentWidget());
 
    if (!offlineTransactions_.empty()) {
       advancedDialog->SetImportedTransactions(offlineTransactions_);
@@ -219,8 +225,6 @@ std::shared_ptr<CreateTransactionDialogAdvanced> CreateTransactionDialogSimple::
          advancedDialog->preSetValue(value);
       }
    }
-
-   advancedDialog->setOfflineDir(offlineDir_);
 
    return advancedDialog;
 }

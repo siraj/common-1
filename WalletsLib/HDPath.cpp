@@ -1,4 +1,6 @@
 #include <algorithm>
+#include <stdexcept>
+#include "BtcUtils.h"
 #include "HDPath.h"
 
 using namespace bs;
@@ -7,20 +9,18 @@ hd::Path::Path(const std::vector<Elem> &elems) : path_(elems)
 {
    isAbsolute_ = (path_[0] == hd::purpose);
    if (isAbsolute_) {
+      //Goofy path hardening, the nodes should be properly flagged to begin with
+      //Only resorting to this so as to not blow up the entire code base. Maybe 
+      //it deserves to, however.
       for (size_t i = 0; i < std::min<size_t>(3, path_.size()); i++) {
-         setHardened(i);
+         path_[i] |= hardFlag;
       }
    }
 }
 
 bool hd::Path::isHardened(size_t index) const
 {
-   return (hardenedIdx_.find(index) != hardenedIdx_.end());
-}
-
-void hd::Path::setHardened(size_t index)
-{
-   hardenedIdx_.insert(index);
+   return (path_[index] & hardFlag);
 }
 
 hd::Path::Elem hd::Path::get(int index) const
@@ -46,65 +46,77 @@ void hd::Path::clear()
 {
    isAbsolute_ = false;
    path_.clear();
-   hardenedIdx_.clear();
 }
 
-void hd::Path::append(Elem elem, bool hardened)
+void hd::Path::append(Elem elem)
 {
    path_.push_back(elem);
-   if (hardened) {
-      setHardened(length() - 1);
-   }
 }
 
 hd::Path::Elem hd::Path::keyToElem(const std::string &key)
 {
-   hd::Path::Elem result = 0;
-   const std::string &str = (key.length() > 4) ? key.substr(0, 4) : key;
-   if (str.empty()) {
-      return result;
+   if (key.empty()) {
+      throw std::runtime_error("empty string key");
    }
-   for (size_t i = 0; i < str.length(); i++) {
-      result |= static_cast<hd::Path::Elem>(str[str.length() - 1 - i]) << (i * 8);
+   const auto hash = BtcUtils::getSha256(key);
+   hd::Path::Elem result = 0;
+   for (int startIdx = 0; startIdx < hash.getSize() - 4; ++startIdx) {
+      result = BinaryData::StrToIntBE<hd::Path::Elem>(hash.getSliceCopy(startIdx, 4));
+      if ((result & hardFlag) == hardFlag) {
+         result &= ~hardFlag;
+      }
+      bool isResultClashingPredefinedElems = false;
+      for (const hd::Path::Elem elem : { 0, 1, 0x4253, 0x41757468 }) {
+         if (result == elem) {
+            isResultClashingPredefinedElems = true;
+            break;
+         }
+      }
+      if (isResultClashingPredefinedElems) {
+         result = 0;
+      }
+      else {
+         break;
+      }
+   }
+   if (result == 0) {
+      throw std::runtime_error("failed to generate index from key");
    }
    return result;
 }
 
 std::string hd::Path::elemToKey(hd::Path::Elem elem)
 {
+   //mask off the hardened flag if present
+   bool hardened = elem & hardFlag;
+   if (hardened)
+      elem &= ~hardFlag;
    std::string result;
-   for (size_t i = 4; i > 0; i--) {
-      unsigned char c = (elem >> (8 * (i - 1))) & 0xff;
-      if (((c >= 'A') && (c <= 'Z')) || ((c >= 'a') && (c <= 'z')) || ((c >= '0') && (c <= '9'))) {
-         result.append(1, c);
-      }
-   }
+
    if (result.empty()) {
       result = std::to_string(elem);
    }
+   if (hardened)
+      result.append(1, '\'');
    return result;
 }
 
-void hd::Path::append(const std::string &key, bool hardened)
+void hd::Path::append(const std::string &key)
 {
-   append(keyToElem(key), hardened);
+   append(keyToElem(key));
 }
 
-std::string hd::Path::toString(bool alwaysAbsolute) const
+std::string hd::Path::toString() const
 {
-   if (path_.empty()) {
-      return {};
-   }
-   std::string result = (alwaysAbsolute || isAbsolute_) ? "m/" : "";
-   for (size_t i = 0; i < path_.size(); i++) {
-      const auto &elem = path_[i];
-      result.append(std::to_string(elem));
-      if (isHardened(i)) {
-         result.append("'");
-      }
-      if (i < (path_.size() - 1)) {
+   if (path_.empty())
+      throw std::runtime_error("empty path");
+
+   std::string result = isAbsolute_ ? "m/" : "";
+   for (size_t i = 0; i < path_.size(); i++) 
+   {
+      result.append(elemToKey(path_[i]));
+      if (i < (path_.size() - 1)) 
          result.append("/");
-      }
    }
    return result;
 }
@@ -114,9 +126,9 @@ static bool isValidPathElem(const std::string &elem)
    if (elem.empty()) {
       return false;
    }
-   if (elem == "m") {
+   /*if (elem == "m") {
       return true;
-   }
+   }*/
    for (const auto &c : elem) {
       if ((c != '\'') && ((c > '9') || (c < '0'))) {
          return false;
@@ -141,12 +153,26 @@ hd::Path hd::Path::fromString(const std::string &s)
    }
 
    Path result;
-   for (const auto &elem : stringVec) {
-      if ((elem == "m") || !isValidPathElem(elem)) {
+   for (unsigned i = 0; i < stringVec.size(); i++) 
+   {
+      auto elem = stringVec[i];
+      if ((elem == "m") && i == 0)
          continue;
+
+      if (!isValidPathElem(elem)) 
+      {
+         /***
+         BIP32 path codec is crucial to wallet consistency, it should 
+         abort on failures, or at least fail gracefully. Before this 
+         throw, it would just continue on errors. This isn't acceptable 
+         behavior.
+         ***/
+         throw std::runtime_error("invalid element in BIP32 path");
       }
-      const auto pe = static_cast<Elem>(std::stoul(elem));
-      result.append(pe, (elem.find("'") != std::string::npos));
+      auto pe = static_cast<Elem>(std::stoul(elem));
+      if (elem.find("'") != std::string::npos)
+         pe |= hardFlag; //proper way to signify hardness, stick to the spec!
+      result.append(pe);
    }
    if (result.get(0) == hd::purpose) {
       result.isAbsolute_ = true;

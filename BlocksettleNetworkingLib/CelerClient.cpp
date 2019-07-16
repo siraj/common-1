@@ -65,6 +65,8 @@ CelerClient::CelerClient(const std::shared_ptr<ConnectionManager>& connectionMan
 
    connect(this, &CelerClient::closingConnection, this, &CelerClient::CloseConnection, Qt::QueuedConnection);
    RegisterDefaulthandlers();
+
+   celerUserType_ = CelerUserType::Undefined;
 }
 
 bool CelerClient::LoginToServer(const std::string& hostname, const std::string& port
@@ -78,6 +80,8 @@ bool CelerClient::LoginToServer(const std::string& hostname, const std::string& 
    // create user login sequence
    std::string loginString = login;
    sessionToken_.clear();
+
+   celerUserType_ = CelerUserType::Undefined;
 
    auto loginSequence = std::make_shared<CelerLoginSequence>(logger_, login, password);
    auto onLoginSuccess = [this,loginString](const std::string& sessionToken, int32_t heartbeatInterval) {
@@ -139,10 +143,13 @@ void CelerClient::loginSuccessCallback(const std::string& userName, const std::s
 
          if (bp && bd) {
             userType_ = tr("Dealing Participant");
+            celerUserType_ = CelerUserType::Dealing;
          } else if (bp && !bd) {
             userType_ = tr("Trading Participant");
+            celerUserType_ = CelerUserType::Trading;
          } else {
             userType_ = tr("Market Participant");
+            celerUserType_ = CelerUserType::Market;
          }
 
          emit OnConnectedToServer();
@@ -244,7 +251,6 @@ void CelerClient::SendCommandMessagesIfRequired(const std::shared_ptr<BaseCelerC
 {
    while (!(command->IsCompleted() || command->IsWaitingForData())) {
       auto message = command->GetNextDataToSend();
-      SPDLOG_DEBUG(logger_, "[CelerClient::SendCommandMessagesIfRequired] sending message of type {}", message.messageType);
       sendMessage(message.messageType, message.messageData);
    }
 }
@@ -276,7 +282,6 @@ void CelerClient::OnConnected()
    if (!internalCommands_.empty()) {
       if (!internalCommands_.front()->IsWaitingForData()) {
          auto message = internalCommands_.front()->GetNextDataToSend();
-         SPDLOG_DEBUG(logger_, "[CelerClient::OnConnected] sending message with type {}", message.messageType);
          sendMessage(message.messageType, message.messageData);
       }
    } else {
@@ -336,8 +341,6 @@ bool CelerClient::onHeartbeat(const std::string& message)
       return false;
    }
 
-   SPDLOG_DEBUG(logger_, "[CelerClient::onHeartbeat] get heartbeat");
-
    return true;
 }
 
@@ -393,7 +396,6 @@ bool CelerClient::SendDataToSequence(const std::string& sequenceId, CelerAPI::Ce
       }
 
       if (command->IsCompleted()) {
-         SPDLOG_DEBUG(logger_, "[CelerClient::SendDataToSequence] sequence {} completed", sequenceId);
          command->FinishSequence();
          activeCommands_.erase(commandIt);
       }
@@ -410,7 +412,6 @@ void CelerClient::sendHeartbeat()
 {
    Heartbeat heartbeat;
 
-   SPDLOG_DEBUG(logger_, "[CelerClient] sending heartbeat");
    sendMessage(CelerAPI::HeartbeatType, heartbeat.SerializeAsString());
 }
 
@@ -458,7 +459,6 @@ std::string CelerClient::userName() const
 
 void CelerClient::RegisterUserCommand(const std::shared_ptr<BaseCelerCommand>& command)
 {
-   SPDLOG_DEBUG(logger_, "[CelerClient::RegisterUserCommand] registering sequence for id {}", command->GetSequenceId());
    activeCommands_.emplace(command->GetSequenceId(), command);
 }
 
@@ -475,6 +475,11 @@ std::string CelerClient::userId() const
 const QString& CelerClient::userType() const
 {
    return userType_;
+}
+
+CelerClient::CelerUserType CelerClient::celerUserType() const
+{
+   return celerUserType_;
 }
 
 std::unordered_set<std::string> CelerClient::GetSubmittedAuthAddressSet() const

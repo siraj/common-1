@@ -20,7 +20,7 @@ namespace bs {
    }
    class SettlementContainer;
 }
-class ArmoryObject;
+class ArmoryConnection;
 class AssetManager;
 class AuthAddressManager;
 class CCSettlementTransactionWidget;
@@ -45,7 +45,7 @@ public:
       , const std::shared_ptr<AssetManager>& assetManager
       , const std::shared_ptr<bs::sync::WalletsManager> &walletsManager
       , const std::shared_ptr<SignContainer> &
-      , const std::shared_ptr<ArmoryObject> &
+      , const std::shared_ptr<ArmoryConnection> &
       , const std::shared_ptr<CelerClient> &celerClient
       , const std::shared_ptr<ApplicationSettings> &appSettings
       , const std::shared_ptr<ConnectionManager> &
@@ -54,11 +54,11 @@ public:
 
 protected:
    void reject() override;
-   bool close();
 
 private slots:
+   bool close();
+
    void onRFQResponseAccepted(const QString &reqId, const bs::network::Quote& quote);
-   void onRFQCancelled(const QString &reqId);
    void onQuoteReceived(const bs::network::Quote& quote);
    void onOrderFilled(const std::string &quoteId);
    void onOrderUpdated(const bs::network::Order& order);
@@ -83,7 +83,7 @@ private:
    std::shared_ptr<bs::sync::WalletsManager> walletsManager_;
    std::shared_ptr<SignContainer>      signContainer_;
    std::shared_ptr<AssetManager>       assetMgr_;
-   std::shared_ptr<ArmoryObject>       armory_;
+   std::shared_ptr<ArmoryConnection>   armory_;
    std::shared_ptr<CelerClient>        celerClient_;
    std::shared_ptr<ApplicationSettings> appSettings_;
    std::shared_ptr<ConnectionManager>  connectionManager_;

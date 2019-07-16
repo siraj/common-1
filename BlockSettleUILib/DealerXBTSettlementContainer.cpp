@@ -13,7 +13,7 @@ DealerXBTSettlementContainer::DealerXBTSettlementContainer(const std::shared_ptr
    , const bs::network::Order &order, const std::shared_ptr<bs::sync::WalletsManager> &walletsMgr
    , const std::shared_ptr<QuoteProvider> &quoteProvider, const std::shared_ptr<TransactionData> &txData
    , const std::unordered_set<std::string> &bsAddresses, const std::shared_ptr<SignContainer> &container
-   , const std::shared_ptr<ArmoryObject> &armory, bool autoSign)
+   , const std::shared_ptr<ArmoryConnection> &armory, bool autoSign)
    : bs::SettlementContainer(armory), order_(order)
    , weSell_((order.side == bs::network::Side::Buy) ^ (order.product == bs::network::XbtCurrency))
    , amount_((order.product != bs::network::XbtCurrency) ? order.quantity / order.price : order.quantity)
@@ -62,7 +62,7 @@ DealerXBTSettlementContainer::DealerXBTSettlementContainer(const std::shared_ptr
          , BinaryData::CreateFromHex(settlIdStr_), buyAuthKey, sellAuthKey, comment_);
    }
 
-   addrVerificator_ = std::make_shared<AddressVerificator>(logger, armory_, settlIdStr_
+   addrVerificator_ = std::make_shared<AddressVerificator>(logger, armory, settlIdStr_
       , [this, logger](const std::shared_ptr<AuthAddress>& address, AddressVerificationState state)
    {
       logger->info("Counterparty's address verification {} for {}"
@@ -75,16 +75,18 @@ DealerXBTSettlementContainer::DealerXBTSettlementContainer(const std::shared_ptr
    });
    addrVerificator_->SetBSAddressList(bsAddresses);
 
-   connect(signingContainer_.get(), &SignContainer::TXSigned, this, &DealerXBTSettlementContainer::onTXSigned);
+   // FIXME: Settlement containers will be reimplemented to use another function
+   // connect(signingContainer_.get(), &SignContainer::TXSigned, this, &DealerXBTSettlementContainer::onTXSigned);
 }
 
-bool DealerXBTSettlementContainer::accept(const SecureBinaryData &password)
+bool DealerXBTSettlementContainer::startSigning()
 {
    if (weSell_) {
       try {
-         const auto txReq = transactionData_->getSignTXRequest();
-         payinSignId_ = signingContainer_->signTXRequest(txReq, autoSign_
-            , SignContainer::TXSignMode::Full, password);
+         const auto txReq = transactionData_->getSignTxRequest();
+         // FIXME: Settlement containers will be reimplemented to use another function
+//         payinSignId_ = signingContainer_->signTXRequest(txReq, autoSign_
+//            , SignContainer::TXSignMode::Full, password);
       }
       catch (const std::exception &e) {
          logger_->error("[DealerXBTSettlementContainer::onAccepted] Failed to sign pay-in: {}", e.what());
@@ -109,13 +111,14 @@ bool DealerXBTSettlementContainer::accept(const SecureBinaryData &password)
          return false;
       }
 
-      const auto &cbSettlInput = [this, receivingAddress, password](UTXO input) {
+      const auto &cbSettlInput = [this, receivingAddress](UTXO input) {
          try {
             const auto txReq = settlWallet_->createPayoutTXRequest(input
                , receivingAddress, transactionData_->feePerByte());
             const auto authAddr = bs::Address::fromPubKey(authKey_, AddressEntryType_P2WPKH);
-            payoutSignId_ = signingContainer_->signPayoutTXRequest(txReq, authAddr, settlIdStr_
-               , autoSign_, password);
+            // FIXME: Settlement containers will be reimplemented to use another function
+//            payoutSignId_ = signingContainer_->signPayoutTXRequest(txReq, authAddr, settlIdStr_
+//               , autoSign_, password);
          }
          catch (const std::exception &e) {
             logger_->error("[DealerSettlDialog::onAccepted] Failed to sign pay-out: {}", e.what());
@@ -171,7 +174,7 @@ void DealerXBTSettlementContainer::deactivate()
    }
 }
 
-void DealerXBTSettlementContainer::zcReceived(const std::vector<bs::TXEntry>)
+void DealerXBTSettlementContainer::onZCReceived(const std::vector<bs::TXEntry> &)
 {
    if (settlMonitor_) {
       settlMonitor_->checkNewEntries();

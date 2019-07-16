@@ -57,6 +57,8 @@ LoginWindow::LoginWindow(const std::shared_ptr<spdlog::logger> &logger
 
    timer_.setInterval(500);
    connect(&timer_, &QTimer::timeout, this, &LoginWindow::onTimer);
+
+   onTextChanged();
 }
 
 LoginWindow::~LoginWindow() = default;
@@ -110,6 +112,8 @@ void LoginWindow::accept()
 
 void LoginWindow::onAuthPressed()
 {
+   ui_->lineEditUsername->setText(ui_->lineEditUsername->text().trimmed());
+
    if (state_ == Login) {
       autheIDConnection_->authenticate(ui_->lineEditUsername->text().toStdString(), kAuthTimeout);
       setupLoginPage();

@@ -60,8 +60,8 @@ public:
       armoryDbIp,
       armoryDbPort,
       armoryPathName,
-      pubBridgeHost,
-      pubBridgePort,
+      customPubBridgeHost,
+      customPubBridgePort,
       pubBridgePubKey,
       envConfiguration,
       celerHost,
@@ -79,7 +79,6 @@ public:
       celerUsername,
       localSignerPort,
       signerIndex,
-      signerRunMode,
       signerOfflineDir,
       autoSignSpendLimit,
       launchToTray,
@@ -126,7 +125,6 @@ public:
       armoryServers,
       defaultArmoryServersKeys,
       twoWaySignerAuth,
-      dontLoadCCList,
       ChartProduct,
       ChartTimeframe,
       ChartCandleCount,
@@ -181,6 +179,11 @@ public:
    std::vector<std::pair<std::string, unsigned int>> UnfinishedWalletsRescan();
 
    std::pair<autheid::PrivateKey, autheid::PublicKey> GetAuthKeys();
+
+   std::string pubBridgeHost() const;
+   std::string pubBridgePort() const;
+
+   void selectNetwork();
 
 signals:
    void settingChanged(int setting, QVariant value);

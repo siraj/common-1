@@ -1,22 +1,21 @@
 syntax = "proto3";
 
 package Blocksettle.Communication.headless;
-
+import "Blocksettle_Communication_Internal.proto";
 
 enum RequestType
 {
-   HeartbeatType               = 0;
+   InvalidRequestType          = 0;
    AuthenticationRequestType   = 1;
-   SignTXRequestType           = 2;
+   SignTxRequestType           = 2;
    SignPartialTXRequestType    = 3;
    SignPayoutTXRequestType     = 4;
-   PasswordRequestType         = 5;
-   SetUserIdRequestType        = 6;
+   SetUserIdType               = 6;
    CreateSettlWalletType       = 7;
    CreateHDWalletRequestType   = 8;
    DeleteHDWalletRequestType   = 9;
    GetRootKeyRequestType       = 10;
-   SetLimitsRequestType        = 11;
+   AutoSignActType             = 11;
    GetHDWalletInfoRequestType  = 12;
    DisconnectionRequestType    = 13;
    SignTXMultiRequestType      = 14;
@@ -29,6 +28,12 @@ enum RequestType
    ExecCustomDialogRequestType = 21;
    // Sent from headless signer when wallet added, removed or changed somehow (request body is empty)
    WalletsListUpdatedType      = 22;
+   ExtendAddressChainType      = 23;
+   SyncNewAddressType	       = 24;
+   SignSettlementTxRequestType = 25;
+   SignSettlementPartialTxRequestType = 26;
+   SignSettlementPayoutTxRequestType = 27;
+   SyncCCNamesType             = 28;
 }
 
 message RequestPacket
@@ -69,8 +74,7 @@ message AuthenticationReply
       bytes authTicket = 1;
       string   error = 2;
    }
-   bool     hasUI = 3;
-   NetworkType  netType = 4;
+   NetworkType  netType = 3;
 }
 
 
@@ -81,7 +85,7 @@ message Change
    uint64   value = 3;
 }
 
-message SignTXRequest
+message SignTxRequest
 {
    string         walletId = 1;
    repeated bytes inputs = 2;
@@ -91,24 +95,32 @@ message SignTXRequest
    bytes          unsignedState = 6;
    Change         change = 7;
    bool           populateUTXOs = 8;
-   bool           applyAutoSignRules = 9;
-   string         password = 10;
+   bytes          password = 10;
    bool           keepDuplicatedRecipients = 11;
 }
 
-message SignTXReply
+message SignTxReply
 {
-   oneof result {
-      bytes signedTX = 1;
-      string   error = 2;
-   }
-   Change   change = 3;
-   bool     cancelledByUser = 4;
+   uint32         errorCode = 1;
+   bytes          signedTX = 2;
+   Change         change = 3;
 }
 
 message CancelSignTx
 {
    bytes txId = 1;
+}
+
+message SignSettlementTxRequest
+{
+   SignTxRequest signTxRequest                                        = 1;
+   Blocksettle.Communication.Internal.SettlementInfo settlementInfo   = 2;
+}
+
+message SignSettlementPayoutTxRequest
+{
+   SignPayoutTXRequest signPayoutTXRequest                            = 1;
+   Blocksettle.Communication.Internal.SettlementInfo settlementInfo   = 2;
 }
 
 message SignPayoutTXRequest
@@ -117,8 +129,7 @@ message SignPayoutTXRequest
    bytes    recipient = 2;
    string   authAddress = 3;
    bytes    settlementId = 4;
-   bool     applyAutoSignRules = 7;
-   string   password = 8;
+   bytes    password = 8;
 }
 
 message PasswordRequest
@@ -132,15 +143,31 @@ message PasswordRequest
 
 message PasswordReply
 {
-   string   walletId = 1;
-   string   password = 2;
-   bool     cancelledByUser = 3;
+   uint32   errorCode = 1;
+   string   walletId = 2;
+   bytes    password = 3;
 }
 
 
 message SetUserIdRequest
 {
    bytes userId = 1;
+}
+
+enum AuthWalletResponseType
+{
+   AWR_NoError       = 0;
+   AWR_NoPrimary     = 1;
+   AWR_WrongSalt     = 2;
+   AWR_NotDecrypted  = 3;
+   AWR_SaltSetFailed = 4;
+   AWR_UnsetSalt     = 5;
+}
+
+message SetUserIdResponse
+{
+   string auth_wallet_id = 1;
+   AuthWalletResponseType response = 2;
 }
 
 
@@ -163,7 +190,7 @@ message NewHDWallet
 
 message PasswordData
 {
-   string   password = 1;
+   bytes   password = 1;
    uint32   encType = 2;
    bytes    encKey = 3;
 }
@@ -227,32 +254,11 @@ message DeleteHDWalletResponse
    string   error = 2;
 }
 
-message GetRootKeyRequest
-{
-   string   rootWalletId = 1;
-   string   password = 2;
-}
 
-message GetRootKeyResponse
-{
-   string   walletId = 1;
-   bytes decryptedPrivKey = 2;
-   bytes chainCode = 3;
-}
-
-
-message SetLimitsRequest
-{
-   string   rootWalletId = 1;
-   string   password = 2;
-   bool     activateAutoSign = 3;
-}
-
-message SetLimitsResponse
+message AutoSignActEvent
 {
    string   rootWalletId = 1;
    bool     autoSignActive = 2;
-   string   error = 3;
 }
 
 
@@ -315,6 +321,8 @@ message SyncHDWalletResponse
    message Group {
       uint32 type = 1;
       repeated Leaf leaves = 2;
+      bool   ext_only = 3;
+      bytes  salt = 4;
    }
 
    string walletId = 1;
@@ -349,6 +357,8 @@ message SyncWalletResponse
    repeated bytes encryptionKeys = 3;
    WalletKeyRank keyRank = 4;
    NetworkType netType = 5;
+   uint32 highest_ext_index = 9;
+   uint32 highest_int_index = 10;
 
    repeated Address   addresses = 6;
    repeated Address   addrPool = 7;
@@ -366,40 +376,41 @@ message SyncCommentRequest
 }
 
 
-enum AddressType
+enum SyncState
 {
-   AddressType_Default = 0;
-   AddressType_P2PKH = 1;
-   AddressType_P2PK = 2;
-   AddressType_P2WPKH = 3;
-   AddressType_Multisig = 4;
-   AddressType_P2SH = 5;
-   AddressType_P2WSH = 6;
+   SyncState_Success = 0;
+   SyncState_NothingToDo = 1;
+   SyncState_Failure = 2;
 }
 
 message SyncAddressesRequest
 {
-   message AddressIndex {
-      string index = 1;
-      AddressType addrType = 2;
-   }
-
-   string walletId = 1;
-   repeated AddressIndex indices = 2;
-   bool   persistent = 3;
+   string wallet_id = 1;
+   repeated bytes addresses = 2;
 }
 
 message SyncAddressesResponse
 {
-   message Address {
+   string wallet_id = 1;
+   SyncState state = 2;
+}
+
+message ExtendAddressChainRequest
+{
+   string wallet_id = 1;
+   uint32 count = 2;
+   bool   ext_int = 3;
+}
+
+message ExtendAddressChainResponse
+{
+   message AddressPair {
       string address = 1;
       string index = 2;
    }
-
-   string walletId = 1;
-   repeated Address addresses = 2;
+   string wallet_id = 1;
+   repeated AddressPair addresses = 2;
 }
-
 
 message SettlWalletResponse
 {
@@ -413,4 +424,22 @@ message CustomDialogRequest
 {
    string dialogName = 1;
    bytes  variantData = 2;
+}
+
+
+message SyncNewAddressRequest
+{
+   message Address {
+      string index = 1;
+      uint32 aet = 2;
+   }
+   string wallet_id = 1;
+   repeated Address addresses = 2;
+
+}
+
+
+message SyncCCNamesData
+{
+   repeated string ccNames = 1;
 }

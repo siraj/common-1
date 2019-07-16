@@ -1,20 +1,18 @@
 #include "StatusBarView.h"
 #include "AssetManager.h"
-#include "SignContainer.h"
 #include "UiUtils.h"
 #include "Wallets/SyncHDWallet.h"
 #include "Wallets/SyncWalletsManager.h"
 
 
-StatusBarView::StatusBarView(const std::shared_ptr<ArmoryObject> &armory
+StatusBarView::StatusBarView(const std::shared_ptr<ArmoryConnection> &armory
    , const std::shared_ptr<bs::sync::WalletsManager> &walletsManager
    , std::shared_ptr<AssetManager> assetManager, const std::shared_ptr<CelerClient> &celerClient
    , const std::shared_ptr<SignContainer> &container, QStatusBar *parent)
-   : QObject(nullptr)
+   : QObject(nullptr), ArmoryCallbackTarget(armory.get())
    , statusBar_(parent)
    , iconSize_(16, 16)
-   , armoryConnState_(ArmoryConnection::State::Offline)
-   , armory_(armory)
+   , armoryConnState_(ArmoryState::Offline)
    , walletsManager_(walletsManager)
    , assetManager_(assetManager)
 {
@@ -38,7 +36,6 @@ StatusBarView::StatusBarView(const std::shared_ptr<ArmoryObject> &armory
    iconContainerOffline_ = contIconGray.pixmap(iconSize_);
    iconContainerError_ = contIconRed.pixmap(iconSize_);
    iconContainerOnline_ = contIconGreen.pixmap(iconSize_);
-   iconContainerConnecting_ = contIconYellow.pixmap(iconSize_);
 
    balanceLabel_ = new QLabel(statusBar_);
 
@@ -72,12 +69,6 @@ StatusBarView::StatusBarView(const std::shared_ptr<ArmoryObject> &armory
 
    SetLoggedOutStatus();
 
-   connect(armory_.get(), &ArmoryObject::prepareConnection, this, &StatusBarView::onPrepareArmoryConnection, Qt::QueuedConnection);
-   connect(armory_.get(), SIGNAL(stateChanged(ArmoryConnection::State)), this
-      , SLOT(onArmoryStateChanged(ArmoryConnection::State)), Qt::QueuedConnection);
-   connect(armory_.get(), &ArmoryObject::progress, this, &StatusBarView::onArmoryProgress, Qt::QueuedConnection);
-   connect(armory_.get(), &ArmoryObject::connectionError, this, &StatusBarView::onArmoryError, Qt::QueuedConnection);
-
    connect(assetManager_.get(), &AssetManager::totalChanged, this, &StatusBarView::updateBalances);
    connect(assetManager_.get(), &AssetManager::securitiesChanged, this, &StatusBarView::updateBalances);
 
@@ -89,15 +80,16 @@ StatusBarView::StatusBarView(const std::shared_ptr<ArmoryObject> &armory
    connect(celerClient.get(), &CelerClient::OnConnectionClosed, this, &StatusBarView::onConnectionClosed);
    connect(celerClient.get(), &CelerClient::OnConnectionError, this, &StatusBarView::onConnectionError);
 
-   connect(container.get(), &SignContainer::connected, this, &StatusBarView::onContainerConnected);
-   connect(container.get(), &SignContainer::disconnected, this, &StatusBarView::onContainerDisconnected);
+   // connected are not used here because we wait for authenticated signal instead
+   // disconnected are not used here because onContainerError should be always called
    connect(container.get(), &SignContainer::authenticated, this, &StatusBarView::onContainerAuthorized);
    connect(container.get(), &SignContainer::connectionError, this, &StatusBarView::onContainerError);
 
    onArmoryStateChanged(armory_->state());
    onConnectionClosed();
-   onContainerConnected();
    setBalances();
+
+   containerStatusLabel_->setPixmap(iconContainerOffline_);
 }
 
 StatusBarView::~StatusBarView() noexcept
@@ -112,6 +104,30 @@ StatusBarView::~StatusBarView() noexcept
    for (QWidget *separator : separators_) {
       separator->deleteLater();
    }
+}
+
+void StatusBarView::onStateChanged(ArmoryState state)
+{
+   QMetaObject::invokeMethod(this, [this, state] { onArmoryStateChanged(state); });
+}
+
+void StatusBarView::onError(const std::string &msg, const std::string &)
+{
+   QMetaObject::invokeMethod(this, [this, msg] {
+      onArmoryError(QString::fromStdString(msg));
+   });
+}
+
+void StatusBarView::onLoadProgress(BDMPhase phase, float progress, unsigned int secs, unsigned int)
+{
+   QMetaObject::invokeMethod(this, [this, phase, progress, secs] {
+      onArmoryProgress(phase, progress, secs);
+   });
+}
+
+void StatusBarView::onPrepareConnection(NetworkType netType, const std::string &, const std::string &)
+{
+   QMetaObject::invokeMethod(this, [this, netType] { onPrepareArmoryConnection(netType); });
 }
 
 void StatusBarView::setupBtcIcon(NetworkType netType)
@@ -142,17 +158,17 @@ QWidget *StatusBarView::CreateSeparator()
    return separator;
 }
 
-void StatusBarView::onPrepareArmoryConnection(const ArmorySettings &server)
+void StatusBarView::onPrepareArmoryConnection(NetworkType netType)
 {
-   setupBtcIcon(server.netType);
+   setupBtcIcon(netType);
 
    progressBar_->setVisible(false);
    estimateLabel_->setVisible(false);
 
-   onArmoryStateChanged(ArmoryConnection::State::Offline);
+   onArmoryStateChanged(ArmoryState::Offline);
 }
 
-void StatusBarView::onArmoryStateChanged(ArmoryConnection::State state)
+void StatusBarView::onArmoryStateChanged(ArmoryState state)
 {
    progressBar_->setVisible(false);
    estimateLabel_->setVisible(false);
@@ -163,20 +179,20 @@ void StatusBarView::onArmoryStateChanged(ArmoryConnection::State state)
    setBalances();
 
    switch (state) {
-   case ArmoryConnection::State::Scanning:
-   case ArmoryConnection::State::Connecting:
+   case ArmoryState::Scanning:
+   case ArmoryState::Connecting:
       connectionStatusLabel_->setToolTip(tr("Connecting..."));
       connectionStatusLabel_->setPixmap(iconConnecting_);
       break;
 
-   case ArmoryConnection::State::Closing:
-   case ArmoryConnection::State::Offline:
-   case ArmoryConnection::State::Cancelled:
+   case ArmoryState::Closing:
+   case ArmoryState::Offline:
+   case ArmoryState::Cancelled:
       connectionStatusLabel_->setToolTip(tr("Database Offline"));
       connectionStatusLabel_->setPixmap(iconOffline_);
       break;
 
-   case ArmoryConnection::State::Ready:
+   case ArmoryState::Ready:
       connectionStatusLabel_->setToolTip(tr("Connected to DB (%1 blocks)").arg(armory_->topBlock()));
       connectionStatusLabel_->setPixmap(iconOnline_);
       updateBalances();
@@ -186,7 +202,7 @@ void StatusBarView::onArmoryStateChanged(ArmoryConnection::State state)
    }
 }
 
-void StatusBarView::onArmoryProgress(BDMPhase phase, float progress, unsigned int secondsRem, unsigned int numProgress)
+void StatusBarView::onArmoryProgress(BDMPhase phase, float progress, unsigned int secondsRem)
 {
    switch (phase) {
    case BDMPhase_DBHeaders:
@@ -223,17 +239,17 @@ void StatusBarView::setBalances()
    QString xbt;
 
    switch (armoryConnState_) {
-      case ArmoryConnection::State::Ready :
-         xbt = UiUtils::displayAmount(walletsManager_->getSpendableBalance());
+      case ArmoryState::Ready :
+         xbt = UiUtils::displayAmount(walletsManager_->getTotalBalance());
       break;
 
-      case ArmoryConnection::State::Scanning :
-      case ArmoryConnection::State::Connected :
+      case ArmoryState::Scanning :
+      case ArmoryState::Connected :
          xbt = tr("Loading...");
       break;
 
-      case ArmoryConnection::State::Closing :
-      case ArmoryConnection::State::Offline :
+      case ArmoryState::Closing :
+      case ArmoryState::Offline :
          xbt = tr("...");
       break;
 
@@ -346,24 +362,36 @@ void StatusBarView::onConnectionError(int errorCode)
    }
 }
 
-void StatusBarView::onContainerConnected()
-{
-   containerStatusLabel_->setPixmap(iconContainerConnecting_);
-}
-
-void StatusBarView::onContainerDisconnected()
-{
-   containerStatusLabel_->setPixmap(iconContainerOffline_);
-}
-
 void StatusBarView::onContainerAuthorized()
 {
    containerStatusLabel_->setPixmap(iconContainerOnline_);
 }
 
-void StatusBarView::onContainerError()
+void StatusBarView::onContainerError(SignContainer::ConnectionError error, const QString &details)
 {
-   containerStatusLabel_->setPixmap(iconContainerError_);
+   Q_UNUSED(details);
+
+   switch (error) {
+      case SignContainer::NoError:
+         assert(false);
+         break;
+
+      case SignContainer::UnknownError:
+      case SignContainer::SocketFailed:
+      case SignContainer::HostNotFound:
+      case SignContainer::HandshakeFailed:
+      case SignContainer::SerializationFailed:
+      case SignContainer::HeartbeatWaitFailed:
+      case SignContainer::InvalidProtocol:
+      case SignContainer::NetworkTypeMismatch:
+         containerStatusLabel_->setPixmap(iconContainerError_);
+         break;
+
+      case SignContainer::ConnectionTimeout:
+      case SignContainer::SignerGoesOffline:
+         containerStatusLabel_->setPixmap(iconContainerOffline_);
+         break;
+   }
 }
 
 void StatusBarView::onWalletImportStarted(const std::string &walletId)

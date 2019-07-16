@@ -57,6 +57,9 @@ public:
 
    void postSplashscreenActions();
 
+   bool event(QEvent *event) override;
+   void addDeferredDialog(const std::function<void(void)> &deferredDialog);
+
 private:
    void setupToolbar();
    void setupMenu();
@@ -105,7 +108,6 @@ private slots:
    void InitTransactionsView();
    void ArmoryIsOffline();
    void SignerReady();
-   void onPasswordRequested(const bs::hd::WalletInfo &walletInfo, std::string prompt);
    void showInfo(const QString &title, const QString &text);
    void showError(const QString &title, const QString &text);
    void onSignerConnError(SignContainer::ConnectionError error, const QString &details);
@@ -121,6 +123,9 @@ private slots:
    void showArmoryServerPrompt(const BinaryData& srvPubKey, const std::string& srvIPPort, std::shared_ptr<std::promise<bool> > promiseObj);
 
    void onArmoryNeedsReconnect();
+   void onCCLoaded();
+
+   void onTabWidgetCurrentChanged(const int &index);
 
 private:
    std::unique_ptr<Ui::BSTerminalMainWindow> ui_;
@@ -173,6 +178,7 @@ private:
 
 public slots:
    void onReactivate();
+   void raiseWindow();
 
 private:
    struct TxInfo;
@@ -186,10 +192,9 @@ private slots:
    void openConfigDialog();
    void openAccountInfoDialog();
    void openCCTokenDialog();
-   void onZCreceived(const std::vector<bs::TXEntry>);
-   void onArmoryStateChanged(ArmoryConnection::State);
 
-   void showZcNotification(const TxInfo *);
+   void onZCreceived(const std::vector<bs::TXEntry> &);
+   void showZcNotification(const TxInfo &);
 
    void onLogin();
    void onLogout();
@@ -231,15 +236,35 @@ private:
    QString           loginButtonText_;
    NetworkSettings   networkSettings_;
    bool readyToRegisterWallets_ = false;
+   bool wasWalletsRegistered_ = false;
    bool initialWalletCreateDialogShown_ = false;
    bool armoryKeyDialogShown_ = false;
    bool armoryBDVRegistered_ = false;
    bool walletsSynched_ = false;
+   bool deferCCsync_ = false;
+
+   SignContainer::ConnectionError lastSignerError_{};
 
    ZmqBIP15XDataConnection::cbNewKey   cbApprovePuB_ = nullptr;
    ZmqBIP15XDataConnection::cbNewKey   cbApproveChat_ = nullptr;
 
-   SignContainer::ConnectionError lastSignerError_{SignContainer::NoError};
+   std::queue<std::function<void(void)>> deferredDialogs_;
+   bool deferredDialogRunning_ = false;
+
+   class MainWinACT : public ArmoryCallbackTarget
+   {
+   public:
+      MainWinACT(ArmoryConnection *armory, BSTerminalMainWindow *wnd)
+         : ArmoryCallbackTarget(armory), parent_(wnd) {}
+      void onZCReceived(const std::vector<bs::TXEntry> &) override;
+      void onStateChanged(ArmoryState) override;
+      void onTxBroadcastError(const std::string &hash, const std::string &error) override;
+      void onRefresh(const std::vector<BinaryData> &, bool) override;
+
+   private:
+      BSTerminalMainWindow *parent_;
+   };
+   std::unique_ptr<MainWinACT>   act_;
 };
 
 #endif // __BS_TERMINAL_MAIN_WINDOW_H__

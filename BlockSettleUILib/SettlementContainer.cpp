@@ -1,12 +1,30 @@
 #include "SettlementContainer.h"
 #include "ArmoryConnection.h"
+#include "UiUtils.h"
 
 using namespace bs;
 
-SettlementContainer::SettlementContainer(const std::shared_ptr<ArmoryObject> &armory)
-   : QObject(nullptr), armory_(armory)
+SettlementContainer::SettlementContainer(const std::shared_ptr<ArmoryConnection> &armory)
+   : QObject(nullptr), ArmoryCallbackTarget(armory.get())
+{}
+
+sync::SettlementInfo SettlementContainer::toSettlementInfo() const
 {
-   connect(armory_.get(), &ArmoryObject::zeroConfReceived, this, &SettlementContainer::zcReceived, Qt::QueuedConnection);
+   bs::sync::SettlementInfo info;
+   info.setProductGroup(tr(bs::network::Asset::toString(assetType())));
+   info.setSecurity(QString::fromStdString(security()));
+   info.setProduct(QString::fromStdString(product()));
+   info.setSide(tr(bs::network::Side::toString(side())));
+
+   info.setPrice(UiUtils::displayPriceCC(price()));
+   info.setQuantity(tr("%1 %2")
+                    .arg(UiUtils::displayCCAmount(quantity()))
+                    .arg(QString::fromStdString(product())));
+   info.setTotalValue(tr("%1").arg(UiUtils::displayAmount(amount())));
+
+   info.setGenesisAddress(tr("Verifying"));
+
+   return info;
 }
 
 void SettlementContainer::startTimer(const unsigned int durationSeconds)

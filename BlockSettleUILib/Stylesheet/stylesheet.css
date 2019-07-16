@@ -37,9 +37,9 @@ a {
   font-family: 'Open Sans', sans-serif; }
 
 .hyper-link {
-  color: #247dac !important;
-  text-decoration: none !important;
-  font-style: italic !important; }
+  color: #247dac;
+  text-decoration: none;
+  font-style: italic; }
 
 *[headerRow="true"] {
   background-color: transparent;
@@ -198,7 +198,13 @@ QFrame#loginLogo {
   background-image: url(":resources/login-logo.png");
   background-position: center right;
   background-repeat: no-repeat; }
+  
+QFrame#messagesHeaderFrame {
+  background-color: #18202b;}
 
+QWidget#chatTopSeparatorWidget {
+  background-color: #3f4c50;}
+  
 QToolBar {
   background: transparent;
   spacing: 0;
@@ -371,11 +377,11 @@ QHeaderView::section {
 
 QHeaderView::down-arrow {
   subcontrol-position: center right;
-  image: url("://resources/down-arrow-primary.png") !important; }
+  image: url("://resources/down-arrow-primary.png"); }
 
 QHeaderView::up-arrow {
   subcontrol-position: center right;
-  image: url("://resources/up-arrow-primary.png") !important; }
+  image: url("://resources/up-arrow-primary.png"); }
 
 QTreeView::branch {
   background: transparent; }
@@ -383,12 +389,12 @@ QTreeView::branch {
 QTreeView::branch:closed:has-children,
 QTreeView::branch:closed:has-children:has-siblings {
   border-image: none;
-  image: url("://resources/right-arrow.png") !important; }
+  image: url("://resources/right-arrow.png"); }
 
 QTreeView::branch:open:has-children,
 QTreeView::branch:open:has-children:has-siblings {
   border-image: none;
-  image: url(":/resources/dropdown-arrow.png") !important; }
+  image: url(":/resources/dropdown-arrow.png"); }
 
 QTreeWidget QPushButton:hover, QTreeWidget QToolButton:hover, QTreeWidget [buttonImportant="true"]:hover, QTreeWidget [buttonSuccess="true"]:hover, QTreeWidget [buttonWarning="true"]:hover {
   background-color: red;
@@ -401,7 +407,7 @@ QTreeWidget QPushButton:hover, QTreeWidget QToolButton:hover, QTreeWidget [butto
   border-top: 1px solid #3f4c50; }
   *[tableFooter="true"] QLabel {
     color: #e7e8e9;
-    font-weight: normal !important; }
+    font-weight: normal; }
 
 QTabWidget::pane {
   /* The tab widget frame */
@@ -713,7 +719,7 @@ QCalendarWidget {
     color: #6f787c;
     background-color: #e7e8e9; }
   QCalendarWidget QAbstractItemView::Saturday {
-    color: green !important;
+    color: green;
     background-color: #e7e8e9; }
   QCalendarWidget QAbstractItemView:disabled {
     color: #9fa5a7;
@@ -799,7 +805,6 @@ QToolButton[buttonDiscreetPrimary="true"],
   font-weight: normal;
   font-style: italic;
   border-width: 0px;
-  height: auto !important;
   text-transform: none;
   text-align: left; }
   QPushButton[buttonDiscreet="true"]:hover, QToolButton[buttonDiscreet="true"]:hover, [buttonDiscreet="true"][buttonImportant="true"]:hover, [buttonDiscreet="true"][buttonSuccess="true"]:hover, [buttonDiscreet="true"][buttonWarning="true"]:hover,
@@ -871,6 +876,9 @@ QPushButton#signWithEidButton:hover {
   background-color: #3080aa; }
 QPushButton#signWithEidButton:pressed {
   background-color: #4090ba; }
+  
+QPushButton#pushButtonChangeLog {
+  padding-top: 0px;}
 
 QPushButton[left_button=true], QToolButton[left_button=true], [left_button=true][buttonImportant="true"], [left_button=true][buttonSuccess="true"], [left_button=true][buttonWarning="true"] {
   border-width: 1px 0px 1px 1px;
@@ -1176,7 +1184,7 @@ QSpinBox::down-button {
 
 QDoubleSpinBox:disabled,
 QSpinBox:disabled {
-  border: 1px solid #586266 !important; }
+  border: 1px solid #586266; }
 
 QDoubleSpinBox:disabled,
 QSpinBox:disabled,
@@ -1184,7 +1192,7 @@ QDoubleSpinBox::up-button:disabled,
 QSpinBox::up-button:disabled,
 QDoubleSpinBox::down-button:disabled,
 QSpinBox::down-button:disabled {
-  border-color: #586266 !important;
+  border-color: #586266;
   color: #586266; }
 
 *[searchField="true"] {
@@ -1340,7 +1348,8 @@ QDialog {
 
 QDialogButtonBox QPushButton, QDialogButtonBox QToolButton, QDialogButtonBox *[buttonImportant="true"], QDialogButtonBox *[buttonSuccess="true"], QDialogButtonBox *[buttonWarning="true"] {
   min-width: 65px;
-  padding: 10px 5px; }
+  padding: 10px 5px;
+  qproperty-icon: none; }
 
 QDialog {
   background-color: #1c2835;
@@ -1474,10 +1483,12 @@ QLineEdit#chatSearchLineEdit:disabled {
 QFrame#usersFrame, #roomsFrame {
     background-color: #1c2835; }
     
-QFrame#chatSearchPopupFrame {
+QFrame#chatSearchPopupFrame, QFrame#chatFoundUserList {
     background-color: #1c2835; }
     
-QLabel#chatSearchPopupLabel {
+QLabel#chatSearchPopupLabel,
+ChatSearchListVew#searchResultTreeView,
+QLabel#notFoundLabel {
     background-color: #1c2835;
     font-family: 'Open Sans', arial, sans-serif;
     font-size: 11px;
@@ -1497,15 +1508,28 @@ QTreeView#treeViewUsers {
     font-size: 11px;
     background-color: #1c2835;
     color: #81888f;
-    border: 1px solid transparent; }
+    border: 1px solid transparent;
+    selection-background-color: transparent; }
 
 QTreeView#treeViewUsers:item {
     font-size: 11px;
+/*    background-color: #1c2835;*/
+/*    selection-background-color: #3a8ab4;*/
+    border: 1px solid transparent;}
+
+ChatSearchListVew#searchResultTreeView:item {
+    font-size: 11px;
     background-color: #1c2835;
-    selection-background-color: #3a8ab4;
+/*    selection-background-color: #3a8ab4;*/
+    selection-background-color: transparent;
     border: 1px solid transparent;}
     
 QTreeView#treeViewUsers:item:selected {
+/*    background-color: #3a8ab4;*/
+    background-color: transparent;
+    selection-background-color: transparent; }
+
+ChatSearchListVew#searchResultTreeView:item:selected {
     background-color: #3a8ab4; }
     
 ChatUserListTreeViewStyle {
@@ -1526,6 +1550,15 @@ ChatUsersViewItemStyle {
     qproperty-color_user_offline: #c0c0c0;
     qproperty-color_contact_online: #00c8f8;
     qproperty-color_contact_offline: #c0c0c0;
+    qproperty-color_contact_incoming: #ffa834;
+    qproperty-color_contact_outgoing: #a0bc5d;
+    qproperty-color_contact_rejected: #c4362f;
+    qproperty-color_highlight_background: #3a8ab4;
+    }
+
+ChatSearchListViewItemStyle {
+    qproperty-color_contact_unknown: #c0c0c0;
+    qproperty-color_contact_accepted: #00c8f8;
     qproperty-color_contact_incoming: #ffa834;
     qproperty-color_contact_outgoing: #a0bc5d;
     qproperty-color_contact_rejected: #c4362f;

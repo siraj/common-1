@@ -36,7 +36,6 @@
 #include "DialogManager.h"
 #include "HeadlessContainer.h"
 #include "LoginWindow.h"
-#include "ManageEncryption/EnterWalletPassword.h"
 #include "MarketDataProvider.h"
 #include "MDAgreementDialog.h"
 #include "NewAddressDialog.h"
@@ -56,6 +55,7 @@
 #include "UiUtils.h"
 #include "Wallets/SyncHDWallet.h"
 #include "Wallets/SyncWalletsManager.h"
+#include "ImportKeyBox.h"
 
 #include <spdlog/spdlog.h>
 
@@ -80,9 +80,9 @@ BSTerminalMainWindow::BSTerminalMainWindow(const std::shared_ptr<ApplicationSett
 
    bool licenseAccepted = showStartupDialog();
    if (!licenseAccepted) {
-      QTimer::singleShot(0, this, []() {
+      QMetaObject::invokeMethod(this, []() {
          qApp->exit(EXIT_FAILURE);
-      });
+      }, Qt::QueuedConnection);
       return;
    }
 
@@ -101,7 +101,7 @@ BSTerminalMainWindow::BSTerminalMainWindow(const std::shared_ptr<ApplicationSett
 
    setupIcon();
    UiUtils::setupIconFont(this);
-   NotificationCenter::createInstance(applicationSettings_, ui_.get(), sysTrayIcon_, this);
+   NotificationCenter::createInstance(logMgr_->logger(), applicationSettings_, ui_.get(), sysTrayIcon_, this);
 
    cbApprovePuB_ = PubKeyLoader::getApprovingCallback(PubKeyLoader::KeyType::PublicBridge
       , this, applicationSettings_);
@@ -216,87 +216,92 @@ void BSTerminalMainWindow::GetNetworkSettingsFromPuB(const std::function<void()>
          applicationSettings_->set(ApplicationSettings::mdServerHost, QString::fromStdString(settings.marketData.host));
          applicationSettings_->set(ApplicationSettings::mdServerPort, settings.marketData.port);
       }
-     if (!settings.mdhs.host.empty()) {
-        applicationSettings_->set(ApplicationSettings::mdhsHost, QString::fromStdString(settings.mdhs.host));
-        applicationSettings_->set(ApplicationSettings::mdhsPort, settings.mdhs.port);
-     }
+      if (!settings.mdhs.host.empty()) {
+         applicationSettings_->set(ApplicationSettings::mdhsHost, QString::fromStdString(settings.mdhs.host));
+         applicationSettings_->set(ApplicationSettings::mdhsPort, settings.mdhs.port);
+      }
 #ifndef NDEBUG
-     QString chost = applicationSettings_->get<QString>(ApplicationSettings::chatServerHost);
-     QString cport = applicationSettings_->get<QString>(ApplicationSettings::chatServerPort);
-     if (!settings.chat.host.empty()) {
-        if (chost.isEmpty())
-         applicationSettings_->set(ApplicationSettings::chatServerHost, QString::fromStdString(settings.chat.host));
-        if (cport.isEmpty())
-         applicationSettings_->set(ApplicationSettings::chatServerPort, settings.chat.port);
-     }
+      QString chost = applicationSettings_->get<QString>(ApplicationSettings::chatServerHost);
+      QString cport = applicationSettings_->get<QString>(ApplicationSettings::chatServerPort);
+      if (!settings.chat.host.empty()) {
+         if (chost.isEmpty()) {
+            applicationSettings_->set(ApplicationSettings::chatServerHost, QString::fromStdString(settings.chat.host));
+         }
+         if (cport.isEmpty()) {
+            applicationSettings_->set(ApplicationSettings::chatServerPort, settings.chat.port);
+         }
+      }
 #else
-     if (!settings.chat.host.empty()) {
-        applicationSettings_->set(ApplicationSettings::chatServerHost, QString::fromStdString(settings.chat.host));
-        applicationSettings_->set(ApplicationSettings::chatServerPort, settings.chat.port);
-     }
+      if (!settings.chat.host.empty()) {
+         applicationSettings_->set(ApplicationSettings::chatServerHost, QString::fromStdString(settings.chat.host));
+         applicationSettings_->set(ApplicationSettings::chatServerPort, settings.chat.port);
+      }
 #endif // NDEBUG
    };
 
    cmdPuBSettings_->SetReplyCallback([this, title, cb, populateAppSettings](const std::string &data) {
-      if (data.empty()) {
-         showError(title, tr("Empty reply from BlockSettle server"));
-      }
-      cmdPuBSettings_->resetConnection();
-      Blocksettle::Communication::GetNetworkSettingsResponse response;
-      if (!response.ParseFromString(data)) {
-         showError(title, tr("Invalid reply from BlockSettle server"));
-         return false;
-      }
+      QMetaObject::invokeMethod(this, [this, data, title, cb, populateAppSettings] {
+         if (data.empty()) {
+            showError(title, tr("Empty reply from BlockSettle server"));
+         }
+         cmdPuBSettings_->resetConnection();
+         Blocksettle::Communication::GetNetworkSettingsResponse response;
+         if (!response.ParseFromString(data)) {
+            showError(title, tr("Invalid reply from BlockSettle server"));
+            return;
+         }
 
-      if (response.has_celer()) {
-         networkSettings_.celer = { response.celer().host(), response.celer().port() };
-         networkSettings_.isSet = true;
-      }
-      else {
-         showError(title, tr("Missing Celer connection settings"));
-         return false;
-      }
+         if (response.has_celer()) {
+            networkSettings_.celer = { response.celer().host(), response.celer().port() };
+            networkSettings_.isSet = true;
+         }
+         else {
+            showError(title, tr("Missing Celer connection settings"));
+            return;
+         }
 
-      if (response.has_marketdata()) {
-         networkSettings_.marketData = { response.marketdata().host(), response.marketdata().port() };
-         networkSettings_.isSet = true;
-      }
-      else {
-         showError(title, tr("Missing MD connection settings"));
-         return false;
-      }
+         if (response.has_marketdata()) {
+            networkSettings_.marketData = { response.marketdata().host(), response.marketdata().port() };
+            networkSettings_.isSet = true;
+         }
+         else {
+            showError(title, tr("Missing MD connection settings"));
+            return;
+         }
 
-      if (response.has_mdhs()) {
-         networkSettings_.mdhs = { response.mdhs().host(), response.mdhs().port() };
-         networkSettings_.isSet = true;
-      }
-      // else {
-         // showError(title, tr("Missing MDHS connection settings"));
-         // return false;
-      // }
+         if (response.has_mdhs()) {
+            networkSettings_.mdhs = { response.mdhs().host(), response.mdhs().port() };
+            networkSettings_.isSet = true;
+         }
+         // else {
+            // showError(title, tr("Missing MDHS connection settings"));
+            // return false;
+         // }
 
-      if (response.has_chat()) {
-         networkSettings_.chat = { response.chat().host(), response.chat().port() };
-         networkSettings_.isSet = true;
-      }
-      else {
-         showError(title, tr("Missing Chat connection settings"));
-         return false;
-      }
+         if (response.has_chat()) {
+            networkSettings_.chat = { response.chat().host(), response.chat().port() };
+            networkSettings_.isSet = true;
+         }
+         else {
+            showError(title, tr("Missing Chat connection settings"));
+            return;
+         }
 
-      populateAppSettings(networkSettings_);
-      cb();
+         populateAppSettings(networkSettings_);
+         cb();
+      });
       return true;
    });
    cmdPuBSettings_->SetErrorCallback([this, title](const std::string& message) {
       logMgr_->logger()->error("[GetNetworkSettingsFromPuB] error: {}", message);
-      showError(title, tr("Failed to obtain network settings from BlockSettle server"));
-      cmdPuBSettings_->resetConnection();
+      QMetaObject::invokeMethod(this, [this, title] {
+         showError(title, tr("Failed to obtain network settings from BlockSettle server"));
+         cmdPuBSettings_->resetConnection();
+      });
    });
 
-   if (!cmdPuBSettings_->ExecuteRequest(applicationSettings_->get<std::string>(ApplicationSettings::pubBridgeHost)
-      , applicationSettings_->get<std::string>(ApplicationSettings::pubBridgePort)
-      , reqPkt.SerializeAsString(), true)) {
+   if (!cmdPuBSettings_->ExecuteRequest(applicationSettings_->pubBridgeHost()
+      , applicationSettings_->pubBridgePort(), reqPkt.SerializeAsString(), true)) {
       logMgr_->logger()->error("[GetNetworkSettingsFromPuB] failed to send request");
       showError(title, tr("Failed to retrieve network settings due to invalid connection to BlockSettle server"));
    }
@@ -313,6 +318,16 @@ void BSTerminalMainWindow::postSplashscreenActions()
    if (applicationSettings_->get<bool>(ApplicationSettings::SubscribeToMDOnStart)) {
       mdProvider_->SubscribeToMD();
    }
+}
+
+bool BSTerminalMainWindow::event(QEvent *event)
+{
+   if (event->type() == QEvent::WindowActivate) {
+      auto tabChangedSignal = QMetaMethod::fromSignal(&QTabWidget::currentChanged);
+      int currentIndex = ui_->tabWidget->currentIndex();
+      tabChangedSignal.invoke(ui_->tabWidget, Q_ARG(int, currentIndex));
+   }
+   return QMainWindow::event(event);
 }
 
 BSTerminalMainWindow::~BSTerminalMainWindow()
@@ -406,6 +421,8 @@ void BSTerminalMainWindow::LoadWallets()
 {
    logMgr_->logger()->debug("Loading wallets");
 
+   wasWalletsRegistered_ = false;
+
    connect(walletsMgr_.get(), &bs::sync::WalletsManager::walletsReady, [this] {
       ui_->widgetRFQ->setWalletsManager(walletsMgr_);
       ui_->widgetRFQReply->setWalletsManager(walletsMgr_);
@@ -415,21 +432,11 @@ void BSTerminalMainWindow::LoadWallets()
       goOnlineArmory();
       updateControlEnabledState();
 
-      connect(armory_.get(), &ArmoryObject::stateChanged, this, [this](ArmoryConnection::State state) {
-         if (!initialWalletCreateDialogShown_) {
-            if (state == ArmoryConnection::State::Connected && walletsMgr_ && walletsMgr_->hdWalletsCount() == 0) {
-               initialWalletCreateDialogShown_ = true;
-               QMetaObject::invokeMethod(this, [this] {
-                  createWallet(true);
-               });
-            }
-         }
-      });
-
-      if (readyToRegisterWallets_) {
-         readyToRegisterWallets_ = false;
+      if (readyToRegisterWallets_ && !wasWalletsRegistered_) {
+         wasWalletsRegistered_ = true;
          walletsMgr_->registerWallets();
       }
+      act_->onRefresh({}, true);
    });
    connect(walletsMgr_.get(), &bs::sync::WalletsManager::info, this, &BSTerminalMainWindow::showInfo);
    connect(walletsMgr_.get(), &bs::sync::WalletsManager::error, this, &BSTerminalMainWindow::showError);
@@ -467,24 +474,18 @@ void BSTerminalMainWindow::InitAuthManager()
 }
 
 std::shared_ptr<SignContainer> BSTerminalMainWindow::createSigner()
-{
-   auto runMode = static_cast<SignContainer::OpMode>(applicationSettings_->get<int>(ApplicationSettings::signerRunMode));
-
-   switch (runMode) {
-      case SignContainer::OpMode::Remote:
-         return createRemoteSigner();
-      case SignContainer::OpMode::Local:
-         return createLocalSigner();
-      default:
-         return nullptr;
+{  
+   if (signersProvider_->currentSignerIsLocal()) {
+      return createLocalSigner();
+   }
+   else {
+      return createRemoteSigner();
    }
 }
 
 std::shared_ptr<SignContainer> BSTerminalMainWindow::createRemoteSigner()
 {
    SignerHost signerHost = signersProvider_->getCurrentSigner();
-   const auto keyFileDir = SystemFilePaths::appDataLocation();
-   const auto keyFileName = "client.peers";
    QString resultPort = QString::number(signerHost.port);
    NetworkType netType = applicationSettings_->get<NetworkType>(ApplicationSettings::netType);
 
@@ -502,13 +503,14 @@ std::shared_ptr<SignContainer> BSTerminalMainWindow::createRemoteSigner()
          oldKeyHex = signersProvider_->getCurrentSigner().key.toStdString();
       }
 
-      QMetaObject::invokeMethod(this, [this, oldKeyHex, newKey, newKeyProm, srvAddrPort] {
-         MessageBoxIdKey box(BSMessageBox::question, tr("Signer Id Key has changed")
-            , tr("Import Signer ID Key (%1)?")
-            .arg(QString::fromStdString(srvAddrPort))
-            , tr("Old Key: %1\nNew Key: %2")
-            .arg(oldKeyHex.empty() ? tr("<none>") : QString::fromStdString(oldKeyHex))
-            .arg(QString::fromStdString(newKey)), this);
+      const auto &deferredDialog = [this, oldKeyHex, newKey, newKeyProm, srvAddrPort]{
+         ImportKeyBox box(BSMessageBox::question
+            , tr("Import Signer ID Key?")
+            , this);
+
+         box.setNewKey(newKey);
+         box.setOldKey(QString::fromStdString(oldKeyHex));
+         box.setAddrPort(srvAddrPort);
 
          const bool answer = (box.exec() == QDialog::Accepted);
 
@@ -516,32 +518,34 @@ std::shared_ptr<SignContainer> BSTerminalMainWindow::createRemoteSigner()
             signersProvider_->addKey(srvAddrPort, newKey);
          }
          newKeyProm->set_value(answer);
-      });
+      };
+
+      addDeferredDialog(deferredDialog);
    };
 
    QString resultHost = signerHost.address;
    const auto remoteSigner = std::make_shared<RemoteSigner>(logMgr_->logger()
-      , resultHost, resultPort, netType, connectionManager_, applicationSettings_
-      , SignContainer::OpMode::Remote, false, keyFileDir, keyFileName, ourNewKeyCB);
+      , resultHost, resultPort, netType, connectionManager_
+      , SignContainer::OpMode::Remote, false
+      , signersProvider_->remoteSignerKeysDir(), signersProvider_->remoteSignerKeysFile(), ourNewKeyCB);
 
-   std::vector<std::pair<std::string, BinaryData>> keys;
+   ZmqBIP15XPeers peers;
    for (const auto &signer : signersProvider_->signers()) {
       try {
          const BinaryData signerKey = BinaryData::CreateFromHex(signer.key.toStdString());
-         keys.push_back({ signer.serverId(), signerKey });
+         peers.push_back(ZmqBIP15XPeer(signer.serverId(), signerKey));
       }
       catch (const std::exception &e) {
          logMgr_->logger()->warn("[{}] invalid signer key: {}", __func__, e.what());
       }
    }
-   remoteSigner->updatePeerKeys(keys);
+   remoteSigner->updatePeerKeys(peers);
 
    return remoteSigner;
 }
 
 std::shared_ptr<SignContainer> BSTerminalMainWindow::createLocalSigner()
 {
-   SignerHost signerHost = signersProvider_->getCurrentSigner();
    QLatin1String localSignerHost("127.0.0.1");
    QString localSignerPort = applicationSettings_->get<QString>(ApplicationSettings::localSignerPort);
    NetworkType netType = applicationSettings_->get<NetworkType>(ApplicationSettings::netType);
@@ -565,7 +569,7 @@ std::shared_ptr<SignContainer> BSTerminalMainWindow::createLocalSigner()
    const bool startLocalSignerProcess = true;
    return std::make_shared<LocalSigner>(logMgr_->logger()
       , applicationSettings_->GetHomeDir(), netType
-      , localSignerPort, connectionManager_, applicationSettings_
+      , localSignerPort, connectionManager_
       , startLocalSignerProcess, "", ""
       , applicationSettings_->get<double>(ApplicationSettings::autoSignSpendLimit));
 }
@@ -589,20 +593,18 @@ bool BSTerminalMainWindow::InitSigningContainer()
 
 void BSTerminalMainWindow::SignerReady()
 {
-   lastSignerError_ = SignContainer::NoError;
    updateControlEnabledState();
 
-   if (signContainer_->hasUI()) {
-      disconnect(signContainer_.get(), &SignContainer::PasswordRequested, this, &BSTerminalMainWindow::onPasswordRequested);
-   }
-   else {
-      connect(signContainer_.get(), &SignContainer::PasswordRequested, this, &BSTerminalMainWindow::onPasswordRequested);
-   }
-
    LoadWallets();
-   //InitWidgets();
 
-   signContainer_->SetUserId(BinaryData::CreateFromHex(celerConnection_->userId()));
+   signContainer_->setUserId(BinaryData::CreateFromHex(celerConnection_->userId()));
+
+   if (deferCCsync_) {
+      signContainer_->syncCCNames(walletsMgr_->ccResolver()->securities());
+      deferCCsync_ = false;
+   }
+
+   lastSignerError_ = SignContainer::NoError;
 }
 
 void BSTerminalMainWindow::InitConnections()
@@ -623,16 +625,20 @@ void BSTerminalMainWindow::InitConnections()
 
 void BSTerminalMainWindow::acceptMDAgreement()
 {
-   if (!isMDLicenseAccepted()) {
-      MDAgreementDialog dlg{this};
-      if (dlg.exec() != QDialog::Accepted) {
-         return;
+   const auto &deferredDailog = [this]{
+      if (!isMDLicenseAccepted()) {
+         MDAgreementDialog dlg{this};
+         if (dlg.exec() != QDialog::Accepted) {
+            return;
+         }
+
+         saveUserAcceptedMDLicense();
       }
 
-      saveUserAcceptedMDLicense();
-   }
+      mdProvider_->MDLicenseAccepted();
+   };
 
-   mdProvider_->MDLicenseAccepted();
+   addDeferredDialog(deferredDailog);
 }
 
 void BSTerminalMainWindow::updateControlEnabledState()
@@ -676,6 +682,11 @@ bool BSTerminalMainWindow::showStartupDialog()
       hide();
       return false;
    }
+
+   // Ueed update armory settings if case user selects TestNet
+   // (MainNet selected by default at startup)
+   applicationSettings_->selectNetwork();
+
    return true;
 }
 
@@ -688,7 +699,7 @@ void BSTerminalMainWindow::InitAssets()
 
    connect(ccFileManager_.get(), &CCFileManager::CCSecurityDef, assetManager_.get(), &AssetManager::onCCSecurityReceived);
    connect(ccFileManager_.get(), &CCFileManager::CCSecurityInfo, walletsMgr_.get(), &bs::sync::WalletsManager::onCCSecurityInfo);
-   connect(ccFileManager_.get(), &CCFileManager::Loaded, walletsMgr_.get(), &bs::sync::WalletsManager::onCCInfoLoaded);
+   connect(ccFileManager_.get(), &CCFileManager::Loaded, this, &BSTerminalMainWindow::onCCLoaded);
    connect(ccFileManager_.get(), &CCFileManager::LoadingFailed, this, &BSTerminalMainWindow::onCCInfoMissing);
 
    connect(mdProvider_.get(), &MarketDataProvider::MDUpdate, assetManager_.get(), &AssetManager::onMDUpdate);
@@ -717,9 +728,11 @@ void BSTerminalMainWindow::InitWalletsView()
 void BSTerminalMainWindow::InitChatView()
 {
    ui_->widgetChat->init(connectionManager_, applicationSettings_, logMgr_->logger("chat"));
+   ui_->widgetChat->setCelerClient(celerConnection_);
 
    //connect(ui_->widgetChat, &ChatWidget::LoginFailed, this, &BSTerminalMainWindow::onAutheIDFailed);
    connect(ui_->widgetChat, &ChatWidget::LogOut, this, &BSTerminalMainWindow::onLogout);
+   connect(ui_->tabWidget, &QTabWidget::currentChanged, this, &BSTerminalMainWindow::onTabWidgetCurrentChanged);
 
    if (NotificationCenter::instance() != nullptr) {
       connect(NotificationCenter::instance(), &NotificationCenter::newChatMessageClick,
@@ -744,27 +757,38 @@ void BSTerminalMainWindow::InitTransactionsView()
    ui_->widgetPortfolio->SetTransactionsModel(transactionsModel_);
 }
 
-void BSTerminalMainWindow::onArmoryStateChanged(ArmoryConnection::State newState)
+void BSTerminalMainWindow::MainWinACT::onStateChanged(ArmoryState state)
 {
-   switch(newState)
-   {
-   case ArmoryConnection::State::Ready:
-      QMetaObject::invokeMethod(this, &BSTerminalMainWindow::CompleteUIOnlineView);
+   switch (state) {
+   case ArmoryState::Ready:
+      QMetaObject::invokeMethod(parent_, &BSTerminalMainWindow::CompleteUIOnlineView);
       break;
-   case ArmoryConnection::State::Connected:
-      armoryBDVRegistered_ = true;
-      goOnlineArmory();
-      QMetaObject::invokeMethod(this, &BSTerminalMainWindow::CompleteDBConnection);
+   case ArmoryState::Connected:
+      parent_->armoryBDVRegistered_ = true;
+      parent_->goOnlineArmory();
+      QMetaObject::invokeMethod(parent_, &BSTerminalMainWindow::CompleteDBConnection);
       break;
-   case ArmoryConnection::State::Offline:
-      QMetaObject::invokeMethod(this, &BSTerminalMainWindow::ArmoryIsOffline);
+   case ArmoryState::Offline:
+      QMetaObject::invokeMethod(parent_, &BSTerminalMainWindow::ArmoryIsOffline);
       break;
-   case ArmoryConnection::State::Scanning:
-   case ArmoryConnection::State::Error:
-   case ArmoryConnection::State::Closing:
+   default:
       break;
-   default:    break;
    }
+}
+
+void BSTerminalMainWindow::MainWinACT::onRefresh(const std::vector<BinaryData> &, bool)
+{
+   if (!parent_->initialWalletCreateDialogShown_ && parent_->walletsMgr_
+      && parent_->walletsMgr_->isWalletsReady()
+      && (parent_->walletsMgr_->hdWalletsCount() == 0)) {
+
+      const auto &deferredDialog = [this]{
+         parent_->createWallet(true);
+      };
+
+      parent_->addDeferredDialog(deferredDialog);
+   }
+   parent_->initialWalletCreateDialogShown_ = true;
 }
 
 void BSTerminalMainWindow::CompleteUIOnlineView()
@@ -781,7 +805,7 @@ void BSTerminalMainWindow::CompleteUIOnlineView()
 
 void BSTerminalMainWindow::CompleteDBConnection()
 {
-   logMgr_->logger("ui")->debug("BSTerminalMainWindow::CompleteDBConnection");
+   logMgr_->logger("ui")->debug("BSTerminalMainWindow::CompleteDBConnection {}", walletsMgr_->hdWalletsCount());
    if (walletsMgr_ && walletsMgr_->hdWalletsCount()) {
       walletsMgr_->registerWallets();
    }
@@ -791,6 +815,37 @@ void BSTerminalMainWindow::CompleteDBConnection()
 void BSTerminalMainWindow::onReactivate()
 {
    show();
+}
+
+void BSTerminalMainWindow::raiseWindow()
+{
+   if (isMinimized()) {
+      showNormal();
+   } else if (isHidden()) {
+      show();
+   }
+   raise();
+   activateWindow();
+   setFocus();
+#ifdef Q_OS_WIN
+   auto hwnd = reinterpret_cast<HWND>(winId());
+   auto flags = static_cast<UINT>(SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW);
+   auto currentProcessId = ::GetCurrentProcessId();
+   auto currentThreadId = ::GetCurrentThreadId();
+   auto windowThreadId = ::GetWindowThreadProcessId(hwnd, nullptr);
+   if (currentThreadId != windowThreadId) {
+      ::AttachThreadInput(windowThreadId, currentThreadId, TRUE);
+   }
+   ::AllowSetForegroundWindow(currentProcessId);
+   ::SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, flags);
+   ::SetWindowPos(hwnd, HWND_NOTOPMOST, 0, 0, 0, 0, flags);
+   ::SetForegroundWindow(hwnd);
+   ::SetFocus(hwnd);
+   ::SetActiveWindow(hwnd);
+   if (currentThreadId != windowThreadId) {
+      ::AttachThreadInput(windowThreadId, currentThreadId, FALSE);
+   }
+#endif // Q_OS_WIN
 }
 
 void BSTerminalMainWindow::UpdateMainWindowAppearence()
@@ -827,7 +882,7 @@ bool BSTerminalMainWindow::isUserLoggedIn() const
 
 bool BSTerminalMainWindow::isArmoryConnected() const
 {
-   return armory_->state() == ArmoryConnection::State::Ready;
+   return armory_->state() == ArmoryState::Ready;
 }
 
 void BSTerminalMainWindow::ArmoryIsOffline()
@@ -846,11 +901,18 @@ void BSTerminalMainWindow::initArmory()
 {
    armory_ = std::make_shared<ArmoryObject>(logMgr_->logger()
       , applicationSettings_->get<std::string>(ApplicationSettings::txCacheFileName), true);
-   connect(armory_.get(), &ArmoryObject::txBroadcastError, [](const QString &txHash, const QString &error) {
-      NotificationCenter::notify(bs::ui::NotifyType::BroadcastError, { txHash, error });
-   });
-   connect(armory_.get(), &ArmoryObject::zeroConfReceived, this, &BSTerminalMainWindow::onZCreceived, Qt::QueuedConnection);
-   connect(armory_.get(), SIGNAL(stateChanged(ArmoryConnection::State)), this, SLOT(onArmoryStateChanged(ArmoryConnection::State)), Qt::QueuedConnection);
+   act_ = make_unique<MainWinACT>(armory_.get(), this);
+}
+
+void BSTerminalMainWindow::MainWinACT::onTxBroadcastError(const std::string &hash, const std::string &err)
+{
+   NotificationCenter::notify(bs::ui::NotifyType::BroadcastError, { QString::fromStdString(hash)
+      , QString::fromStdString(err) });
+}
+
+void BSTerminalMainWindow::MainWinACT::onZCReceived(const std::vector<bs::TXEntry> &zcs)
+{
+   QMetaObject::invokeMethod(parent_, [this, zcs] { parent_->onZCreceived(zcs); });
 }
 
 void BSTerminalMainWindow::connectArmory()
@@ -868,7 +930,7 @@ void BSTerminalMainWindow::connectArmory()
       // stop armory connection loop if server key was rejected
       if (!result) {
          armory_->needsBreakConnectionLoop_.store(true);
-         armory_->setState(ArmoryConnection::State::Cancelled);
+         armory_->setState(ArmoryState::Cancelled);
       }
       return result;
    });
@@ -898,7 +960,8 @@ bool BSTerminalMainWindow::createWallet(bool primary, bool reportSuccess)
             " have a Primary Wallet which supports the sub-wallets required to interact with the system.")
          .arg(QString::fromStdString(wallet->name())), this);
       if (qry.exec() == QDialog::Accepted) {
-         wallet->createGroup(bs::hd::CoinType::BlockSettle_Auth);
+         //auth wallets are always ext only
+         wallet->createGroup(bs::hd::CoinType::BlockSettle_Auth, true);
          return true;
       }
       return false;
@@ -937,13 +1000,17 @@ void BSTerminalMainWindow::showError(const QString &title, const QString &text)
 
 void BSTerminalMainWindow::onSignerConnError(SignContainer::ConnectionError error, const QString &details)
 {
-   if (lastSignerError_ == error) {
+   updateControlEnabledState();
+
+   // Prevent showing multiple signer error dialogs (for example network mismatch)
+   if (error == lastSignerError_) {
       return;
    }
-
    lastSignerError_ = error;
-   updateControlEnabledState();
-   showError(tr("Signer connection error"), tr("Signer connection error details: %1").arg(details));
+
+   if (error != SignContainer::ConnectionTimeout || signContainer_->isLocal()) {
+      showError(tr("Signer Connection Error"), details);
+   }
 }
 
 void BSTerminalMainWindow::onReceive()
@@ -977,8 +1044,7 @@ void BSTerminalMainWindow::onReceive()
 void BSTerminalMainWindow::createAdvancedTxDialog(const std::string &selectedWalletId)
 {
    CreateTransactionDialogAdvanced advancedDialog{armory_, walletsMgr_
-      , signContainer_, true, logMgr_->logger("ui"), nullptr, this};
-   advancedDialog.setOfflineDir(applicationSettings_->get<QString>(ApplicationSettings::signerOfflineDir));
+      , signContainer_, true, logMgr_->logger("ui"), applicationSettings_, nullptr, this};
 
    if (!selectedWalletId.empty()) {
       advancedDialog.SelectWallet(selectedWalletId);
@@ -1004,10 +1070,8 @@ void BSTerminalMainWindow::onSend()
       if (applicationSettings_->get<bool>(ApplicationSettings::AdvancedTxDialogByDefault)) {
          createAdvancedTxDialog(selectedWalletId);
       } else {
-         CreateTransactionDialogSimple dlg{armory_, walletsMgr_, signContainer_
-            , logMgr_->logger("ui"),
-                                           this};
-         dlg.setOfflineDir(applicationSettings_->get<QString>(ApplicationSettings::signerOfflineDir));
+         CreateTransactionDialogSimple dlg(armory_, walletsMgr_, signContainer_
+            , logMgr_->logger("ui"), applicationSettings_, this);
 
          if (!selectedWalletId.empty()) {
             dlg.SelectWallet(selectedWalletId);
@@ -1036,7 +1100,7 @@ void BSTerminalMainWindow::setupMenu()
    ui_->menuFile->insertSeparator(action_login_);
    ui_->menuFile->insertSeparator(ui_->actionSettings);
 
-   connect(ui_->actionCreateNewWallet, &QAction::triggered, [ww = ui_->widgetWallets]{ ww->CreateNewWallet(); });
+   connect(ui_->actionCreateNewWallet, &QAction::triggered, this, [ww = ui_->widgetWallets]{ ww->CreateNewWallet(); });
    connect(ui_->actionAuthenticationAddresses, &QAction::triggered, this, &BSTerminalMainWindow::openAuthManagerDialog);
    connect(ui_->actionSettings, &QAction::triggered, this, [=]() { openConfigDialog(); });
    connect(ui_->actionAccountInformation, &QAction::triggered, this, &BSTerminalMainWindow::openAccountInfoDialog);
@@ -1084,10 +1148,14 @@ void BSTerminalMainWindow::openAccountInfoDialog()
 
 void BSTerminalMainWindow::openCCTokenDialog()
 {
-   if (walletsMgr_->hasPrimaryWallet() || createWallet(true, false)) {
-      CCTokenEntryDialog dialog(walletsMgr_, ccFileManager_, signContainer_, this);
-      dialog.exec();
-   }
+   const auto &deferredDialog = [this]{
+      if (walletsMgr_->hasPrimaryWallet() || createWallet(true, false)) {
+         CCTokenEntryDialog dialog(walletsMgr_, ccFileManager_, signContainer_, this);
+         dialog.exec();
+      }
+   };
+
+   addDeferredDialog(deferredDialog);
 }
 
 void BSTerminalMainWindow::loginToCeler(const std::string& username, const std::string& password)
@@ -1180,22 +1248,17 @@ void BSTerminalMainWindow::onUserLoggedIn()
    ui_->actionWithdrawalRequest->setEnabled(true);
    ui_->actionLinkAdditionalBankAccount->setEnabled(true);
 
-   if (!applicationSettings_->get<bool>(ApplicationSettings::dontLoadCCList)) {
-      BSMessageBox ccQuestion(BSMessageBox::question, tr("Load Private Market Securities")
-         , tr("Would you like to load PM securities from Public Bridge now?"), this);
-      const bool loadCCs = (ccQuestion.exec() == QDialog::Accepted);
-      applicationSettings_->set(ApplicationSettings::dontLoadCCList, !loadCCs);
-      if (loadCCs) {
-         ccFileManager_->LoadCCDefinitionsFromPub();
-      }
-   }
-
+   ccFileManager_->LoadCCDefinitionsFromPub();
    ccFileManager_->ConnectToCelerClient(celerConnection_);
 
    const auto userId = BinaryData::CreateFromHex(celerConnection_->userId());
-   if (signContainer_) {
-      signContainer_->SetUserId(userId);
-   }
+   const auto &deferredDialog = [this, userId] {
+      if (signContainer_) {
+         signContainer_->setUserId(userId);
+      }
+   };
+   addDeferredDialog(deferredDialog);
+
    walletsMgr_->setUserId(userId);
 
    setLoginButtonText(currentUserLogin_);
@@ -1213,7 +1276,7 @@ void BSTerminalMainWindow::onUserLoggedOut()
    ui_->actionLinkAdditionalBankAccount->setEnabled(false);
 
    if (signContainer_) {
-      signContainer_->SetUserId(BinaryData{});
+      signContainer_->setUserId(BinaryData{});
    }
    if (walletsMgr_) {
       walletsMgr_->setUserId(BinaryData{});
@@ -1229,6 +1292,9 @@ void BSTerminalMainWindow::onCelerConnected()
    action_logout_->setVisible(true);
 
    onUserLoggedIn();
+
+   // TODO: Use PB contact name from downloaded settings or something
+   ui_->widgetChat->connectToPb("m8ifjy99bpom");
 }
 
 void BSTerminalMainWindow::onCelerDisconnected()
@@ -1254,19 +1320,23 @@ void BSTerminalMainWindow::onCelerConnectionError(int errorCode)
 void BSTerminalMainWindow::createAuthWallet()
 {
    if (celerConnection_->tradingAllowed()) {
-      if (!walletsMgr_->hasPrimaryWallet() && !createWallet(true)) {
-         return;
-      }
-
-      if (!walletsMgr_->getAuthWallet()) {
-         BSMessageBox createAuthReq(BSMessageBox::question, tr("Authentication Wallet")
-            , tr("Create Authentication Wallet")
-            , tr("You don't have a sub-wallet in which to hold Authentication Addresses. Would you like to create one?")
-            , this);
-         if (createAuthReq.exec() == QDialog::Accepted) {
-            authManager_->CreateAuthWallet();
+      const auto &deferredDialog = [this]{
+         if (!walletsMgr_->hasPrimaryWallet() && !createWallet(true)) {
+            return;
          }
-      }
+
+         if (!walletsMgr_->getAuthWallet()) {
+            BSMessageBox createAuthReq(BSMessageBox::question, tr("Authentication Wallet")
+               , tr("Create Authentication Wallet")
+               , tr("You don't have a sub-wallet in which to hold Authentication Addresses. Would you like to create one?")
+               , this);
+            if (createAuthReq.exec() == QDialog::Accepted) {
+               authManager_->CreateAuthWallet();
+            }
+         }
+      };
+
+      addDeferredDialog(deferredDialog);
    }
 }
 
@@ -1304,39 +1374,45 @@ void BSTerminalMainWindow::onAuthMgrConnComplete()
 
 struct BSTerminalMainWindow::TxInfo {
    Tx       tx;
-   uint32_t txTime;
-   int64_t  value;
+   uint32_t txTime{};
+   int64_t  value{};
    std::shared_ptr<bs::sync::Wallet>   wallet;
-   bs::sync::Transaction::Direction    direction;
+   bs::sync::Transaction::Direction    direction{};
    QString  mainAddress;
 };
 
-void BSTerminalMainWindow::onZCreceived(const std::vector<bs::TXEntry> entries)
+void BSTerminalMainWindow::onZCreceived(const std::vector<bs::TXEntry> &entries)
 {
    if (entries.empty()) {
       return;
    }
    for (const auto &entry : entries) {
-      const auto &cbTx = [this, id = entry.id, txTime = entry.txTime, value = entry.value](const Tx &tx) {
+      const auto &cbTx = [this, id = entry.walletId, txTime = entry.txTime, value = entry.value](const Tx &tx) {
          const auto wallet = walletsMgr_->getWalletById(id);
          if (!wallet) {
             return;
          }
-         auto txInfo = new TxInfo { tx, txTime, value, wallet, bs::sync::Transaction::Direction::Unknown, QString() };
-         const auto &cbDir = [this, txInfo] (bs::sync::Transaction::Direction dir, std::vector<bs::Address>) {
+
+         auto txInfo = std::make_shared<TxInfo>();
+         txInfo->tx = tx;
+         txInfo->txTime = txTime;
+         txInfo->value = value;
+         txInfo->wallet = wallet;
+
+         const auto &cbDir = [this, txInfo] (bs::sync::Transaction::Direction dir, const std::vector<bs::Address> &) {
             txInfo->direction = dir;
-            if (!txInfo->mainAddress.isEmpty() && txInfo->wallet) {
-               showZcNotification(txInfo);
-               delete txInfo;
+            if (!txInfo->mainAddress.isEmpty()) {
+               showZcNotification(*txInfo);
             }
          };
-         const auto &cbMainAddr = [this, txInfo] (QString mainAddr, int addrCount) {
+
+         const auto &cbMainAddr = [this, txInfo] (const QString &mainAddr, int addrCount) {
             txInfo->mainAddress = mainAddr;
-            if ((txInfo->direction != bs::sync::Transaction::Direction::Unknown) && txInfo->wallet) {
-               showZcNotification(txInfo);
-               delete txInfo;
+            if ((txInfo->direction != bs::sync::Transaction::Direction::Unknown)) {
+               showZcNotification(*txInfo);
             }
          };
+
          walletsMgr_->getTransactionDirection(tx, id, cbDir);
          walletsMgr_->getTransactionMainAddress(tx, id, (value > 0), cbMainAddr);
       };
@@ -1344,14 +1420,14 @@ void BSTerminalMainWindow::onZCreceived(const std::vector<bs::TXEntry> entries)
    }
 }
 
-void BSTerminalMainWindow::showZcNotification(const TxInfo *txInfo)
+void BSTerminalMainWindow::showZcNotification(const TxInfo &txInfo)
 {
    QStringList lines;
-   lines << tr("Date: %1").arg(UiUtils::displayDateTime(txInfo->txTime));
-   lines << tr("TX: %1 %2 %3").arg(tr(bs::sync::Transaction::toString(txInfo->direction)))
-      .arg(txInfo->wallet->displayTxValue(txInfo->value)).arg(txInfo->wallet->displaySymbol());
-   lines << tr("Wallet: %1").arg(QString::fromStdString(txInfo->wallet->name()));
-   lines << txInfo->mainAddress;
+   lines << tr("Date: %1").arg(UiUtils::displayDateTime(txInfo.txTime));
+   lines << tr("TX: %1 %2 %3").arg(tr(bs::sync::Transaction::toString(txInfo.direction)))
+      .arg(txInfo.wallet->displayTxValue(txInfo.value)).arg(txInfo.wallet->displaySymbol());
+   lines << tr("Wallet: %1").arg(QString::fromStdString(txInfo.wallet->name()));
+   lines << txInfo.mainAddress;
 
    const auto &title = tr("New blockchain transaction");
    NotificationCenter::notify(bs::ui::NotifyType::BlockchainTX, { title, lines.join(tr("\n")) });
@@ -1407,51 +1483,18 @@ void BSTerminalMainWindow::setLoginButtonText(const QString& text)
 #endif
 }
 
-void BSTerminalMainWindow::onPasswordRequested(const bs::hd::WalletInfo &walletInfo, std::string prompt)
+void BSTerminalMainWindow::onCCLoaded()
 {
-   SignContainer::PasswordType password;
-   bool cancelledByUser = true;
+   walletsMgr_->onCCInfoLoaded();
 
-   if (walletInfo.rootId().isEmpty()) {
-      logMgr_->logger("ui")->error("[onPasswordRequested] can\'t ask password for empty wallet id");
-   } else {
-      QString walletName;
-      const auto wallet = walletsMgr_->getWalletById(walletInfo.rootId().toStdString());
-      if (wallet != nullptr) {
-         // do we need to get name of root wallet?
-         walletName = QString::fromStdString(wallet->name());
-      } else {
-         const auto hdWallet = walletsMgr_->getHDWalletById(walletInfo.rootId().toStdString());
-         walletName = QString::fromStdString(hdWallet->name());
-      }
-
-      // pass to dialog root wallet id and root name
-      bs::hd::WalletInfo walletInfoCopy = walletInfo;
-      if (!walletName.isEmpty()) {
-         const auto &rootWallet = walletsMgr_->getHDRootForLeaf(walletInfo.rootId().toStdString());
-         if (rootWallet) {
-            walletInfoCopy.setRootId(rootWallet->walletId());
-            walletInfoCopy.setName(rootWallet->name());
-         }
-
-         EnterWalletPassword passwordDialog(AutheIDClient::SignWallet, this);
-         passwordDialog.init(walletInfoCopy, applicationSettings_, connectionManager_, WalletKeyWidget::UseType::RequestAuthAsDialog
-                             , QString::fromStdString(prompt), logMgr_->logger("ui"));
-
-         if (passwordDialog.exec() == QDialog::Accepted) {
-            password = passwordDialog.resultingKey();
-            cancelledByUser = false;
-         }
-         else {
-            logMgr_->logger("ui")->debug("[onPasswordRequested] user rejected to enter password for wallet {} ( {} )"
-               , walletInfo.rootId().toStdString(), walletName.toStdString());
-         }
-      } else {
-         logMgr_->logger("ui")->error("[onPasswordRequested] can\'t find wallet with id {}", walletInfo.rootId().toStdString());
-      }
+   const auto ccResolver = walletsMgr_->ccResolver();
+   if (ccResolver && signContainer_) {
+      deferCCsync_ = false;
+      signContainer_->syncCCNames(ccResolver->securities());
    }
-
-   signContainer_->SendPassword(walletInfo.rootId().toStdString(), password, cancelledByUser);
+   else {
+      deferCCsync_ = true;
+   }
 }
 
 void BSTerminalMainWindow::onCCInfoMissing()
@@ -1570,55 +1613,47 @@ void BSTerminalMainWindow::showArmoryServerPrompt(const BinaryData &srvPubKey, c
    if (serverIndex >= 0) {
       ArmoryServer server = servers.at(serverIndex);
 
-      if (server.armoryDBKey.isEmpty()) {
-         MessageBoxIdKey *box = new MessageBoxIdKey(BSMessageBox::question
-                          , tr("ArmoryDB Key Import")
-                          , tr("Import ArmoryDB ID Key?")
-                          , tr("Address: %1\n"
-                               "Port: %2\n"
-                               "Key: %3")
-                                    .arg(QString::fromStdString(srvIPPort).split(QStringLiteral(":")).at(0))
-                                    .arg(QString::fromStdString(srvIPPort).split(QStringLiteral(":")).at(1))
-                                    .arg(QString::fromLatin1(QByteArray::fromStdString(srvPubKey.toBinStr()).toHex()))
-                          , this);
+      const auto &deferredDialog = [this, server, promiseObj, srvPubKey, srvIPPort]{
+         if (server.armoryDBKey.isEmpty()) {
+            ImportKeyBox box(BSMessageBox::question
+               , tr("Import ArmoryDB ID Key?")
+               , this);
 
-         bool answer = (box->exec() == QDialog::Accepted);
-         box->deleteLater();
+            box.setNewKeyFromBinary(srvPubKey);
+            box.setAddrPort(srvIPPort);
 
-         if (answer) {
-            armoryServersProvider_->addKey(srvIPPort, srvPubKey);
+            bool answer = (box.exec() == QDialog::Accepted);
+
+            if (answer) {
+               armoryServersProvider_->addKey(srvIPPort, srvPubKey);
+            }
+
+            promiseObj->set_value(true);
          }
+         else if (server.armoryDBKey != QString::fromLatin1(QByteArray::fromStdString(srvPubKey.toBinStr()).toHex())) {
+            ImportKeyBox box(BSMessageBox::question
+               , tr("Import ArmoryDB ID Key?")
+               , this);
 
-         promiseObj->set_value(true);
-      }
-      else if (server.armoryDBKey != QString::fromLatin1(QByteArray::fromStdString(srvPubKey.toBinStr()).toHex())) {
-         MessageBoxIdKey *box = new MessageBoxIdKey(BSMessageBox::warning
-                          , tr("ArmoryDB Key")
-                          , tr("ArmoryDB Key was changed.\n"
-                               "Do you wish to proceed connection and save new key?")
-                          , tr("Address: %1\n"
-                               "Port: %2\n"
-                               "Old Key: %3\n"
-                               "New Key: %4")
-                                    .arg(QString::fromStdString(srvIPPort).split(QStringLiteral(":")).at(0))
-                                    .arg(QString::fromStdString(srvIPPort).split(QStringLiteral(":")).at(1))
-                                    .arg(server.armoryDBKey)
-                                    .arg(QString::fromLatin1(QByteArray::fromStdString(srvPubKey.toBinStr()).toHex()))
-                          , this);
-         box->setCancelVisible(true);
+            box.setNewKeyFromBinary(srvPubKey);
+            box.setOldKey(server.armoryDBKey);
+            box.setAddrPort(srvIPPort);
+            box.setCancelVisible(true);
 
-         bool answer = (box->exec() == QDialog::Accepted);
-         box->deleteLater();
+            bool answer = (box.exec() == QDialog::Accepted);
 
-         if (answer) {
-            armoryServersProvider_->addKey(srvIPPort, srvPubKey);
+            if (answer) {
+               armoryServersProvider_->addKey(srvIPPort, srvPubKey);
+            }
+
+            promiseObj->set_value(answer);
          }
+         else {
+            promiseObj->set_value(true);
+         }
+      };
 
-         promiseObj->set_value(answer);
-      }
-      else {
-         promiseObj->set_value(true);
-      }
+      addDeferredDialog(deferredDialog);
    }
    else {
       // server not in the list - added directly to ini config
@@ -1648,6 +1683,13 @@ void BSTerminalMainWindow::onArmoryNeedsReconnect()
 
    connectSigner();
    connectArmory();
+}
+
+void BSTerminalMainWindow::onTabWidgetCurrentChanged(const int &index)
+{   
+   const int chatIndex = ui_->tabWidget->indexOf(ui_->widgetChat);
+   const bool isChatTab = index == chatIndex;
+   ui_->widgetChat->updateChat(isChatTab);
 }
 
 // A function that puts Armory online if certain conditions are met. The primary
@@ -1693,5 +1735,24 @@ void BSTerminalMainWindow::InitWidgets()
    ui_->widgetRFQ->init(logMgr_->logger(), celerConnection_, authManager_, quoteProvider, assetManager_
       , dialogManager, signContainer_, armory_, connectionManager_);
    ui_->widgetRFQReply->init(logMgr_->logger(), celerConnection_, authManager_, quoteProvider, mdProvider_, assetManager_
-      , applicationSettings_, dialogManager, signContainer_, armory_, connectionManager_);
+                             , applicationSettings_, dialogManager, signContainer_, armory_, connectionManager_);
+}
+
+void BSTerminalMainWindow::addDeferredDialog(const std::function<void(void)> &deferredDialog)
+{
+   // multi thread scope, it's safe to call this function from different threads
+   QMetaObject::invokeMethod(this, [this, deferredDialog] {
+      // single thread scope (main thread), it's safe to push to deferredDialogs_
+      // and check deferredDialogRunning_ variable
+      deferredDialogs_.push(deferredDialog);
+      if(!deferredDialogRunning_) {
+         deferredDialogRunning_ = true;
+         while (!deferredDialogs_.empty()) {
+            deferredDialogs_.front()(); // run stored lambda
+            deferredDialogs_.pop();
+         }
+         deferredDialogRunning_ = false;
+      }
+
+   }, Qt::QueuedConnection);
 }

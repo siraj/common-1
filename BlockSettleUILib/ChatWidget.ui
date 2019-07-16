@@ -99,6 +99,24 @@
        </property>
        <item>
         <widget class="QFrame" name="usersFrame">
+         <property name="sizePolicy">
+          <sizepolicy hsizetype="Minimum" vsizetype="Preferred">
+           <horstretch>0</horstretch>
+           <verstretch>0</verstretch>
+          </sizepolicy>
+         </property>
+         <property name="minimumSize">
+          <size>
+           <width>270</width>
+           <height>0</height>
+          </size>
+         </property>
+         <property name="maximumSize">
+          <size>
+           <width>250</width>
+           <height>16777215</height>
+          </size>
+         </property>
          <property name="headerPanel" stdset="0">
           <bool>false</bool>
          </property>
@@ -119,45 +137,12 @@
            <number>0</number>
           </property>
           <item>
-           <widget class="QLabel" name="label_3">
+           <widget class="SearchWidget" name="searchWidget" native="true">
             <property name="minimumSize">
              <size>
               <width>0</width>
-              <height>25</height>
+              <height>100</height>
              </size>
-            </property>
-            <property name="maximumSize">
-             <size>
-              <width>16777215</width>
-              <height>25</height>
-             </size>
-            </property>
-            <property name="font">
-             <font>
-              <pointsize>8</pointsize>
-             </font>
-            </property>
-            <property name="text">
-             <string>USERS</string>
-            </property>
-            <property name="alignment">
-             <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
-            </property>
-            <property name="headerLabel" stdset="0">
-             <bool>true</bool>
-            </property>
-            <property name="headerPanel" stdset="0">
-             <bool>true</bool>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <widget class="ChatSearchLineEdit" name="chatSearchLineEdit">
-            <property name="locale">
-             <locale language="English" country="UnitedStates"/>
-            </property>
-            <property name="placeholderText">
-             <string>Enter email or email hash</string>
             </property>
            </widget>
           </item>
@@ -322,7 +307,7 @@
                  <number>0</number>
                 </property>
                 <item>
-                 <widget class="QWidget" name="separatorWidget1" native="true">
+                 <widget class="QWidget" name="chatTopSeparatorWidget" native="true">
                   <property name="sizePolicy">
                    <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
                     <horstretch>0</horstretch>
@@ -334,9 +319,6 @@
                     <width>0</width>
                     <height>1</height>
                    </size>
-                  </property>
-                  <property name="styleSheet">
-                   <string notr="true">background-color: #3f4c50;</string>
                   </property>
                  </widget>
                 </item>
@@ -353,9 +335,6 @@
                     <width>0</width>
                     <height>25</height>
                    </size>
-                  </property>
-                  <property name="styleSheet">
-                   <string notr="true">background-color: #18202b;</string>
                   </property>
                   <layout class="QHBoxLayout" name="horizontalLayout">
                    <property name="spacing">
@@ -403,14 +382,14 @@
                        <height>0</height>
                       </size>
                      </property>
+                     <property name="text">
+                      <string>Time</string>
+                     </property>
                      <property name="minimumSizeLinux" stdset="0">
                       <size>
                        <width>110</width>
                        <height>0</height>
                       </size>
-                     </property>
-                     <property name="text">
-                      <string>Time</string>
                      </property>
                     </widget>
                    </item>
@@ -454,14 +433,14 @@
                    </item>
                    <item>
                     <widget class="QLabel" name="messageLabel">
-                     <property name="text">
-                      <string>Message</string>
-                     </property>
                      <property name="minimumSize">
                       <size>
                        <width>50</width>
                        <height>0</height>
                       </size>
+                     </property>
+                     <property name="text">
+                      <string>Message</string>
                      </property>
                     </widget>
                    </item>
@@ -488,6 +467,32 @@
                   <property name="darkFrame" stdset="0">
                    <bool>true</bool>
                   </property>
+                 </widget>
+                </item>
+                <item>
+                 <widget class="QFrame" name="frameContactActions">
+                  <property name="frameShape">
+                   <enum>QFrame::StyledPanel</enum>
+                  </property>
+                  <property name="frameShadow">
+                   <enum>QFrame::Raised</enum>
+                  </property>
+                  <layout class="QHBoxLayout" name="horizontalLayout_5">
+                   <item>
+                    <widget class="QPushButton" name="pushButton_AcceptSend">
+                     <property name="text">
+                      <string>ACCEPT/SEND</string>
+                     </property>
+                    </widget>
+                   </item>
+                   <item>
+                    <widget class="QPushButton" name="pushButton_RejectCancel">
+                     <property name="text">
+                      <string>REJECT/CANCEL</string>
+                     </property>
+                    </widget>
+                   </item>
+                  </layout>
                  </widget>
                 </item>
                 <item>
@@ -591,9 +596,15 @@
        </item>
        <item>
         <widget class="QFrame" name="roomsFrame">
+         <property name="sizePolicy">
+          <sizepolicy hsizetype="Minimum" vsizetype="Preferred">
+           <horstretch>0</horstretch>
+           <verstretch>0</verstretch>
+          </sizepolicy>
+         </property>
          <property name="minimumSize">
           <size>
-           <width>250</width>
+           <width>270</width>
            <height>0</height>
           </size>
          </property>
@@ -628,7 +639,7 @@
              <number>0</number>
             </property>
             <property name="currentIndex">
-             <number>0</number>
+             <number>3</number>
             </property>
             <widget class="OTCLoginRequiredShield" name="widgetLoginRequiredShield"/>
             <widget class="OTCGeneralRoomShield" name="widgetGeneralShield"/>
@@ -637,6 +648,10 @@
             <widget class="CreateOTCResponseWidget" name="widgetCreateOTCResponse"/>
             <widget class="OTCNegotiationRequestWidget" name="widgetNegotiateRequest"/>
             <widget class="OTCNegotiationResponseWidget" name="widgetNegotiateResponse"/>
+            <widget class="OTCParticipantShield" name="widgetParticipantShield"/>
+            <widget class="OTCContactShield" name="widgetContactShield"/>
+            <widget class="OTCContactNetStatusShield" name="widgetContactNetStatusShield"/>
+            <widget class="OTCSupportRoomShield" name="widgetSupportShield"/>
            </widget>
           </item>
          </layout>
@@ -649,11 +664,6 @@
   </layout>
  </widget>
  <customwidgets>
-  <customwidget>
-   <class>ChatSearchLineEdit</class>
-   <extends>QLineEdit</extends>
-   <header location="global">ChatSearchLineEdit.h</header>
-  </customwidget>
   <customwidget>
    <class>BSChatInput</class>
    <extends>QTextEdit</extends>
@@ -713,6 +723,36 @@
    <class>PullOwnOTCRequestWidget</class>
    <extends>QWidget</extends>
    <header>PullOwnOTCRequestWidget.h</header>
+   <container>1</container>
+  </customwidget>
+  <customwidget>
+   <class>SearchWidget</class>
+   <extends>QWidget</extends>
+   <header location="global">SearchWidget.h</header>
+   <container>1</container>
+  </customwidget>
+  <customwidget>
+   <class>OTCParticipantShield</class>
+   <extends>QWidget</extends>
+   <header>OTCParticipantShield.h</header>
+   <container>1</container>
+  </customwidget>
+  <customwidget>
+   <class>OTCContactShield</class>
+   <extends>QWidget</extends>
+   <header>OTCContactShield.h</header>
+   <container>1</container>
+  </customwidget>
+  <customwidget>
+   <class>OTCContactNetStatusShield</class>
+   <extends>QWidget</extends>
+   <header>OTCContactNetStatusShield.h</header>
+   <container>1</container>
+  </customwidget>
+  <customwidget>
+   <class>OTCSupportRoomShield</class>
+   <extends>QWidget</extends>
+   <header>OTCSupportRoomShield.h</header>
    <container>1</container>
   </customwidget>
  </customwidgets>

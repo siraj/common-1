@@ -12,16 +12,13 @@
 #include "Address.h"
 #include "ApplicationSettings.h"
 #include "AssetManager.h"
-#include "ManageEncryption/ManageEncryptionDialog.h"
 #include "BSMessageBox.h"
 #include "SignContainer.h"
 #include "UiUtils.h"
-#include "WalletDeleteDialog.h"
 #include "Wallets/SyncHDWallet.h"
 #include "Wallets/SyncWalletsManager.h"
 #include "WalletsViewModel.h"
 #include "WalletsWidget.h"
-#include "ManageEncryption/ManageEncryptionDialog.h"
 
 
 class CurrentWalletFilter : public QSortFilterProxyModel
@@ -59,15 +56,16 @@ RootWalletPropertiesDialog::RootWalletPropertiesDialog(const std::shared_ptr<spd
    , const std::shared_ptr<ConnectionManager> &connectionManager
    , const std::shared_ptr<AssetManager> &assetMgr
    , QWidget* parent)
-  : QDialog(parent)
-  , ui_(new Ui::WalletPropertiesDialog())
-  , wallet_(wallet)
-  , walletsManager_(walletsManager)
-  , signingContainer_(container)
-  , appSettings_(appSettings)
-  , connectionManager_(connectionManager)
-  , assetMgr_(assetMgr)
-  , logger_(logger)
+   : QDialog(parent)
+   , ui_(new Ui::WalletPropertiesDialog())
+   , wallet_(wallet)
+   , walletsManager_(walletsManager)
+   , walletInfo_(walletsManager_, wallet_)
+   , signingContainer_(container)
+   , appSettings_(appSettings)
+   , connectionManager_(connectionManager)
+   , assetMgr_(assetMgr)
+   , logger_(logger)
 {
    ui_->setupUi(this);
 
@@ -96,12 +94,11 @@ RootWalletPropertiesDialog::RootWalletPropertiesDialog(const std::shared_ptr<spd
 
    updateWalletDetails(wallet_);
 
-   ui_->rescanButton->setEnabled(armory->state() == ArmoryConnection::State::Ready);
+   ui_->rescanButton->setEnabled(armory->state() == ArmoryState::Ready);
    ui_->manageEncryptionButton->setEnabled(false);
-   walletInfo_ = bs::hd::WalletInfo(wallet_);
 
    if (signingContainer_) {
-      if (signingContainer_->isOffline() || signingContainer_->isWalletOffline(wallet->walletId())) {
+      if (signingContainer_->isOffline()) {
          ui_->backupButton->setEnabled(false);
          ui_->manageEncryptionButton->setEnabled(false);
       }
@@ -120,12 +117,6 @@ void RootWalletPropertiesDialog::onDeleteWallet()
    signingContainer_->customDialogRequest(bs::signer::ui::DialogType::DeleteWallet
                                                              , {{ QLatin1String("rootId"), walletInfo_.rootId() }});
    close();
-
-//   WalletDeleteDialog delDlg(wallet_, walletsManager_, signingContainer_
-//                             , appSettings_, connectionManager_, logger_, this);
-//   if (delDlg.exec() == QDialog::Accepted) {
-//      close();
-//   }
 }
 
 void RootWalletPropertiesDialog::onBackupWallet()
@@ -133,9 +124,6 @@ void RootWalletPropertiesDialog::onBackupWallet()
    signingContainer_->customDialogRequest(bs::signer::ui::DialogType::BackupWallet
                                                              , {{ QLatin1String("rootId"), walletInfo_.rootId() }});
    close();
-
-//   WalletBackupAndVerify(wallet_, signingContainer_, appSettings_, connectionManager_, logger_
-//                         , this);
 }
 
 void RootWalletPropertiesDialog::onChangePassword()
@@ -143,17 +131,6 @@ void RootWalletPropertiesDialog::onChangePassword()
    signingContainer_->customDialogRequest(bs::signer::ui::DialogType::ManageWallet
                                                              , {{ QLatin1String("rootId"), walletInfo_.rootId() }});
    close();
-
-//   ManageEncryptionDialog manageEncryptionDialog(logger_, signingContainer_, wallet_
-//                                                 , walletInfo_, appSettings_, connectionManager_, this);
-
-//   int result = manageEncryptionDialog.exec();
-
-
-//   if (result == QDialog::Accepted) {
-//      // Update wallet encryption type
-//      infoReqId_ = signingContainer_->GetInfo(wallet_->walletId());
-//   }
 }
 
 static inline QString encTypeToString(bs::wallet::EncryptionType enc)
@@ -168,6 +145,8 @@ static inline QString encTypeToString(bs::wallet::EncryptionType enc)
       case bs::wallet::EncryptionType::Auth :
          return QObject::tr("Auth eID");
    };
+
+   //no default entry in switch statment nor default return value
 }
 
 void RootWalletPropertiesDialog::onHDWalletInfo(unsigned int id, const bs::hd::WalletInfo &walletInfo)
@@ -185,14 +164,18 @@ void RootWalletPropertiesDialog::onHDWalletInfo(unsigned int id, const bs::hd::W
 
    ui_->manageEncryptionButton->setEnabled(true);
 
-   if (walletInfo.keyRank().first == 1 && walletInfo.keyRank().second == 1) {
-      if (!walletInfo.encTypes().empty()) {
-         ui_->labelEncRank->setText(encTypeToString(walletInfo.encTypes().front()));
-      } else {
-         ui_->labelEncRank->setText(tr("Unknown"));
-      }
+   if (walletsManager_->isWatchingOnly(walletInfo_.rootId().toStdString())) {
+      ui_->labelEncRank->setText(tr("Watching-Only"));
    } else {
-      ui_->labelEncRank->setText(tr("Auth eID %1 of %2").arg(walletInfo.keyRank().first).arg(walletInfo.keyRank().second));
+      if (walletInfo.keyRank().first == 1 && walletInfo.keyRank().second == 1) {
+         if (!walletInfo.encTypes().empty()) {
+            ui_->labelEncRank->setText(encTypeToString(walletInfo.encTypes().front()));
+         } else {
+            ui_->labelEncRank->setText(tr("Unknown"));
+         }
+      } else {
+         ui_->labelEncRank->setText(tr("Auth eID %1 of %2").arg(walletInfo.keyRank().first).arg(walletInfo.keyRank().second));
+      }
    }
 }
 
@@ -231,27 +214,27 @@ void RootWalletPropertiesDialog::updateWalletDetails(const std::shared_ptr<bs::s
 
    unsigned int nbTotalAddresses = 0;
    auto nbUTXOs = std::make_shared<std::atomic_uint>(0);
-   auto nbActAddrs = std::make_shared<std::atomic_uint>(0);
 
-   const auto &cbUTXOs = [this, nbUTXOs](std::vector<UTXO> utxos) {
-      *nbUTXOs += utxos.size();
-      QMetaObject::invokeMethod(this, [this, nbUTXOs] {
-         ui_->labelUTXOs->setText(QString::number(*nbUTXOs));
-      });
-   };
-   const auto &cbActiveAddrs = [this, nbActAddrs](size_t count) {
-      *nbActAddrs += count;
-      QMetaObject::invokeMethod(this, [this, nbActAddrs] {
-         ui_->labelAddressesActive->setText(QString::number(*nbActAddrs));
+   QPointer<RootWalletPropertiesDialog> thisPtr = this;
+   const auto &cbUTXOs = [thisPtr, nbUTXOs](const std::vector<UTXO> &utxos) {
+      *nbUTXOs += uint32_t(utxos.size());
+      QMetaObject::invokeMethod(qApp, [thisPtr, nbUTXOs] {
+         if (thisPtr) {
+            thisPtr->ui_->labelUTXOs->setText(QString::number(*nbUTXOs));
+         }
       });
    };
 
-   for (const auto &leaf : wallet->getLeaves()) {
-      leaf->getSpendableTxOutList(cbUTXOs, this);
-      leaf->getActiveAddressCount(cbActiveAddrs);
+   for (const auto &leaf : wallet->getLeaves()) 
+   {
+      leaf->getSpendableTxOutList(cbUTXOs, UINT64_MAX);
+
+      auto addrCnt = leaf->getActiveAddressCount();
+      ui_->labelAddressesActive->setText(QString::number(addrCnt));
 
       nbTotalAddresses += leaf->getUsedAddressCount();
    }
+
    ui_->labelAddressesUsed->setText(QString::number(nbTotalAddresses));
 }
 
@@ -270,12 +253,13 @@ void RootWalletPropertiesDialog::updateWalletDetails(const std::shared_ptr<bs::s
          QMetaObject::invokeMethod(this, [this, size = utxos.size()] {
             ui_->labelUTXOs->setText(QString::number(size));
          });
-      }, this);
-      wallet->getActiveAddressCount([this](size_t count) {
-         QMetaObject::invokeMethod(this, [this, count]{
-            ui_->labelAddressesActive->setText(QString::number(count));
+      }, UINT64_MAX);
+      
+      auto addrCnt = wallet->getActiveAddressCount();
+      QMetaObject::invokeMethod(this, [this, addrCnt] {
+            ui_->labelAddressesActive->setText(QString::number(addrCnt));
          });
-      });
+
       ui_->labelSpendable->setText(UiUtils::displayAmount(wallet->getSpendableBalance()));
       ui_->labelUnconfirmed->setText(UiUtils::displayAmount(wallet->getUnconfirmedBalance()));
       ui_->labelTotal->setText(UiUtils::displayAmount(wallet->getTotalBalance()));
@@ -287,39 +271,16 @@ void RootWalletPropertiesDialog::updateWalletDetails(const std::shared_ptr<bs::s
    }
 }
 
-void RootWalletPropertiesDialog::startWalletScan()
-{
-   const auto walletsMgr = walletsManager_;
-   const auto &settings = appSettings_;
-
-   const auto &cbr = [walletsMgr](const std::string &walletId) -> unsigned int {
-      const auto &wallet = walletsMgr->getWalletById(walletId);
-      return wallet ? wallet->getUsedAddressCount() : 0;
-   };
-   const auto &cbw = [settings](const std::string &walletId, unsigned int idx) {
-      settings->SetWalletScanIndex(walletId, idx);
-   };
-
-   if (wallet_->startRescan(nullptr, cbr, cbw)) {
-      emit walletsManager_->walletImportStarted(wallet_->walletId());
-   }
-   else {
-      BSMessageBox(BSMessageBox::warning, tr("Wallet rescan")
-         , tr("Wallet blockchain rescan is already in progress"), this).exec();
-   }
-   accept();
-}
-
 void RootWalletPropertiesDialog::onRescanBlockchain()
 {
    ui_->buttonBar->setEnabled(false);
 
-   if (wallet_->isPrimary()) {
+/*   if (wallet_->isPrimary()) {
       for (const auto &cc : assetMgr_->privateShares(true)) {
          bs::hd::Path path;
-         path.append(bs::hd::purpose, true);
-         path.append(bs::hd::CoinType::BlockSettle_CC, true);
-         path.append(cc, true);
+         path.append(bs::hd::purpose | 0x80000000);
+         path.append(bs::hd::CoinType::BlockSettle_CC | 0x80000000);
+         path.append(cc);
          const auto reqId = signingContainer_->createHDLeaf(wallet_->walletId(), path);
          if (reqId) {
             createCCWalletReqs_[reqId] = cc;
@@ -328,7 +289,9 @@ void RootWalletPropertiesDialog::onRescanBlockchain()
    }
    else {
       startWalletScan();
-   }
+   }*/
+   wallet_->startRescan();
+   accept();
 }
 
 void RootWalletPropertiesDialog::onHDLeafCreated(unsigned int id, const std::shared_ptr<bs::sync::hd::Leaf> &leaf)
@@ -337,11 +300,13 @@ void RootWalletPropertiesDialog::onHDLeafCreated(unsigned int id, const std::sha
       const auto cc = createCCWalletReqs_[id];
       createCCWalletReqs_.erase(id);
 
-      const auto group = wallet_->createGroup(bs::hd::CoinType::BlockSettle_CC);
+      //cc wallets are always ext only
+      const auto group = wallet_->createGroup(bs::hd::CoinType::BlockSettle_CC, true);
       group->addLeaf(leaf);
 
       if (createCCWalletReqs_.empty()) {
-         startWalletScan();
+         wallet_->startRescan();
+         accept();
       }
    }
 }

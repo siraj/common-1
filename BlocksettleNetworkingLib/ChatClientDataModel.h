@@ -6,6 +6,7 @@
 
 #include "ChatClientTree/TreeObjects.h"
 #include "ChatHandleInterfaces.h"
+#include <spdlog/spdlog.h>
 
 class ChatClientDataModel : public QAbstractItemModel
 {
@@ -24,37 +25,41 @@ public:
       ChatNewMessageRole
    };
 
-   ChatClientDataModel(QObject * parent = nullptr);
+   ChatClientDataModel(const std::shared_ptr<spdlog::logger> &logger, QObject * parent = nullptr);
 
 public:
    void initTreeCategoryGroup();
    void clearModel();
    void clearSearch();
-   bool insertRoomObject(std::shared_ptr<Chat::RoomData> data);
-   bool insertContactObject(std::shared_ptr<Chat::ContactRecordData> data, bool isOnline = false);
-   bool insertGeneralUserObject(std::shared_ptr<Chat::UserData> data);
-   bool insertSearchUserObject(std::shared_ptr<Chat::UserData> data);
-   bool insertSearchUserList(std::vector<std::shared_ptr<Chat::UserData>> userList);
+   bool insertRoomObject(std::shared_ptr<Chat::Data> data);
+   bool insertContactObject(std::shared_ptr<Chat::Data> data, bool isOnline = false);
+   bool insertContactRequestObject(std::shared_ptr<Chat::Data> data, bool isOnline = false);
+   bool insertContactCompleteObject(std::shared_ptr<Chat::Data> data, bool isOnline = false);
+   bool insertGeneralUserObject(std::shared_ptr<Chat::Data> data);
+   bool insertSearchUserObject(std::shared_ptr<Chat::Data> data);
+   bool insertSearchUserList(std::vector<std::shared_ptr<Chat::Data>> userList);
    bool insertMessageNode(TreeMessageNode *messageNode);
-   bool insertRoomMessage(std::shared_ptr<Chat::MessageData> message);
-   bool insertContactsMessage(std::shared_ptr<Chat::MessageData> message);
+   bool insertDisplayableDataNode(DisplayableDataNode * displayableNode);
+   bool insertRoomMessage(std::shared_ptr<Chat::Data> message);
+   bool insertContactsMessage(std::shared_ptr<Chat::Data> message);
+   bool insertContactRequestMessage(std::shared_ptr<Chat::Data> message);
    TreeItem* findChatNode(const std::string& chatId);
-   std::vector<std::shared_ptr<Chat::ContactRecordData>> getAllContacts();
+   std::vector<std::shared_ptr<Chat::Data>> getAllContacts();
    bool removeContactNode(const std::string& contactId);
-   std::shared_ptr<Chat::ContactRecordData> findContactItem(const std::string& contactId);
+   std::string getContactDisplayName(const std::string& contactId);
+
+   //std::string contactId copy required here
+   bool removeContactRequestNode(const std::string contactId);
+
+   std::shared_ptr<Chat::Data> findContactItem(const std::string& contactId);
    ChatContactElement *findContactNode(const std::string& contactId);
-   std::shared_ptr<Chat::MessageData> findMessageItem(const std::string& chatId, const std::string& messgeId);
+   std::shared_ptr<Chat::Data> findMessageItem(const std::string& chatId, const std::string& messgeId);
    std::string currentUser() const;
    void setCurrentUser(const std::string &currentUser);
-   void notifyMessageChanged(std::shared_ptr<Chat::MessageData> message);
-   void notifyContactChanged(std::shared_ptr<Chat::ContactRecordData> contact);
+   void notifyMessageChanged(std::shared_ptr<Chat::Data> message);
+   void notifyContactChanged(std::shared_ptr<Chat::Data> contact);
    void setNewMessageMonitor(NewMessageMonitor* monitor);
-
-   // insert channel for response that client send to OTC requests
-   bool insertOTCSentResponse(const std::string& otcId);
-
-   // insert channel for response client receive for own OTC
-   bool insertOTCReceivedResponse(const std::string& otcId);
+   NewMessageMonitor* getNewMessageMonitor() const;
 
    // QAbstractItemModel interface
 public:
@@ -73,15 +78,16 @@ private:
    QVariant chatNewMessageData(const TreeItem * item, int role) const;
 
 private:
+   std::shared_ptr<spdlog::logger> logger_;
+
    std::shared_ptr<RootItem> root_;
-   void beginChatInsertRows(const ChatUIDefinitions::ChatTreeNodeType &type);
+   void beginChatInsertRows(ChatUIDefinitions::ChatTreeNodeType type);
    void updateNewMessagesFlag();
 
-private:
    NewMessageMonitor * newMessageMonitor_;
    ModelChangesHandler * modelChangesHandler_;
    bool newMesagesFlag_;
-   std::shared_ptr<Chat::MessageData> lastMessage_;
+   std::shared_ptr<Chat::Data> lastMessage_;
 
    // QAbstractItemModel interface
 public:

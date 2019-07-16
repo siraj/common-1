@@ -38,6 +38,7 @@ void AuthAddressManager::init(const std::shared_ptr<ApplicationSettings>& appSet
 
    connect(walletsManager_.get(), &bs::sync::WalletsManager::blockchainEvent, this, &AuthAddressManager::VerifyWalletAddresses);
    connect(walletsManager_.get(), &bs::sync::WalletsManager::authWalletChanged, this, &AuthAddressManager::onAuthWalletChanged);
+   connect(walletsManager_.get(), &bs::sync::WalletsManager::walletChanged, this, &AuthAddressManager::onWalletChanged);
 
    connect(signingContainer_.get(), &SignContainer::TXSigned, this, &AuthAddressManager::onTXSigned);
    connect(signingContainer_.get(), &SignContainer::Error, this, &AuthAddressManager::onWalletFailed);
@@ -57,13 +58,7 @@ void AuthAddressManager::ConnectToPublicBridge(const std::shared_ptr<ConnectionM
 
 void AuthAddressManager::SetAuthWallet()
 {
-   if (authWallet_) {
-      disconnect(authWallet_.get(), SIGNAL(addressesAdded()), 0, 0);
-   }
    authWallet_ = walletsManager_->getAuthWallet();
-   if (authWallet_) {
-      connect(authWallet_.get(), &bs::sync::Wallet::addressAdded, this, &AuthAddressManager::authAddressAdded);
-   }
 }
 
 bool AuthAddressManager::setup()
@@ -86,7 +81,8 @@ bool AuthAddressManager::setup()
       const auto address = addr->GetChainedAddress();
       if (GetState(address) != state) {
          logger_->info("Address verification {} for {}", to_string(state), address.display());
-         SetState(address, state);
+         //FIXME: temp disabled for simulating address verification
+         //SetState(address, state);
          SetInitialTxHash(address, addr->GetInitialTransactionTxHash());
          SetVerifChangeTxHash(address, addr->GetVerificationChangeTxHash());
          SetBSFundingAddress(address, addr->GetBSFundingAddress());
@@ -167,12 +163,14 @@ bool AuthAddressManager::SubmitForVerification(const bs::Address &address)
 
 bool AuthAddressManager::CreateNewAuthAddress()
 {
-   authWallet_->getNewExtAddress();
+   const auto &cbAddr = [this](const bs::Address &) {
+      emit walletsManager_->walletChanged(authWallet_->walletId());
+   };
+   authWallet_->getNewExtAddress(cbAddr);
    return true;
 }
 
-void AuthAddressManager::onTXSigned(unsigned int id, BinaryData signedTX, std::string error,
-   bool cancelledByUser)
+void AuthAddressManager::onTXSigned(unsigned int id, BinaryData signedTX, bs::error::ErrorCode result, const std::string &errorReason)
 {
    const auto &itVerify = signIdsVerify_.find(id);
    const auto &itRevoke = signIdsRevoke_.find(id);
@@ -183,7 +181,7 @@ void AuthAddressManager::onTXSigned(unsigned int id, BinaryData signedTX, std::s
    signIdsVerify_.erase(id);
    signIdsRevoke_.erase(id);
 
-   if (error.empty()) {
+   if (result == bs::error::ErrorCode::NoError) {
       if (BroadcastTransaction(signedTX)) {
          if (isVerify) {
             emit AuthVerifyTxSent();
@@ -197,8 +195,9 @@ void AuthAddressManager::onTXSigned(unsigned int id, BinaryData signedTX, std::s
       }
    }
    else {
-      logger_->error("[AuthAddressManager::onTXSigned] TX signing failed: {}", error);
-      emit Error(tr("Transaction sign error: %1").arg(QString::fromStdString(error)));
+      logger_->error("[AuthAddressManager::onTXSigned] TX signing failed: {} {}"
+         , bs::error::ErrorCodeToString(result).toStdString(), errorReason);
+      emit Error(tr("Transaction sign error: %1").arg(bs::error::ErrorCodeToString(result)));
    }
 }
 
@@ -241,7 +240,7 @@ bool AuthAddressManager::Verify(const bs::Address &address)
       return false;
    }
 
-   if (!armory_ || (armory_->state() != ArmoryConnection::State::Ready)) {
+   if (!armory_ || (armory_->state() != ArmoryState::Ready)) {
       logger_->error("[AuthAddressManager::Verify] can't verify without Armory connection");
       emit Error(tr("Missing Armory connection"));
       return false;
@@ -342,26 +341,28 @@ bool AuthAddressManager::RevokeAddress(const bs::Address &address)
             }
             changeVal -= fee;
 
-            const auto recipAddress = wallet->getNewChangeAddress();
-            const auto &recip = recipAddress.getRecipient(txMultiReq->inputs.cbegin()->first.getValue() + changeVal);
-            if (!recip) {
-               logger_->error("[AuthAddressManager::RevokeAddress] failed to create recipient");
-               emit Error(tr("Failed to construct revoke transaction"));
-               return;
-            }
-            txMultiReq->recipients.push_back(recip);
+            const auto &cbRecipAddr = [this, txMultiReq, changeVal, utxos](const bs::Address &recipAddress) {
+               const auto &recip = recipAddress.getRecipient(txMultiReq->inputs.cbegin()->first.getValue() + changeVal);
+               if (!recip) {
+                  logger_->error("[AuthAddressManager::RevokeAddress] failed to create recipient");
+                  emit Error(tr("Failed to construct revoke transaction"));
+                  return;
+               }
+               txMultiReq->recipients.push_back(recip);
 
-            if (utxos.size() > 1) {
-               logger_->warn("[AuthAddressManager::RevokeAddress] TX size is greater than expected ({} more inputs)", utxos.size() - 1);
-               emit Info(tr("Revoke transaction size is greater than expected"));
-            }
+               if (utxos.size() > 1) {
+                  logger_->warn("[AuthAddressManager::RevokeAddress] TX size is greater than expected ({} more inputs)", utxos.size() - 1);
+                  emit Info(tr("Revoke transaction size is greater than expected"));
+               }
 
-            const auto id = signingContainer_->signMultiTXRequest(*txMultiReq);
-            if (id) {
-               signIdsRevoke_.insert(id);
-            }
+               const auto id = signingContainer_->signMultiTXRequest(*txMultiReq);
+               if (id) {
+                  signIdsRevoke_.insert(id);
+               }
+            };
+            wallet->getNewChangeAddress(cbRecipAddr);
          };
-         wallet->getUTXOsToSpend(fee, cbFeeUTXOs);
+         wallet->getSpendableTxOutList(cbFeeUTXOs, fee);
       };
       walletsManager_->estimatedFeePerByte(3, cbFee, this);
    };
@@ -459,11 +460,23 @@ bool AuthAddressManager::ConfirmSubmitForVerification(const bs::Address &address
    request.set_scripttype(mapToScriptType(address.getType()));
    request.set_userid(celerClient_->userId());
 
-   const auto cbSigned = [this](const std::string &data, const BinaryData &, const std::string &signature) {
+   std::string requestData = request.SerializeAsString();
+   BinaryData requestDataHash = BtcUtils::getSha256(requestData);
+
+   const auto cbSigned = [this, requestData](const AutheIDClient::SignResult &result) {
       RequestPacket  packet;
-      packet.set_datasignature(signature);
+
       packet.set_requesttype(ConfirmAuthAddressSubmitType);
-      packet.set_requestdata(data);
+      packet.set_requestdata(requestData);
+
+      // Copy AuthEid signature
+      auto autheidSign = packet.mutable_autheidsign();
+      autheidSign->set_serialization(AuthEidSign::Serialization(result.serialization));
+      autheidSign->set_signature_data(result.data.toBinStr());
+      autheidSign->set_sign(result.sign.toBinStr());
+      autheidSign->set_certificate_client(result.certificateClient.toBinStr());
+      autheidSign->set_certificate_issuer(result.certificateIssuer.toBinStr());
+      autheidSign->set_ocsp_response(result.ocspResponse.toBinStr());
 
       logger_->debug("[AuthAddressManager::ConfirmSubmitForVerification] confirmed auth address submission");
       SubmitRequestToPB("confirm_submit_auth_addr", packet.SerializeAsString());
@@ -474,7 +487,7 @@ bool AuthAddressManager::ConfirmSubmitForVerification(const bs::Address &address
       emit SignFailed(text);
    };
 
-   return authSignManager_->Sign(request.SerializeAsString(), tr("Authentication Address")
+   return authSignManager_->Sign(requestDataHash, tr("Authentication Address")
       , tr("Submit auth address for verification"), cbSigned, cbSignFailed, expireTimeoutSeconds);
 }
 
@@ -684,26 +697,34 @@ void AuthAddressManager::ClearAddressList()
    }
 }
 
-void AuthAddressManager::authAddressAdded()
+void AuthAddressManager::onWalletChanged(const std::string &walletId)
 {
    bool listUpdated = false;
-   if (authWallet_ != nullptr) {
+   if ((authWallet_ != nullptr) && (walletId == authWallet_->walletId())) {
       const auto &newAddresses = authWallet_->getUsedAddressList();
       const auto count = newAddresses.size();
       listUpdated = (count > addresses_.size());
 
-      for (size_t i = addresses_.size(); i < count; i++) {
+      //FIXME: temporary code to simulate address verification
+      listUpdated = true;
+      addresses_ = newAddresses;
+      for (const auto &addr : newAddresses) {
+         SetState(addr, AddressVerificationState::Verified);
+      }
+      emit VerifiedAddressListUpdated();
+
+      // FIXME: address verification is disabled temporarily
+/*      for (size_t i = addresses_.size(); i < count; i++) {
          const auto &addr = newAddresses[i];
          AddAddress(addr);
          const auto authAddr = std::make_shared<AuthAddress>(addr);
          addressVerificator_->StartAddressVerification(authAddr);
-      }
+      }*/
    }
 
    if (listUpdated) {
       emit AddressListUpdated();
-      addressVerificator_->RegisterAddresses();
-      authWallet_->registerWallet();
+//      addressVerificator_->RegisterAddresses();  //FIXME: re-enable later
    }
 }
 
@@ -770,8 +791,7 @@ bool AuthAddressManager::SubmitRequestToPB(const std::string& name, const std::s
       });
    });
 
-   if (!command->ExecuteRequest(settings_->get<std::string>(ApplicationSettings::pubBridgeHost)
-         , settings_->get<std::string>(ApplicationSettings::pubBridgePort)
+   if (!command->ExecuteRequest(settings_->pubBridgeHost(), settings_->pubBridgePort()
          , data, true)) {
       logger_->error("[AuthAddressManager::SubmitRequestToPB] failed to send request {}", name);
       return false;
@@ -847,12 +867,6 @@ void AuthAddressManager::SetState(const bs::Address &addr, AddressVerificationSt
 bool AuthAddressManager::BroadcastTransaction(const BinaryData& transactionData)
 {
    return armory_->broadcastZC(transactionData);
-}
-
-BinaryData AuthAddressManager::GetPublicKey(size_t index)
-{
-//   return authWallet_->GetPubChainedKeyFor(GetAddress(index));
-   return {};  //FIXME: public keys are not available now
 }
 
 void AuthAddressManager::setDefault(const bs::Address &addr)
@@ -948,9 +962,9 @@ void AuthAddressManager::CreateAuthWallet(const std::vector<bs::wallet::Password
       return;
    }
    bs::hd::Path path;
-   path.append(bs::hd::purpose, true);
-   path.append(bs::hd::CoinType::BlockSettle_Auth, true);
-   path.append(0u, true);
+   path.append(bs::hd::purpose | 0x80000000);
+   path.append(bs::hd::CoinType::BlockSettle_Auth | 0x80000000);
+   path.append(0x80000000);
    createWalletReqId_ = { signingContainer_->createHDLeaf(priWallet->walletId(), path, pwdData), signal };
 }
 
@@ -968,7 +982,7 @@ void AuthAddressManager::onWalletCreated(unsigned int id, const std::shared_ptr<
    if (createWalletReqId_.second) {
       emit AuthWalletCreated(QString::fromStdString(leaf->walletId()));
    }
-   emit walletsManager_->walletChanged();
+   emit walletsManager_->walletChanged(leaf->walletId());
 }
 
 void AuthAddressManager::onWalletFailed(unsigned int id, std::string errMsg)

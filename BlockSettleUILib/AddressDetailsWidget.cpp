@@ -7,6 +7,7 @@
 #include "CheckRecipSigner.h"
 #include "UiUtils.h"
 #include "Wallets/SyncPlainWallet.h"
+#include "Wallets/SyncWallet.h"
 #include "Wallets/SyncWalletsManager.h"
 
 
@@ -31,16 +32,15 @@ AddressDetailsWidget::AddressDetailsWidget(QWidget *parent)
 AddressDetailsWidget::~AddressDetailsWidget() = default;
 
 // Initialize the widget and related widgets (block, address, Tx)
-void AddressDetailsWidget::init(const std::shared_ptr<ArmoryObject> &armory
+void AddressDetailsWidget::init(const std::shared_ptr<ArmoryConnection> &armory
    , const std::shared_ptr<spdlog::logger> &inLogger
-   , const CCFileManager::CCSecurities &ccSecurities)
+   , const std::shared_ptr<bs::sync::CCDataResolver> &resolver)
 {
    armory_ = armory;
    logger_ = inLogger;
-   ccSecurities_ = ccSecurities;
+   ccResolver_ = resolver;
 
-   connect(armory_.get(), &ArmoryObject::refresh, this
-           , &AddressDetailsWidget::OnRefresh, Qt::QueuedConnection);
+   act_ = make_unique<AddrDetailsACT>(armory_.get(), this);
 }
 
 void AddressDetailsWidget::setBSAuthAddrs(const std::unordered_set<std::string> &bsAuthAddrs)
@@ -128,21 +128,22 @@ void AddressDetailsWidget::searchForCC()
       return;
    }
    for (const auto &txPair : txMap_) {
-      for (const auto &ccSecurity : ccSecurities_) {
-         auto checker = std::make_shared<bs::TxAddressChecker>(ccSecurity.genesisAddr, armory_);
+      for (const auto &ccSecurity : ccResolver_->securities()) {
+         auto checker = std::make_shared<bs::TxAddressChecker>(
+            ccResolver_->genesisAddrFor(ccSecurity), armory_);
          const auto &cbHasInput = [this, ccSecurity, checker](bool found) {
             if (!found || !ccFound_.first.empty()) {
                return;
             }
-            ccFound_ = { ccSecurity.product, ccSecurity.nbSatoshis };
+            ccFound_ = { ccSecurity, ccResolver_->lotSizeFor(ccSecurity) };
             QMetaObject::invokeMethod(this, &AddressDetailsWidget::updateFields);
          };
          if (!ccFound_.first.empty()) {
             break;
          }
-         if (((totalReceived_ % ccSecurity.nbSatoshis) == 0)
-            && ((totalSpent_ % ccSecurity.nbSatoshis) == 0)) {
-            checker->containsInputAddress(txPair.second, cbHasInput, ccSecurity.nbSatoshis);
+         const auto nbSatoshis = ccResolver_->lotSizeFor(ccSecurity);
+         if (((totalReceived_ % nbSatoshis) == 0) && ((totalSpent_ % nbSatoshis) == 0)) {
+            checker->containsInputAddress(txPair.second, cbHasInput, nbSatoshis);
          }
       }
    }
@@ -203,8 +204,7 @@ void AddressDetailsWidget::loadTransactions()
                     UiUtils::displayDateTime(QDateTime::fromTime_t(curTXEntry.second.txTime)));
       item->setText(colTxId, // Flip Armory's TXID byte order: internal -> RPC
                     QString::fromStdString(curTXEntry.first.toHexStr(true)));
-      item->setText(colConfs,
-                    QString::number(armory_->getConfirmationsNumber(curTXEntry.second.blockNum)));
+      item->setData(colConfs, Qt::DisplayRole, armory_->getConfirmationsNumber(curTXEntry.second.blockNum));
       item->setText(colInputsNum, QString::number(tx.getNumTxIn()));
       item->setText(colOutputsNum, QString::number(tx.getNumTxOut()));
       item->setText(colOutputAmt, UiUtils::displayAmount(curTXEntry.second.value));
@@ -358,6 +358,7 @@ void AddressDetailsWidget::getTxData(const std::shared_ptr<AsyncClient::LedgerDe
          }
          if (txHashSet.empty()) {
             logger_->info("[AddressDetailsWidget::getTxData] address participates in no TXs");
+            cbCollectTXs({});
          } else {
             armory_->getTXsByHash(txHashSet, cbCollectTXs);
          }

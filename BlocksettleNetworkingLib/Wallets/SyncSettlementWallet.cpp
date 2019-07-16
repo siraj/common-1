@@ -100,11 +100,11 @@ bool SettlementWallet::createTempWalletForAddress(const bs::Address& addr)
       return false;
    }
 
-   std::shared_ptr<AsyncClient::BtcWallet> addressWallet;
+   const auto addressWallet = armory_->instantiateWallet(walletId);
 
    FastLock locker{lockWalletsMap_};
-   const auto regId = armory_->registerWallet(addressWallet, walletId, settlAddr->supportedAddrHashes()
-      , [](const std::string &) {}, true);
+   const auto regId = armory_->registerWallet(addressWallet, walletId, walletId
+      , settlAddr->supportedAddrHashes(), [](const std::string &) {}, true);
 
    auto completeWalletRegistration = [this, addr, addressWallet]() {
       if (logger_) {
@@ -155,11 +155,14 @@ void SettlementWallet::newAddress(const CbAddress &cb, const BinaryData &settlem
       }
 
       cb(addr);
-      emit addressAdded();
+      if (wct_) {
+         wct_->addressAdded(walletId());
+      }
    };
    const auto index = settlementId.toHexStr() + "." + buyAuthPubKey.toHexStr() + "."
       + sellAuthPubKey.toHexStr();
-   signContainer_->syncNewAddress(walletId(), index, AddressEntryType_Default, cbSettlAddr);
+//!   signContainer_->syncNewAddress(walletId(), index, AddressEntryType_Default, cbSettlAddr);
+   // signContainer_->syncAddressBatch(...);
 }
 
 std::string SettlementWallet::getAddressIndex(const bs::Address &addr)

@@ -38,8 +38,9 @@ public:
    static const int minHeightAtRendering = 500;
 
 private:
+   using WalletsSet = std::set<std::shared_ptr<bs::sync::Wallet>>;
    void addAddress(const std::shared_ptr<bs::sync::Wallet> &, const TxOut& out,
-      bool isOutput, bool isTxOutgoing, const BinaryData& txHash);
+      bool isOutput, bool isInternalTx, const BinaryData& txHash, const WalletsSet *inputWallets);
    QString getScriptType(const TxOut &);
 
 private:
@@ -47,8 +48,6 @@ private:
    std::shared_ptr<bs::sync::WalletsManager>    walletsManager_;
    QTreeWidgetItem   *itemSender_ = nullptr;
    QTreeWidgetItem   *itemReceiver_ = nullptr;
-   QMap<QString, QTreeWidgetItem *> addrInputItems_;
-   QMap<QString, QTreeWidgetItem *> addrOutputItems_;
 };
 
 #endif // __TRANSACTION_DETAIL_DIALOG_H__

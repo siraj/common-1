@@ -59,19 +59,21 @@ public:
    ~ChatMessagesTextEdit() noexcept override = default;
 
 public:
-   void setOwnUserId(const std::string &userId) { ownUserId_ = QString::fromStdString(userId); }
-   void switchToChat(const QString& chatId, bool isGroupRoom = false);
-   void setHandler(std::shared_ptr<ChatItemActionsHandler> handler);
+   void setOwnUserId(const std::string &userId) { ownUserId_ = userId; }
+   void switchToChat(const std::string& chatId, bool isGroupRoom = false);
+   void setHandler(ChatItemActionsHandler* handler);
    void setMessageReadHandler(std::shared_ptr<ChatMessageReadHandler> handler);
    void setClient(std::shared_ptr<ChatClient> client);
    void setColumnsWidth(const int &time, const int &icon, const int &user, const int &message);
+   void setIsChatTab(const bool &isChatTab);
    QString getFormattedTextFromSelection();
 
 signals:
-   void MessageRead(const std::shared_ptr<Chat::MessageData> &) const;
+   void MessageRead(const std::shared_ptr<Chat::Data> &) const;
    void rowsInserted();
-   void userHaveNewMessageChanged(const QString &userId, const bool &haveNewMessage, const bool &isInCurrentChat);
-   void sendFriendRequest(const QString &userID);
+   void userHaveNewMessageChanged(const std::string &userId, const bool &haveNewMessage, const bool &isInCurrentChat);
+   void sendFriendRequest(const std::string &userID);
+   void addContactRequired(const QString &userId);
 
 protected:
    enum class Column {
@@ -82,17 +84,18 @@ protected:
       last
    };
 
-   QString data(const int &row, const Column &column);
-   QImage statusImage(const int &row);
+   QString data(int row, const Column &column);
+   QString dataMessage(int row, const Column &column);
+   QImage statusImage(int row);
 
-   virtual void contextMenuEvent(QContextMenuEvent *e);
+   void contextMenuEvent(QContextMenuEvent *e) override;
 
 public slots:
-   void onMessagesUpdate(const std::vector<std::shared_ptr<Chat::MessageData>> & messages, bool isFirstFetch);
-   void onRoomMessagesUpdate(const std::vector<std::shared_ptr<Chat::MessageData>> & messages, bool isFirstFetch);
-   void onSingleMessageUpdate(const std::shared_ptr<Chat::MessageData> &);
-   void onMessageIdUpdate(const QString& oldId, const QString& newId,const QString& chatId);
-   void onMessageStatusChanged(const QString& messageId, const QString chatId, int newStatus);
+   void onMessagesUpdate(const std::vector<std::shared_ptr<Chat::Data> > &messages, bool isFirstFetch);
+   void onRoomMessagesUpdate(const std::vector<std::shared_ptr<Chat::Data>> & messages, bool isFirstFetch);
+   void onSingleMessageUpdate(const std::shared_ptr<Chat::Data> &);
+   void onMessageIdUpdate(const std::string& oldId, const std::string& newId,const std::string& chatId);
+   void onMessageStatusChanged(const std::string& messageId, const std::string &chatId, int newStatus);
    void urlActivated(const QUrl &link);
 
 private slots:
@@ -100,22 +103,24 @@ private slots:
    void copyLinkLocationActionTriggered();
    void selectAllActionTriggered();
    void onTextChanged();
+   void onUserUrlOpened(const QUrl &url);
 
 private:
-   using MessagesHistory = std::vector<std::shared_ptr<Chat::MessageData>>;
-   QMap<QString, MessagesHistory> messages_;
+   //using MessagesHistory = std::vector<std::shared_ptr<Chat::Data_Message>>;
+   using MessagesHistory = std::vector<std::shared_ptr<Chat::Data>>;
+   QMap<std::string, MessagesHistory> messages_;
    MessagesHistory messagesToLoadMore_;
-   QString currentChatId_;
-   QString ownUserId_;
-   QString username_;
-   std::shared_ptr<ChatItemActionsHandler> handler_;
+   std::string currentChatId_;
+   std::string ownUserId_;
+   std::string username_;
+   ChatItemActionsHandler * handler_;
    std::shared_ptr<ChatMessageReadHandler> messageReadHandler_;
    std::shared_ptr<ChatClient> client_;
 
 private:
-   std::shared_ptr<Chat::MessageData> findMessage(const QString& chatId, const QString& messageId);
-   void notifyMessageChanged(std::shared_ptr<Chat::MessageData> message);
-   void insertMessage(std::shared_ptr<Chat::MessageData> message);
+   std::shared_ptr<Chat::Data> findMessage(const std::string& chatId, const std::string& messageId);
+   void notifyMessageChanged(std::shared_ptr<Chat::Data> message);
+   void insertMessage(std::shared_ptr<Chat::Data> message);
    void insertLoadMore();
    void loadMore();
    void setupHighlightPalette();
@@ -124,14 +129,15 @@ private:
    QString toHtmlUsername(const QString &username, const QString &userId = QString());
    QString toHtmlInvalid(const QString &text);
 
-   QTextTableFormat tableFormat;
-   QTextTable *table;
+   QTextTableFormat tableFormat_;
+   QTextTable *table_{};
    ChatMessagesTextEditStyle internalStyle_;
 
-   QMenu *userMenu_;
-   QAction *userAddContactAction_;
-   QAction *userRemoveContactAction_;
-   bool isGroupRoom_;
+   QMenu *userMenu_{};
+   QAction *userAddContactAction_{};
+   QAction *userRemoveContactAction_{};
+   bool isGroupRoom_{};
+   bool isChatTab_{};
 
    QImage statusImageOffline_;
    QImage statusImageConnecting_;
@@ -141,10 +147,10 @@ private:
    // ViewItemWatcher interface
 public:
    void onElementSelected(CategoryElement *element) override;
-   void onMessageChanged(std::shared_ptr<Chat::MessageData> message) override;
+   void onMessageChanged(std::shared_ptr<Chat::Data> message) override;
    void onElementUpdated(CategoryElement *element) override;
+   void onCurrentElementAboutToBeRemoved() override;
    QTextCursor textCursor_;
    QString anchor_;
 };
-
 #endif

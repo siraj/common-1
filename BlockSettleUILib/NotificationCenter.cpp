@@ -11,7 +11,9 @@
 
 static std::shared_ptr<NotificationCenter> globalInstance = nullptr;
 
-NotificationCenter::NotificationCenter(const std::shared_ptr<ApplicationSettings> &appSettings, const Ui::BSTerminalMainWindow *mainWinUi
+NotificationCenter::NotificationCenter(const std::shared_ptr<spdlog::logger> &logger
+   , const std::shared_ptr<ApplicationSettings> &appSettings
+   , const Ui::BSTerminalMainWindow *mainWinUi
    , const std::shared_ptr<QSystemTrayIcon> &trayIcon, QObject *parent)
    : QObject(parent)
 {
@@ -19,13 +21,13 @@ NotificationCenter::NotificationCenter(const std::shared_ptr<ApplicationSettings
    qRegisterMetaType<bs::ui::NotifyMessage>("NotifyMessage");
 
    addResponder(std::make_shared<NotificationTabResponder>(mainWinUi, appSettings, this));
-   addResponder(std::make_shared<NotificationTrayIconResponder>(mainWinUi, trayIcon, appSettings, this));
+   addResponder(std::make_shared<NotificationTrayIconResponder>(logger, mainWinUi, trayIcon, appSettings, this));
 }
 
-void NotificationCenter::createInstance(const std::shared_ptr<ApplicationSettings> &appSettings, const Ui::BSTerminalMainWindow *ui
-   , const std::shared_ptr<QSystemTrayIcon> &trayIcon, QObject *parent)
+void NotificationCenter::createInstance(const std::shared_ptr<spdlog::logger> &logger, const std::shared_ptr<ApplicationSettings> &appSettings
+   , const Ui::BSTerminalMainWindow *ui, const std::shared_ptr<QSystemTrayIcon> &trayIcon, QObject *parent)
 {
-   globalInstance = std::make_shared<NotificationCenter>(appSettings, ui, trayIcon, parent);
+   globalInstance = std::make_shared<NotificationCenter>(logger, appSettings, ui, trayIcon, parent);
 }
 
 NotificationCenter *NotificationCenter::instance()
@@ -101,10 +103,15 @@ NotificationTabResponder::TabAction NotificationTabResponder::getTabActionFor(bs
 }
 
 
-NotificationTrayIconResponder::NotificationTrayIconResponder(const Ui::BSTerminalMainWindow *mainWinUi
+NotificationTrayIconResponder::NotificationTrayIconResponder(const std::shared_ptr<spdlog::logger> &logger
+   , const Ui::BSTerminalMainWindow *mainWinUi
    , const std::shared_ptr<QSystemTrayIcon> &trayIcon
    , const std::shared_ptr<ApplicationSettings> &appSettings, QObject *parent)
-   : NotificationResponder(parent), mainWinUi_(mainWinUi), trayIcon_(trayIcon), appSettings_(appSettings)
+   : NotificationResponder(parent)
+   , logger_(logger)
+   , mainWinUi_(mainWinUi)
+   , trayIcon_(trayIcon)
+   , appSettings_(appSettings)
    , notifMode_(QSystemTray)
 #ifdef BS_USE_DBUS
    , dbus_(new DBusNotification(tr("BlockSettle Terminal"), this))
@@ -125,6 +132,7 @@ NotificationTrayIconResponder::NotificationTrayIconResponder(const Ui::BSTermina
 }
 
 static const QString c_newVersionAction = QLatin1String("BlockSettleNewVersionAction");
+static const QString c_newOkAction = QLatin1String("BlockSettleNotificationActionOk");
 
 void NotificationTrayIconResponder::respond(bs::ui::NotifyType nt, bs::ui::NotifyMessage msg)
 {
@@ -193,7 +201,9 @@ void NotificationTrayIconResponder::respond(bs::ui::NotifyType nt, bs::ui::Notif
 
       if (isChatTab && QApplication::activeWindow()) {
          mainWinUi_->tabWidget->setTabIcon(chatIndex, QIcon());
-         return;
+      }
+      else {
+         mainWinUi_->tabWidget->setTabIcon(chatIndex, QIcon(QLatin1String(":/ICON_DOT")));
       }
 
       if (msg.size() != 3) {
@@ -210,7 +220,6 @@ void NotificationTrayIconResponder::respond(bs::ui::NotifyType nt, bs::ui::Notif
       
       newChatMessage_ = true;
       newChatId_ = userId;
-      mainWinUi_->tabWidget->setTabIcon(chatIndex, QIcon(QLatin1String(":/ICON_DOT")));
       break;
 
    case bs::ui::NotifyType::FriendRequest:
@@ -231,6 +240,8 @@ void NotificationTrayIconResponder::respond(bs::ui::NotifyType nt, bs::ui::Notif
    default: return;
    }
 
+   SPDLOG_LOGGER_INFO(logger_, "notification: {} ({}) {}", title.toStdString(), text.toStdString(), userId.toStdString());
+
    if (notifMode_ == QSystemTray) {
       //trayIcon_->showMessage(title, text, icon, msecs);
       trayIcon_->showMessage(title, text, QIcon(QLatin1String(":/resources/login-logo.png")), msecs);
@@ -247,6 +258,7 @@ void NotificationTrayIconResponder::respond(bs::ui::NotifyType nt, bs::ui::Notif
 void NotificationTrayIconResponder::messageClicked()
 {
    if (newVersionMessage_) {
+      qDebug() << "NEW VERSION";
       const auto url = appSettings_->get<std::string>(ApplicationSettings::Binaries_Dl_Url);
       const auto title = tr("New version download");
       const auto errDownload = tr("Failed to open download URL");
@@ -275,13 +287,16 @@ void NotificationTrayIconResponder::messageClicked()
 #endif
    }
    else if (newChatMessage_) {
-      if (!newChatId_.isNull() && globalInstance != NULL) {
-         emit globalInstance->newChatMessageClick(newChatId_);
-
+      if (!newChatId_.isNull() && globalInstance != nullptr) {
          const int chatIndex = mainWinUi_->tabWidget->indexOf(mainWinUi_->widgetChat);
          mainWinUi_->tabWidget->setTabIcon(chatIndex, QIcon());
          mainWinUi_->tabWidget->setCurrentWidget(mainWinUi_->widgetChat);
-         mainWinUi_->tabWidget->activateWindow();
+         auto window = mainWinUi_->tabWidget->window();
+         if (window) {
+            QMetaObject::invokeMethod(window, "raiseWindow", Qt::DirectConnection);
+         }
+         auto signal = QMetaMethod::fromSignal(&NotificationCenter::newChatMessageClick);
+         signal.invoke(globalInstance.get(), Q_ARG(QString, newChatId_));
       }
    }
 }
@@ -291,6 +306,9 @@ void NotificationTrayIconResponder::notificationAction(const QString &action)
 {
    if (action == c_newVersionAction) {
       newVersionMessage_ = true;
+      messageClicked();
+   } else if (action == c_newOkAction) {
+      newChatMessage_ = true;
       messageClicked();
    }
 }

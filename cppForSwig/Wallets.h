@@ -250,8 +250,6 @@ protected:
    static void putData(LMDB* db, const BinaryData& key, const BinaryData& data);
    static void initWalletMetaDB(std::shared_ptr<LMDBEnv>, const std::string&);
 
-   std::shared_ptr<AddressAccount> createAccount(std::shared_ptr<AccountType>);
-
 public:
    //tors
    virtual ~AssetWallet() = 0;
@@ -277,9 +275,11 @@ public:
    void extendPrivateChainToIndex(const BinaryData&, unsigned);
 
    bool hasScrAddr(const BinaryData& scrAddr);
-   const std::pair<BinaryData, AddressEntryType>& getAssetIDForAddr(const BinaryData& scrAddr);
+   const std::pair<BinaryData, AddressEntryType>& 
+      getAssetIDForAddr(const BinaryData& scrAddr);
    AddressEntryType getAddrTypeForID(const BinaryData& ID);
-   std::shared_ptr<AddressEntry> getAddressEntryForID(const BinaryData&) const;
+   std::shared_ptr<AddressEntry> 
+      getAddressEntryForID(const BinaryData&) const;
    void shutdown(void);
 
    void setPassphrasePromptLambda(
@@ -301,7 +301,11 @@ public:
    std::shared_ptr<LMDBEnv> getDbEnv(void) const { return dbEnv_; }
 
    std::set<BinaryData> getAccountIDs(void) const;
-   std::map<BinaryData, std::shared_ptr<AddressEntry>> getUsedAddressMap(void) const;
+   std::map<BinaryData, std::shared_ptr<AddressEntry>> 
+      getUsedAddressMap(void) const;
+
+   std::shared_ptr<AddressAccount> 
+      createAccount(std::shared_ptr<AccountType>);
 
    //virtual
    virtual std::set<BinaryData> getAddrHashSet();
@@ -366,6 +370,7 @@ public:
 
    //locals
    void changeMasterPassphrase(const SecureBinaryData&);
+   std::shared_ptr<AssetEntry_Single> getRoot(void) const { return root_; }
    const SecureBinaryData& getPublicRoot(void) const;
    std::shared_ptr<AssetEntry> getAccountRoot(const BinaryData& accountID) const;
    const SecureBinaryData& getArmory135Chaincode(void) const;
@@ -636,7 +641,7 @@ public:
       */
 
       auto&& hash = BtcUtils::getHash160(pubkey);
-      auto assetPair = getAssetPairForKey(pubkey);
+      auto assetPair = getAssetPairForKey(hash);
       if (assetPair.first == nullptr)
          throw NoAssetException("invalid pubkey");
 
@@ -659,6 +664,30 @@ public:
       DecryptedDataContainerException means the wallet failed to decrypt the 
       encrypted pubkey (bad passphrase or unlocked wallet most likely).
       */
+   }
+
+   void seedFromAddressEntry(std::shared_ptr<AddressEntry> addrPtr)
+   {
+      try
+      {
+         //add hash to preimage pair
+         auto& hash = addrPtr->getHash();
+         auto& preimage = addrPtr->getPreimage();
+         hash_to_preimage_.insert(std::make_pair(hash, preimage));
+      }
+      catch (AddressException&)
+      {
+         return;
+      }
+
+      //is this address nested?
+      auto addrNested =
+         std::dynamic_pointer_cast<AddressEntry_Nested>(addrPtr);
+      if (addrNested == nullptr)
+         return; //return if not
+
+      //seed the predecessor too
+      seedFromAddressEntry(addrNested->getPredecessor());
    }
 };
 

@@ -7,11 +7,12 @@
 #include "UtxoReservation.h"
 #include "Wallets/SyncHDWallet.h"
 #include "Wallets/SyncWalletsManager.h"
+#include "BSErrorCodeStrings.h"
 
 static const unsigned int kWaitTimeoutInSec = 30;
 
 ReqCCSettlementContainer::ReqCCSettlementContainer(const std::shared_ptr<spdlog::logger> &logger
-   , const std::shared_ptr<SignContainer> &container, const std::shared_ptr<ArmoryObject> &armory
+   , const std::shared_ptr<SignContainer> &container, const std::shared_ptr<ArmoryConnection> &armory
    , const std::shared_ptr<AssetManager> &assetMgr
    , const std::shared_ptr<bs::sync::WalletsManager> &walletsMgr
    , const bs::network::RFQ &rfq, const bs::network::Quote &quote
@@ -30,12 +31,11 @@ ReqCCSettlementContainer::ReqCCSettlementContainer(const std::shared_ptr<spdlog:
    bs::UtxoReservation::addAdapter(utxoAdapter_);
 
    connect(signingContainer_.get(), &SignContainer::QWalletInfo, this, &ReqCCSettlementContainer::onWalletInfo);
-   connect(signingContainer_.get(), &SignContainer::TXSigned, this, &ReqCCSettlementContainer::onTXSigned);
 
    const auto &signingWallet = transactionData_->getSigningWallet();
    if (signingWallet) {
       const auto &rootWallet = walletsMgr_->getHDRootForLeaf(signingWallet->walletId());
-      walletInfo_ = bs::hd::WalletInfo(rootWallet);
+      walletInfo_ = bs::hd::WalletInfo(walletsMgr_, rootWallet);
       infoReqId_ = signingContainer_->GetInfo(walletInfo_.rootId().toStdString());
    }
    else {
@@ -171,7 +171,7 @@ bool ReqCCSettlementContainer::createCCUnsignedTXdata()
                QMetaObject::invokeMethod(this, [this] { emit error(tr("Failed to create CC TX half")); });
             }
          };
-         if (!transactionData_->getWallet()->getSpendableTxOutList(cbTxOutList, this, spendVal)) {
+         if (!transactionData_->getWallet()->getSpendableTxOutList(cbTxOutList, spendVal)) {
             logger_->error("[CCSettlementTransactionWidget::createCCUnsignedTXdata] getSpendableTxOutList failed");
          }
       };
@@ -181,7 +181,7 @@ bool ReqCCSettlementContainer::createCCUnsignedTXdata()
    return true;
 }
 
-bool ReqCCSettlementContainer::createCCSignedTXdata(const SecureBinaryData &password)
+bool ReqCCSettlementContainer::startSigning()
 {
    if (side() == bs::network::Side::Sell) {
       if (!ccTxData_.isValid()) {
@@ -191,7 +191,21 @@ bool ReqCCSettlementContainer::createCCSignedTXdata(const SecureBinaryData &pass
       }
    }
 
-   ccSignId_ = signingContainer_->signPartialTXRequest(ccTxData_, false, password);
+   const auto &cbTx = [this](bs::error::ErrorCode result, const BinaryData &signedTX) {
+      if (result == bs::error::ErrorCode::NoError) {
+         ccTxSigned_ = signedTX.toHexStr();
+         emit settlementAccepted();
+      }
+      else if (result == bs::error::ErrorCode::TxCanceled) {
+         emit settlementCancelled();
+      }
+      else {
+         logger_->warn("[CCSettlementTransactionWidget::onTXSigned] CC TX sign failure: {}", bs::error::ErrorCodeToString(result).toStdString());
+         emit error(tr("own TX half signing failed\n: %1").arg(bs::error::ErrorCodeToString(result)));
+      }
+   };
+
+   ccSignId_ = signingContainer_->signSettlementPartialTXRequest(ccTxData_, toSettlementInfo(), cbTx);
    logger_->debug("[CCSettlementTransactionWidget::createCCSignedTXdata] {} recipients", ccTxData_.recipients.size());
    return (ccSignId_ > 0);
 }
@@ -210,33 +224,9 @@ void ReqCCSettlementContainer::onWalletInfo(unsigned int reqId, const bs::hd::Wa
    emit walletInfoReceived();
 }
 
-void ReqCCSettlementContainer::onTXSigned(unsigned int reqId, BinaryData signedTX, std::string errTxt,
-   bool cancelledByUser)
-{
-   if (ccSignId_ && (ccSignId_ == reqId)) {
-      ccSignId_ = 0;
-      if (!errTxt.empty()) {
-         logger_->warn("[CCSettlementTransactionWidget::onTXSigned] CC TX sign failure: {}", errTxt);
-         emit error(tr("own TX half signing failed: %1").arg(QString::fromStdString(errTxt)));
-         return;
-      }
-      ccTxSigned_ = signedTX.toHexStr();
-      emit settlementAccepted();
-   }
-}
-
 bool ReqCCSettlementContainer::isAcceptable() const
 {
    return userKeyOk_;
-}
-
-bool ReqCCSettlementContainer::accept(const SecureBinaryData &password)
-{
-   if (!createCCSignedTXdata(password)) {
-      emit settlementCancelled();
-      return false;
-   }
-   return true;
 }
 
 bool ReqCCSettlementContainer::cancel()
