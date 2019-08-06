@@ -34,8 +34,7 @@ class Configurator:
 
             os.chdir(build_dir)
 
-            if os.path.isdir(self.get_install_dir()):
-                self.remove_fs_object(self.get_install_dir())
+            self.clean_install_dir()
 
             if self.config() and self.make() and self.install():
                 self.SetRevision()
@@ -44,6 +43,10 @@ class Configurator:
                 return False
 
         return True
+
+    def clean_install_dir(self):
+        if os.path.isdir(self.get_install_dir()):
+            self.remove_fs_object(self.get_install_dir())
 
     def GetRevisionFileName(self):
         return os.path.join(self.get_install_dir(), '3rd_revision.txt')
@@ -220,3 +223,32 @@ class Configurator:
                     shutil.copy(src_name, dst_name)
             else:
                 self.filter_copy(src_name, dst_name, file_extension, cleanupDst)
+
+
+# common implementation for component configurator helper methods
+# TODO: fix components to use configurator stub
+
+class ConfiguratorStub(Configurator):
+    def __init__(self, project_settings):
+        Configurator.__init__(self, project_settings)
+
+        self._version = None
+        self._version_name = None
+        self._package_name = None
+        self._package_url = None
+        self._script_revision = None
+
+    def is_archive(self):
+        return True
+
+    def get_url(self):
+        return self._package_url
+
+    def get_package_name(self):
+        return self._package_name + (('-' + self._version_name) if self._version_name else '')
+
+    def get_revision_string(self):
+        return self._version + ((self._script_revision) if self._script_revision else '')
+
+    def get_install_dir(self):
+        return os.path.join(self._project_settings.get_common_build_dir(), self._install_name if self._install_name else self._package_name)
