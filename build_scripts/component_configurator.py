@@ -12,28 +12,37 @@ class Configurator:
     def __init__(self, project_settings):
         self._project_settings = project_settings
 
-    def config_component(self):
+    def config_component(self, download_only=False, skip_download=False):
         if self.build_required():
-            print('Start building : {}'.format(self.get_package_name()))
-            if self.download_package():
+            print('\nStart downloading : {}'.format(self.get_package_name()))
+            if self.download_package(skip_download=skip_download):
                 if self.is_archive():
-                    self.unpack_package()
-                build_dir = self.get_build_dir()
-                self.remove_fs_object(build_dir)
+                    self.unpack_package(skip_download=skip_download)
 
-                os.makedirs(build_dir)
+                print('\nDownloaded : {}'.format(self.get_package_name()))
 
-                os.chdir(build_dir)
-
-                if os.path.isdir(self.get_install_dir()):
-                    self.remove_fs_object(self.get_install_dir())
-
-                if self.config() and self.make() and self.install():
-                    self.SetRevision()
+                if download_only:
                     return True
-
+            else:
                 return False
-            return False
+
+            print('Start building : {}'.format(self.get_package_name()))
+            build_dir = self.get_build_dir()
+            self.remove_fs_object(build_dir)
+
+            os.makedirs(build_dir)
+
+            os.chdir(build_dir)
+
+            if os.path.isdir(self.get_install_dir()):
+                self.remove_fs_object(self.get_install_dir())
+
+            if self.config() and self.make() and self.install():
+                self.SetRevision()
+                return True
+            else:
+                return False
+
         return True
 
     def GetRevisionFileName(self):
@@ -53,55 +62,63 @@ class Configurator:
         with open(revisionFileName, 'w') as f:
             f.write(self.get_revision_string())
 
-    def download_package(self):
+    def download_package(self, skip_download=False):
         url = self.get_url()
-        ext = url.split('.')[-1]
+
         if url.endswith('.tar.gz'):
             ext = 'tar.gz'
         elif url.endswith('.tar.xz'):
             ext = 'tar.xz'
-
-        print('Start download : {}'.format(url))
+        else:
+            ext = url.split('.')[-1]
 
         self._file_name = self.get_package_name() + '.' + ext
         self._download_path = os.path.join(self._project_settings.get_downloads_dir(), self._file_name)
 
-        if url.endswith('.xz') and os.path.isfile(self._download_path[:-3]):
-            return True
+        if skip_download:
+            pass
+        elif url.endswith('.xz') and os.path.isfile(self._download_path[:-3]):
+            print('Skip download: {}'.format(url))
+        elif os.path.isfile(self._download_path):
+            print('Skip download: {}'.format(url))
+        else:
+            print('Download file: {}'.format(url))
 
-        if not os.path.isfile(self._download_path):
             req = requests.get(url, stream=True)
             req.raw.decode_content = True
             with open(self._download_path, 'wb+') as save_file:
                 shutil.copyfileobj(req.raw, save_file)
 
-        print('\nDownloaded: ' + self.get_package_name())
-
         return True
 
-    def unpack_package(self):
+    def unpack_package(self, skip_download=False):
         if self._file_name.endswith('.zip'):
             extension = '.zip'
-            extractor = zipfile.ZipFile(self._download_path, 'r')
+            if not skip_download:
+                extractor = zipfile.ZipFile(self._download_path, 'r')
         elif self._file_name.endswith('.tar.gz'):
             extension = '.tar.gz'
-            extractor = tarfile.open(self._download_path, 'r:gz')
+            if not skip_download:
+                extractor = tarfile.open(self._download_path, 'r:gz')
         elif self._file_name.endswith('.tar.xz'):
-            tarpath = self._download_path[:-3]
-            if not os.path.isfile(self._download_path[:-3]):
-                command = ['unxz', self._download_path]
-                result = subprocess.call(command)
-                if result != 0:
-                    raise ValueError('Call to unxz failed')
-
-            extractor = tarfile.open(tarpath, 'r')
             extension = '.tar.xz'
+            if not skip_download:
+                tarpath = self._download_path[:-3]
+                if not os.path.isfile(self._download_path[:-3]):
+                    command = ['unxz', self._download_path]
+                    result = subprocess.call(command)
+                    if result != 0:
+                        raise ValueError('Call to unxz failed')
+
+                extractor = tarfile.open(tarpath, 'r')
         else:
             raise ValueError('Could not get extraction path for ' + self._file_name)
 
         if not hasattr(self, '_package_dir_name'):
            self._package_dir_name = self._file_name[:-(len(extension))]
-        if not os.path.isdir(self.get_unpacked_sources_dir()):
+        if skip_download:
+            pass
+        elif not os.path.isdir(self.get_unpacked_sources_dir()):
             print('Start unpacking: ' + self.get_package_name())
             try:
                 if self.unpack_in_common_dir():
