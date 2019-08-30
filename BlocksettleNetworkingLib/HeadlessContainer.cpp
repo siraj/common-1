@@ -14,6 +14,7 @@
 #include <QProcess>
 #include <QStandardPaths>
 #include <QTimer>
+#include <QWindow>
 
 #include <spdlog/spdlog.h>
 #include "signer.pb.h"
@@ -1628,6 +1629,7 @@ QStringList LocalSigner::args() const
 
    QStringList result;
    result << QLatin1String("--guimode") << QLatin1String("litegui");
+   result << QLatin1String("--terminal_pid") << QString::number(signerDialogWid_);
    switch (netType_) {
    case NetworkType::TestNet:
    case NetworkType::RegTest:
@@ -1654,6 +1656,16 @@ QStringList LocalSigner::args() const
       << QString::fromStdString(connection_->getOwnPubKey().toHexStr());
 
    return result;
+}
+
+void LocalSigner::setSignerDialogWid(const quintptr &signerDialogWid)
+{
+   signerDialogWid_ = signerDialogWid;
+}
+
+quintptr LocalSigner::signerDialogWid() const
+{
+   return signerDialogWid_;
 }
 
 bool LocalSigner::Start()

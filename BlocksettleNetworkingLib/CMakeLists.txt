@@ -130,4 +130,6 @@ TARGET_LINK_LIBRARIES(${BS_NETWORK_LIB_NAME}
    Qt5::Core
    Qt5::Network
    Qt5::Sql
+   Qt5::Widgets
+   Qt5::Gui
 )

@@ -477,11 +477,22 @@ std::shared_ptr<WalletSignerContainer> BSTerminalMainWindow::createLocalSigner()
    }
 
    const bool startLocalSignerProcess = true;
-   return std::make_shared<LocalSigner>(logMgr_->logger()
+   auto localSigner = std::make_shared<LocalSigner>(logMgr_->logger()
       , applicationSettings_->GetHomeDir(), netType
       , localSignerPort, connectionManager_
       , startLocalSignerProcess, "", ""
       , applicationSettings_->get<double>(ApplicationSettings::autoSignSpendLimit));
+
+//   QWindow *signerDialog = new QWindow(windowHandle());
+//   signerDialog->setModality(Qt::ApplicationModal);
+
+//   signerDialog->resize(500,500);
+//   WId wid = signerDialog->winId();
+//   signerDialog->hide();
+
+   //localSigner->setSignerDialogWid(wid);
+   localSigner->setSignerDialogWid(winId());
+   return localSigner;
 }
 
 bool BSTerminalMainWindow::InitSigningContainer()

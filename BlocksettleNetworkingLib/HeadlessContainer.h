@@ -26,6 +26,7 @@ namespace bs {
    }
 }
 
+class QWindow;
 class ConnectionManager;
 class DataConnection;
 class HeadlessListener;
@@ -231,6 +232,9 @@ public:
    bool Start() override;
    bool Stop() override;
 
+   quintptr signerDialogWid() const;
+   void setSignerDialogWid(const quintptr &signerDialogWid);
+
 protected:
    virtual QStringList args() const;
 
@@ -239,6 +243,7 @@ private:
    const bool     startProcess_;
    const double   asSpendLimit_;
    std::shared_ptr<QProcess>  headlessProcess_;
+   quintptr signerDialogWid_ = 0;
 };
 
 
