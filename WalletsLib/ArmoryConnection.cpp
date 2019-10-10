@@ -792,13 +792,13 @@ bool ArmoryConnection::getTXsByHash(const std::set<BinaryData> &hashes, const TX
       return false;
    }
 
-   const auto cbWrap = [this, cb](ReturnMessage<std::vector<Tx>> msg) {
+   const auto cbWrap = [cb, logger=logger_](ReturnMessage<std::vector<Tx>> msg) {
       try {
          const auto &txs = msg.get();
          cb(txs);
       }
       catch (const std::exception &e) {
-         logger_->error("[ArmoryConnection::getTXsByHash] failed to get: {}", e.what());
+         logger->error("[ArmoryConnection::getTXsByHash] failed to get: {}", e.what());
          cb({});
       }
    };
