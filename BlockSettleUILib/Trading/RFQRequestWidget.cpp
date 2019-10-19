@@ -237,6 +237,7 @@ void RFQRequestWidget::onRFQSubmit(const bs::network::RFQ& rfq)
    connect(dialog, &RFQDialog::sendUnsignedPayinToPB, this, &RFQRequestWidget::sendUnsignedPayinToPB);
    connect(dialog, &RFQDialog::sendSignedPayinToPB, this, &RFQRequestWidget::sendSignedPayinToPB);
    connect(dialog, &RFQDialog::sendSignedPayoutToPB, this, &RFQRequestWidget::sendSignedPayoutToPB);
+   connect(dialog, &RFQDialog::sendCanceledToPB, this, &RFQRequestWidget::sendCanceledToPB);
 
    connect(this, &RFQRequestWidget::unsignedPayinRequested, dialog, &RFQDialog::onUnsignedPayinRequested);
    connect(this, &RFQRequestWidget::signedPayoutRequested, dialog, &RFQDialog::onSignedPayoutRequested);

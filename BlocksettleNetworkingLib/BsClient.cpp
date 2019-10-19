@@ -61,7 +61,7 @@ void BsClient::sendPbMessage(std::string data)
    sendMessage(&request);
 }
 
-void BsClient::sendUnsignedPayin(const std::string& settlementId, const BinaryData& unsignedPayin, const BinaryData& unsignedTxId)
+void BsClient::onSendUnsignedPayin(const std::string& settlementId, const BinaryData& unsignedPayin, const BinaryData& unsignedTxId)
 {
    ProxyTerminalPb::Request request;
 
@@ -73,7 +73,7 @@ void BsClient::sendUnsignedPayin(const std::string& settlementId, const BinaryDa
    sendPbMessage(request.SerializeAsString());
 }
 
-void BsClient::sendSignedPayin(const std::string& settlementId, const BinaryData& signedPayin)
+void BsClient::onSendSignedPayin(const std::string& settlementId, const BinaryData& signedPayin)
 {
    ProxyTerminalPb::Request request;
 
@@ -84,7 +84,7 @@ void BsClient::sendSignedPayin(const std::string& settlementId, const BinaryData
    sendPbMessage(request.SerializeAsString());
 }
 
-void BsClient::sendSignedPayout(const std::string& settlementId, const BinaryData& signedPayout)
+void BsClient::onSendSignedPayout(const std::string& settlementId, const BinaryData& signedPayout)
 {
    ProxyTerminalPb::Request request;
 
@@ -92,6 +92,14 @@ void BsClient::sendSignedPayout(const std::string& settlementId, const BinaryDat
    data->set_settlement_id(settlementId);
    data->set_signed_payout(signedPayout.toBinStr());
 
+   sendPbMessage(request.SerializeAsString());
+}
+
+void BsClient::onSendCancelSettlement(const std::string& settlementId)
+{
+   ProxyTerminalPb::Request request;
+   auto d = request.mutable_cancel();
+   d->set_settlement_id(settlementId);
    sendPbMessage(request.SerializeAsString());
 }
 

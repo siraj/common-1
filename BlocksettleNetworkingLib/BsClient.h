@@ -121,9 +121,10 @@ public:
    static std::string requestDescCcAddr(const bs::Address &address, const std::string &token);
 
 public slots:
-   void sendUnsignedPayin(const std::string& settlementId, const BinaryData& unsignedPayin, const BinaryData& unsignedTxId);
-   void sendSignedPayin(const std::string& settlementId, const BinaryData& signedPayin);
-   void sendSignedPayout(const std::string& settlementId, const BinaryData& signedPayout);
+   void onSendUnsignedPayin(const std::string& settlementId, const BinaryData& unsignedPayin, const BinaryData& unsignedTxId);
+   void onSendSignedPayin(const std::string& settlementId, const BinaryData& signedPayin);
+   void onSendSignedPayout(const std::string& settlementId, const BinaryData& signedPayout);
+   void onSendCancelSettlement(const std::string& settlementId);
 
 signals:
    void startLoginDone(AutheIDClient::ErrorType status);

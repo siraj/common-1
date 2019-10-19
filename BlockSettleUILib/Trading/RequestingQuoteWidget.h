@@ -44,6 +44,7 @@ public slots:
 signals:
    void cancelRFQ();
    void requestTimedOut();
+   void cancelSettlement();
    void quoteAccepted(const QString &reqId, const bs::network::Quote& quote);
    void quoteFinished();
    void quoteFailed();

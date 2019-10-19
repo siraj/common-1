@@ -47,6 +47,7 @@ RFQDialog::RFQDialog(const std::shared_ptr<spdlog::logger> &logger
    ui_->pageRequestingQuote->SetCelerClient(celerClient_);
 
    connect(ui_->pageRequestingQuote, &RequestingQuoteWidget::cancelRFQ, this, &RFQDialog::reject);
+   connect(ui_->pageRequestingQuote, &RequestingQuoteWidget::cancelSettlement, this, &RFQDialog::reject);
    connect(ui_->pageRequestingQuote, &RequestingQuoteWidget::requestTimedOut, this, &RFQDialog::close);
    connect(ui_->pageRequestingQuote, &RequestingQuoteWidget::quoteAccepted, this, &RFQDialog::onRFQResponseAccepted, Qt::QueuedConnection);
    connect(ui_->pageRequestingQuote, &RequestingQuoteWidget::quoteFinished, this, &RFQDialog::close);
@@ -111,8 +112,6 @@ std::shared_ptr<bs::SettlementContainer> RFQDialog::newXBTcontainer()
 
    connect(xbtSettlContainer_.get(), &ReqXBTSettlementContainer::settlementAccepted
       , this, &RFQDialog::onSettlementAccepted);
-   connect(xbtSettlContainer_.get(), &ReqXBTSettlementContainer::settlementCancelled
-      , this, &QDialog::close);
    connect(xbtSettlContainer_.get(), &ReqXBTSettlementContainer::acceptQuote
       , this, &RFQDialog::onXBTQuoteAccept);
    connect(xbtSettlContainer_.get(), &ReqXBTSettlementContainer::error
@@ -124,6 +123,8 @@ std::shared_ptr<bs::SettlementContainer> RFQDialog::newXBTcontainer()
       , this, &RFQDialog::sendSignedPayinToPB);
    connect(xbtSettlContainer_.get(), &ReqXBTSettlementContainer::sendSignedPayoutToPB
       , this, &RFQDialog::sendSignedPayoutToPB);
+   connect(xbtSettlContainer_.get(), &ReqXBTSettlementContainer::settlementCancelled
+      , this, &RFQDialog::sendCanceledToPB);
 
 
    return xbtSettlContainer_;
@@ -242,6 +243,7 @@ void RFQDialog::onSignedPayoutRequested(const std::string& settlementId, const B
       return;
    }
 
+   hide();
    xbtSettlContainer_->onSignedPayoutRequested(settlementId, payinHash);
 }
 
@@ -251,5 +253,6 @@ void RFQDialog::onSignedPayinRequested(const std::string& settlementId, const Bi
       return;
    }
 
+   hide();
    xbtSettlContainer_->onSignedPayinRequested(settlementId, unsignedPayin);
 }

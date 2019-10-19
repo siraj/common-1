@@ -110,7 +110,10 @@ bool ReqXBTSettlementContainer::cancel()
    if (clientSells_) {
       utxoAdapter_->unreserve(id());
    }
-   emit settlementCancelled();
+   if (signContainer_) {
+      signContainer_->CancelSignTx(id());
+   }
+   emit settlementCancelled(settlementIdString_);
    return true;
 }
 

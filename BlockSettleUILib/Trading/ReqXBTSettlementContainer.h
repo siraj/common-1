@@ -69,7 +69,7 @@ public:
    void onSignedPayinRequested(const std::string& settlementId, const BinaryData& unsignedPayin);
 
 signals:
-   void settlementCancelled();
+   void settlementCancelled(std::string reqId);
    void settlementAccepted();
    void acceptQuote(std::string reqId, std::string hexPayoutTx);
    void retry();
