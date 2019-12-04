@@ -9,6 +9,7 @@
 
 */
 #include "ColoredCoinLogic.h"
+#include <QDebug>
 
 /***
 
@@ -1061,40 +1062,103 @@ ColoredCoinTracker::getSpendableOutpointsForAddress(
    const std::shared_ptr<ColoredCoinZCSnapshot>& zcPtr,
    const BinaryData& scrAddr, bool confirmedOnly) const
 {
+   auto t1 = std::chrono::high_resolution_clock::now();
+
    /*takes prefixed scrAddr*/
    std::vector<std::shared_ptr<CcOutpoint>> result;
    if (scrAddr.getSize() != 21 && scrAddr.getSize() != 33)
       throw ColoredCoinException("only takes prefixed addresses");
 
+   auto t2 = std::chrono::high_resolution_clock::now();
+
+   const auto a1 = bs::Address::fromHash(scrAddr);
+   auto t3 = std::chrono::high_resolution_clock::now();
+
+   const auto addr = a1.display();
+
+   auto t4 = std::chrono::high_resolution_clock::now();
+
    if (ssPtr != nullptr) {
       auto iter = ssPtr->scrAddrCcSet_.find(scrAddr.getRef());
       if (iter != ssPtr->scrAddrCcSet_.end()) {
+         //auto t11 = std::chrono::high_resolution_clock::now();
+
          auto revokeIter = ssPtr->revokedAddresses_.find(scrAddr);
+
+         //auto t12 = std::chrono::high_resolution_clock::now();
+
          if (revokeIter != ssPtr->revokedAddresses_.end()) {
+            //auto t122 = std::chrono::high_resolution_clock::now();
+
+//            std::cout << "ColoredCoinTracker:: 3 ret "
+//                      << std::chrono::duration_cast<std::chrono::microseconds>(t12-t11).count() << " mks "
+//                      << std::chrono::duration_cast<std::chrono::microseconds>(t122-t12).count() << " mks "
+//                      << std::endl;
             return {};
          }
 
+
          if (zcPtr != nullptr) {
+            //auto t111 = std::chrono::high_resolution_clock::now();
+
             for (auto& ccOp : iter->second) {
+               //auto t1111 = std::chrono::high_resolution_clock::now();
+
                //is this outpoint spent by a zc?
                auto zcSpentIter = zcPtr->spentOutputs_.find(ccOp->getTxHash()->getRef());
+               //auto t1112 = std::chrono::high_resolution_clock::now();
+
                if (zcSpentIter != zcPtr->spentOutputs_.end()) {
                   auto idIter = zcSpentIter->second.find(ccOp->index());
+
                   if (idIter != zcSpentIter->second.end()) {
+                     //auto t1112C = std::chrono::high_resolution_clock::now();
+
+//                     std::cout << "ColoredCoinTracker:: 4TTT "
+//                               << std::chrono::duration_cast<std::chrono::microseconds>(t1112-t1111).count() << " mks "
+//                               << std::chrono::duration_cast<std::chrono::microseconds>(t1112C-t1112).count() << " mks "
+//                               << std::endl;
                      continue;
                   }
                }
+               //auto t1113 = std::chrono::high_resolution_clock::now();
 
                result.push_back(ccOp);
+               //auto t1114 = std::chrono::high_resolution_clock::now();
+
+//               std::cout << "ColoredCoinTracker:: 4TTT "
+//                         << std::chrono::duration_cast<std::chrono::microseconds>(t1112-t1111).count() << " mks "
+//                         << std::chrono::duration_cast<std::chrono::microseconds>(t1113-t1112).count() << " mks "
+//                         << std::chrono::duration_cast<std::chrono::microseconds>(t1114-t1112).count() << " mks "
+//                         << std::endl;
             }
+            //auto t112 = std::chrono::high_resolution_clock::now();
+//            std::cout << "ColoredCoinTracker: 31TTT "
+//                      << std::chrono::duration_cast<std::chrono::microseconds>(t112-t111).count() << " mks "
+//                      << std::endl;
          }
          else {
+            //auto t121 = std::chrono::high_resolution_clock::now();
+
             for (auto& ccOp : iter->second) {
                result.push_back(ccOp);
             }
+            //auto t122 = std::chrono::high_resolution_clock::now();
+
+//            std::cout << "ColoredCoinTracker: 32TTT "
+//                      << std::chrono::duration_cast<std::chrono::microseconds>(t122-t121).count() << " mks "
+//                      << std::endl;
          }
+//         auto t13 = std::chrono::high_resolution_clock::now();
+
+//         std::cout << "ColoredCoinTracker: 2TTT "
+//                   << std::chrono::duration_cast<std::chrono::microseconds>(t12-t11).count() << " mks "
+//                   << std::chrono::duration_cast<std::chrono::microseconds>(t13-t12).count() << " mks "
+//                   << std::endl;
       }
    }
+
+   auto t5 = std::chrono::high_resolution_clock::now();
 
    if (zcPtr == nullptr || confirmedOnly) {
       return result;
@@ -1116,6 +1180,12 @@ ColoredCoinTracker::getSpendableOutpointsForAddress(
       }
    }
 
+   auto t6 = std::chrono::high_resolution_clock::now();
+//   std::cout << "ColoredCoinTracker::1TTT "
+//             << std::chrono::duration_cast<std::chrono::microseconds>(t2-t1).count() << " mks "
+//             << std::chrono::duration_cast<std::chrono::microseconds>(t3-t2).count() << " mks "
+//             << std::chrono::duration_cast<std::chrono::microseconds>(t4-t3).count() << " mks "
+//             << std::endl;
    return result;
 }
 

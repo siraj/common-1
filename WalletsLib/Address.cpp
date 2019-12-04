@@ -10,7 +10,7 @@
 */
 #include "Address.h"
 #include "BlockDataManagerConfig.h"
-#include <bech32.h>
+#include "bech32/ref/c/segwit_addr.h"
 
 bs::Address::Address(const BinaryDataRef& data) :
    BinaryData(data)
@@ -288,19 +288,30 @@ uint64_t bs::Address::getFeeForMaxVal(const std::vector<UTXO> &utxos, size_t txO
 
 std::string bs::Address::display() const
 {
+   //auto t1 = std::chrono::high_resolution_clock::now();
+
    const auto fullAddress = prefixed();
    std::string result;
+//   auto t2 = std::chrono::high_resolution_clock::now();
+
+//   auto t11 = std::chrono::high_resolution_clock::now();
+//   auto t12 = t11;
+//   auto t13 = t11;
+//   auto t14 = t11;
 
    switch (format_)
    {
    case Base58:
       try {
          result = BtcUtils::scrAddrToBase58(fullAddress).toBinStr();
+//         t12 = std::chrono::high_resolution_clock::now();
+
          break;
       }
       catch (const std::exception &) {
          return {};
       }
+
 
    case Hex:
       return fullAddress.toHexStr();
@@ -308,11 +319,14 @@ std::string bs::Address::display() const
    case Bech32:
       try {
          result = BtcUtils::scrAddrToSegWitAddress(unprefixed()).toBinStr();
+         //t13 = std::chrono::high_resolution_clock::now();
+
          break;
       }
       catch (const std::exception &) {
          return {};
       }
+
 
    case Binary:
    {
@@ -357,15 +371,21 @@ std::string bs::Address::display() const
          return fullAddress.toHexStr();
       }
       break;
+      //t14 = std::chrono::high_resolution_clock::now();
+
    }
 
    default:
       throw std::logic_error("unsupported address format");
    }
+   auto t3 = std::chrono::high_resolution_clock::now();
 
    if (*result.rbegin() == 0) {
       result.resize(result.size() - 1);
    }
+   //auto t4 = std::chrono::high_resolution_clock::now();
+
+
    return result;
 }
 

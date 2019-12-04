@@ -16,6 +16,8 @@
 
 #include <QtConcurrent/QtConcurrentRun>
 
+#include <QDateTime>
+
 #define LOG(logger, method, ...) \
 if ((logger)) { \
    logger->method(__VA_ARGS__); \
@@ -184,6 +186,8 @@ std::shared_ptr<bs::sync::Wallet> hd::Wallet::getLeaf(const std::string &id) con
 
 BTCNumericTypes::balance_type hd::Wallet::getTotalBalance() const
 {
+   qint64 t1 = QDateTime::currentMSecsSinceEpoch();
+
    BTCNumericTypes::balance_type result = 0;
    const auto grp = getGroup(getXBTGroupType());
    if (grp) {
@@ -191,6 +195,9 @@ BTCNumericTypes::balance_type hd::Wallet::getTotalBalance() const
          result += leaf->getTotalBalance();
       }
    }
+
+   qDebug() << "hd::Wallet::getTotalBalance" << QDateTime::currentMSecsSinceEpoch() - t1;
+
    return result;
 }
 

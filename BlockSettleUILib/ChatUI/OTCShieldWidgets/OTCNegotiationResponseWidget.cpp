@@ -19,6 +19,8 @@
 #include "ui_OTCNegotiationResponseWidget.h"
 
 #include <QComboBox>
+#include <QDateTime>
+#include <QDebug>
 #include <QPushButton>
 
 namespace {
@@ -135,12 +137,16 @@ void OTCNegotiationResponseWidget::setPeer(const bs::network::otc::Peer &peer)
 
 void OTCNegotiationResponseWidget::onSyncInterface()
 {
+   qint64 t1 = QDateTime::currentMSecsSinceEpoch();
+
    int index = UiUtils::fillHDWalletsComboBox(ui_->comboBoxXBTWallets, getWalletManager(), UiUtils::WoWallets::Enable);
    ui_->comboBoxXBTWallets->setCurrentIndex(index);
    onCurrentWalletChanged();
 
    UiUtils::fillAuthAddressesComboBox(ui_->authenticationAddressComboBox, getAuthManager());
    ui_->widgetButtons->setEnabled(ui_->authenticationAddressComboBox->isEnabled());
+   qDebug() << "OTCNegotiationResponseWidget::onSyncInterface" << QDateTime::currentMSecsSinceEpoch() - t1;
+
 }
 
 void OTCNegotiationResponseWidget::onUpdateBalances()

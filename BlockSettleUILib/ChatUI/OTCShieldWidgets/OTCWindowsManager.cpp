@@ -14,6 +14,8 @@
 #include "MarketDataProvider.h"
 #include "AssetManager.h"
 
+#include <QApplication>
+
 OTCWindowsManager::OTCWindowsManager(QObject* parent /*= nullptr*/)
 {
 }
@@ -28,26 +30,26 @@ void OTCWindowsManager::init(const std::shared_ptr<bs::sync::WalletsManager>& wa
 
    walletsMgr_ = walletsMgr;
 
-   connect(walletsMgr_.get(), &bs::sync::WalletsManager::CCLeafCreated, this, &OTCWindowsManager::syncInterfaceRequired);
-   connect(walletsMgr_.get(), &bs::sync::WalletsManager::AuthLeafCreated, this, &OTCWindowsManager::syncInterfaceRequired);
-   connect(walletsMgr_.get(), &bs::sync::WalletsManager::walletPromotedToPrimary, this, &OTCWindowsManager::syncInterfaceRequired);
-   connect(walletsMgr_.get(), &bs::sync::WalletsManager::walletChanged, this, &OTCWindowsManager::syncInterfaceRequired);
-   connect(walletsMgr_.get(), &bs::sync::WalletsManager::walletDeleted, this, &OTCWindowsManager::syncInterfaceRequired);
-   connect(walletsMgr_.get(), &bs::sync::WalletsManager::walletAdded, this, &OTCWindowsManager::syncInterfaceRequired);
-   connect(walletsMgr_.get(), &bs::sync::WalletsManager::walletsReady, this, &OTCWindowsManager::syncInterfaceRequired);
-   connect(walletsMgr_.get(), &bs::sync::WalletsManager::walletsSynchronized, this, &OTCWindowsManager::syncInterfaceRequired);
-   connect(walletsMgr_.get(), &bs::sync::WalletsManager::authWalletChanged, this, &OTCWindowsManager::syncInterfaceRequired);
+   connect(walletsMgr_.get(), &bs::sync::WalletsManager::CCLeafCreated, this, &OTCWindowsManager::onSyncInterfaceRequired);
+   connect(walletsMgr_.get(), &bs::sync::WalletsManager::AuthLeafCreated, this, &OTCWindowsManager::onSyncInterfaceRequired);
+   connect(walletsMgr_.get(), &bs::sync::WalletsManager::walletPromotedToPrimary, this, &OTCWindowsManager::onSyncInterfaceRequired);
+   connect(walletsMgr_.get(), &bs::sync::WalletsManager::walletChanged, this, &OTCWindowsManager::onSyncInterfaceRequired);
+   connect(walletsMgr_.get(), &bs::sync::WalletsManager::walletDeleted, this, &OTCWindowsManager::onSyncInterfaceRequired);
+   connect(walletsMgr_.get(), &bs::sync::WalletsManager::walletAdded, this, &OTCWindowsManager::onSyncInterfaceRequired);
+   connect(walletsMgr_.get(), &bs::sync::WalletsManager::walletsReady, this, &OTCWindowsManager::onSyncInterfaceRequired);
+   connect(walletsMgr_.get(), &bs::sync::WalletsManager::walletsSynchronized, this, &OTCWindowsManager::onSyncInterfaceRequired);
+   connect(walletsMgr_.get(), &bs::sync::WalletsManager::authWalletChanged, this, &OTCWindowsManager::onSyncInterfaceRequired);
 
    connect(walletsMgr_.get(), &bs::sync::WalletsManager::walletBalanceUpdated, this, &OTCWindowsManager::updateBalances);
 
    authManager_ = authManager;
 
-   connect(authManager_.get(), &AuthAddressManager::AddressListUpdated, this, &OTCWindowsManager::syncInterfaceRequired);
-   connect(authManager_.get(), &AuthAddressManager::AddrStateChanged, this, &OTCWindowsManager::syncInterfaceRequired);
-   connect(authManager_.get(), &AuthAddressManager::AuthWalletChanged, this, &OTCWindowsManager::syncInterfaceRequired);
-   connect(authManager_.get(), &AuthAddressManager::AuthWalletCreated, this, &OTCWindowsManager::syncInterfaceRequired);
-   connect(authManager_.get(), &AuthAddressManager::ConnectionComplete, this, &OTCWindowsManager::syncInterfaceRequired);
-   connect(authManager_.get(), &AuthAddressManager::VerifiedAddressListUpdated, this, &OTCWindowsManager::syncInterfaceRequired);
+   connect(authManager_.get(), &AuthAddressManager::AddressListUpdated, this, &OTCWindowsManager::onSyncInterfaceRequired);
+   connect(authManager_.get(), &AuthAddressManager::AddrStateChanged, this, &OTCWindowsManager::onSyncInterfaceRequired);
+   connect(authManager_.get(), &AuthAddressManager::AuthWalletChanged, this, &OTCWindowsManager::onSyncInterfaceRequired);
+   connect(authManager_.get(), &AuthAddressManager::AuthWalletCreated, this, &OTCWindowsManager::onSyncInterfaceRequired);
+   connect(authManager_.get(), &AuthAddressManager::ConnectionComplete, this, &OTCWindowsManager::onSyncInterfaceRequired);
+   connect(authManager_.get(), &AuthAddressManager::VerifiedAddressListUpdated, this, &OTCWindowsManager::onSyncInterfaceRequired);
 
    mdProvider_ = mdProvider;
 
@@ -83,3 +85,19 @@ std::shared_ptr<ArmoryConnection> OTCWindowsManager::getArmory() const
    return armory_;
 }
 
+void OTCWindowsManager::onSyncInterfaceRequired()
+{
+   // Aggregate multiple sync signals and emit just one
+//   if (syncInterfaceRequired_) {
+//      qDebug() << "OTCWindowsManager::onSyncInterfaceRequired SKIP";
+//      return;
+//   }
+
+//   syncInterfaceRequired_ = true;
+//   for (int i = 0; i < 10000; ++i) {
+//      QApplication::processEvents();
+//   }
+//   syncInterfaceRequired_ = false;
+
+   emit syncInterfaceRequired();
+}

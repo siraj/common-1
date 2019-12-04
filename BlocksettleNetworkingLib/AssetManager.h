@@ -96,6 +96,7 @@ protected:
 
 private:
   void sendUpdatesOnXBTPrice(const std::string& ccy);
+  void emitTotalChangedAggregated();
 
 protected:
    std::shared_ptr<spdlog::logger>        logger_;
@@ -114,6 +115,9 @@ protected:
    std::string assignedAccount_;
 
    std::unordered_map<std::string, QDateTime>  xbtPriceUpdateTimes_;
+
+private:
+   bool needToEmitTotalChanged_ = false;
 };
 
 #endif // __ASSET__MANAGER_H__

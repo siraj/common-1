@@ -881,6 +881,7 @@ void AuthAddressManager::createAuthWallet(const std::function<void()> &cb)
 
 void AuthAddressManager::onWalletCreated()
 {
+   qint64 t1 = QDateTime::currentMSecsSinceEpoch();
    emit ConnectionComplete();
 
    auto authLeaf = walletsManager_->getAuthWallet();
@@ -890,6 +891,8 @@ void AuthAddressManager::onWalletCreated()
    } else {
       logger_->error("[AuthAddressManager::onWalletCreated] we should be able to get auth wallet at this point");
    }
+   qDebug() << "AuthAddressManager::onWalletCreated" << QDateTime::currentMSecsSinceEpoch() - t1;
+
 }
 
 std::shared_ptr<bs::sync::hd::SettlementLeaf> AuthAddressManager::getSettlementLeaf(const bs::Address &addr) const

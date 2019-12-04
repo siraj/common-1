@@ -136,12 +136,16 @@ void OTCNegotiationRequestWidget::setPeer(const bs::network::otc::Peer &peer)
 
 void OTCNegotiationRequestWidget::onSyncInterface()
 {
+   qint64 t1 = QDateTime::currentMSecsSinceEpoch();
+
    int index = UiUtils::fillHDWalletsComboBox(ui_->comboBoxXBTWallets, getWalletManager(), UiUtils::WoWallets::Enable);
    ui_->comboBoxXBTWallets->setCurrentIndex(index);
    onCurrentWalletChanged();
 
    UiUtils::fillAuthAddressesComboBox(ui_->authenticationAddressComboBox, getAuthManager());
    ui_->widgetButtons->setEnabled(ui_->authenticationAddressComboBox->isEnabled());
+
+   qDebug() << "OTCNegotiationRequestWidget::onSyncInterface" << QDateTime::currentMSecsSinceEpoch() - t1;
 }
 
 void OTCNegotiationRequestWidget::onUpdateBalances()

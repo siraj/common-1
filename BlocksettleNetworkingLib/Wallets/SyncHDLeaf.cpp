@@ -21,6 +21,8 @@
 
 #include <QLocale>
 #include <QMutexLocker>
+#include <QDebug>
+#include <QDateTime>
 
 const uint32_t kExtConfCount = 6;
 const uint32_t kIntConfCount = 1;
@@ -42,8 +44,11 @@ hd::Leaf::~Leaf() = default;
 
 void hd::Leaf::synchronize(const std::function<void()> &cbDone)
 {
-   const auto &cbProcess = [this, cbDone](bs::sync::WalletData data)
+   qint64 t1 = QDateTime::currentMSecsSinceEpoch();
+   const auto &cbProcess = [this, cbDone, t1](bs::sync::WalletData data)
    {
+      qint64 t2 = QDateTime::currentMSecsSinceEpoch();
+
       reset();
 
       if (wct_) {
@@ -80,6 +85,8 @@ void hd::Leaf::synchronize(const std::function<void()> &cbDone)
 
       if (cbDone)
          cbDone();
+
+      qDebug() << "hd::Leaf::synchronize" << t2-t1 << QDateTime::currentMSecsSinceEpoch() - t2;
    };
 
    signContainer_->syncWallet(walletId(), cbProcess);
@@ -998,26 +1005,38 @@ bool hd::CCLeaf::isBalanceAvailable() const
 
 BTCNumericTypes::balance_type hd::CCLeaf::getSpendableBalance() const
 {
+   qint64 t1 = QDateTime::currentMSecsSinceEpoch();
+
    if (!tracker_ || !lotSize_) {
       return -1;
    }
-   return tracker_->getConfirmedCcValueForAddresses(collectAddresses()) / lotSize_;
+   auto v= tracker_->getConfirmedCcValueForAddresses(collectAddresses()) / lotSize_;
+   qDebug() << "hd::CCLeaf::getSpendableBalance" << QDateTime::currentMSecsSinceEpoch() - t1;
+   return v;
 }
 
 BTCNumericTypes::balance_type hd::CCLeaf::getUnconfirmedBalance() const
 {
+   qint64 t1 = QDateTime::currentMSecsSinceEpoch();
+
    if (!tracker_ || !lotSize_) {
       return -1;
    }
-   return tracker_->getUnconfirmedCcValueForAddresses(collectAddresses()) / lotSize_;
+   auto v = tracker_->getUnconfirmedCcValueForAddresses(collectAddresses()) / lotSize_;
+   qDebug() << "hd::CCLeaf::getUnconfirmedBalance" << QDateTime::currentMSecsSinceEpoch() - t1;
+   return v;
 }
 
 BTCNumericTypes::balance_type hd::CCLeaf::getTotalBalance() const
 {
+   qint64 t1 = QDateTime::currentMSecsSinceEpoch();
+
    if (!tracker_ || !lotSize_) {
       return -1;
    }
-   return (getUnconfirmedBalance() + getSpendableBalance());
+   auto b= (getUnconfirmedBalance() + getSpendableBalance());
+   qDebug() << "hd::CCLeaf::getTotalBalance" << QDateTime::currentMSecsSinceEpoch() - t1;
+   return b;
 }
 
 std::vector<uint64_t> hd::CCLeaf::getAddrBalance(const bs::Address &addr) const

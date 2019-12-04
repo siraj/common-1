@@ -16,6 +16,8 @@
 #include "UiUtils.h"
 #include "AssetManager.h"
 #include "Wallets/SyncWalletsManager.h"
+#include <QDebug>
+#include <QDateTime>
 
 CCWidget::CCWidget(QWidget* parent)
    : QWidget(parent)
@@ -42,6 +44,7 @@ void CCWidget::SetPortfolioModel(const std::shared_ptr<CCPortfolioModel>& model)
 
 void CCWidget::updateTotalAssets()
 {
+   qint64 t1 = QDateTime::currentMSecsSinceEpoch();
    auto assets = assetManager_->getTotalAssets();
    if (assets < 0) {
       ui_->labelTotalValue->setText(tr("<b>%1</b>").arg(tr("Loading...")));
@@ -49,6 +52,8 @@ void CCWidget::updateTotalAssets()
    else {
       ui_->labelTotalValue->setText(tr("<b>%1</b>").arg(UiUtils::displayAmount(assets)));
    }
+   qDebug() << "CCWidget::updateTotalAssets" << QDateTime::currentMSecsSinceEpoch() - t1 << sender();
+
 }
 
 void CCWidget::onRowsInserted(const QModelIndex &parent, int first, int last)

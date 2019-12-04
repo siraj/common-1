@@ -9,6 +9,7 @@
 
 */
 #include "SyncWallet.h"
+#include <QDateTime>
 #include <QLocale>
 #include <bech32/ref/c++/segwit_addr.h>
 #include <spdlog/spdlog.h>
@@ -17,6 +18,7 @@
 #include "CoinSelection.h"
 #include "WalletSignerContainer.h"
 #include "WalletUtils.h"
+#include <QDebug>
 
 using namespace bs::sync;
 
@@ -160,10 +162,15 @@ BTCNumericTypes::balance_type Wallet::getUnconfirmedBalance() const
 
 BTCNumericTypes::balance_type Wallet::getTotalBalance() const
 {
+   qint64 t1 = QDateTime::currentMSecsSinceEpoch();
+
    if (!isBalanceAvailable()) {
       return std::numeric_limits<double>::infinity();
    }
+   qDebug() << "Wallet::getTotalBalance" << QDateTime::currentMSecsSinceEpoch() - t1;
+
    return balanceData_->totalBalance;
+
 }
 
 std::vector<uint64_t> Wallet::getAddrBalance(const bs::Address &addr) const

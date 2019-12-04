@@ -23,6 +23,8 @@
 #include <QMutexLocker>
 
 #include <spdlog/spdlog.h>
+#include <QDebug>
+#include <QDateTime>
 
 using namespace bs::sync;
 using namespace bs::signer;
@@ -492,9 +494,12 @@ BTCNumericTypes::balance_type WalletsManager::getUnconfirmedBalance() const
 
 BTCNumericTypes::balance_type WalletsManager::getTotalBalance() const
 {
-   return getBalanceSum([](const WalletPtr &wallet) {
+   qint64 t1 = QDateTime::currentMSecsSinceEpoch();
+   auto a = getBalanceSum([](const WalletPtr &wallet) {
       return wallet->type() == core::wallet::Type::Bitcoin ? wallet->getTotalBalance() : 0;
    });
+   qDebug() << "WalletsManager::getTotalBalance" << QDateTime::currentMSecsSinceEpoch() - t1 << sender();
+   return a;
 }
 
 BTCNumericTypes::balance_type WalletsManager::getBalanceSum(
@@ -1091,6 +1096,8 @@ void WalletsManager::onWalletsListUpdated()
 
 void WalletsManager::onAuthLeafAdded(const std::string &walletId)
 {
+   qint64 t1 = QDateTime::currentMSecsSinceEpoch();
+
    if (walletId.empty()) {
       if (authAddressWallet_) {
          logger_->debug("[WalletsManager::onAuthLeafAdded] auth wallet {} unset", authAddressWallet_->walletId());
@@ -1129,7 +1136,9 @@ void WalletsManager::onAuthLeafAdded(const std::string &walletId)
       emit AuthLeafNotCreated();
       return;
    }
-   leaf->synchronize([this, leaf] {
+   leaf->synchronize([this, leaf, t1] {
+      qint64 t2 = QDateTime::currentMSecsSinceEpoch();
+
       logger_->debug("[WalletsManager::onAuthLeafAdded sync cb] Synchronized auth leaf has {} address[es]", leaf->getUsedAddressCount());
       addWallet(leaf, true);
       authAddressWallet_ = leaf;
@@ -1138,6 +1147,8 @@ void WalletsManager::onAuthLeafAdded(const std::string &walletId)
          emit authWalletChanged();
          emit walletChanged(walletId);
       });
+      qDebug() << "WalletsManager::onAuthLeafAdded" << t2-t1 << QDateTime::currentMSecsSinceEpoch() - t2;
+
    });
 }
 

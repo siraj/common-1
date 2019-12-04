@@ -9,6 +9,7 @@
 
 */
 #include <algorithm>
+#include <QApplication>
 #include <QMutexLocker>
 #include <spdlog/spdlog.h>
 #include "AssetManager.h"
@@ -23,7 +24,7 @@
 
 #include "com/celertech/piggybank/api/subledger/DownstreamSubLedgerProto.pb.h"
 
-
+#include <QDebug>
 AssetManager::AssetManager(const std::shared_ptr<spdlog::logger>& logger
       , const std::shared_ptr<bs::sync::WalletsManager>& walletsManager
       , const std::shared_ptr<MarketDataProvider>& mdProvider
@@ -33,9 +34,9 @@ AssetManager::AssetManager(const std::shared_ptr<spdlog::logger>& logger
  , mdProvider_(mdProvider)
  , celerClient_(celerClient)
 {
-   connect(this, &AssetManager::ccPriceChanged, [this] { emit totalChanged(); });
-   connect(this, &AssetManager::xbtPriceChanged, [this] { emit totalChanged(); });
-   connect(this, &AssetManager::balanceChanged, [this] { emit totalChanged(); });
+   connect(this, &AssetManager::ccPriceChanged, [this] { emitTotalChangedAggregated(); });
+   connect(this, &AssetManager::xbtPriceChanged, [this] { emitTotalChangedAggregated(); });
+   connect(this, &AssetManager::balanceChanged, [this] { emitTotalChangedAggregated(); });
 }
 
 void AssetManager::init()
@@ -55,10 +56,13 @@ void AssetManager::init()
 
 double AssetManager::getBalance(const std::string& currency, const std::shared_ptr<bs::sync::Wallet> &wallet) const
 {
+   qint64 t1 = QDateTime::currentMSecsSinceEpoch();
    if (currency == bs::network::XbtCurrency) {
       if (wallet == nullptr) {
+         qDebug() << "AssetManager::getBalance1" << QDateTime::currentMSecsSinceEpoch() - t1;
          return walletsManager_->getSpendableBalance();
       }
+      qDebug() << "AssetManager::getBalance2" << QDateTime::currentMSecsSinceEpoch() - t1;
       return wallet->getSpendableBalance();
    }
 
@@ -72,18 +76,23 @@ double AssetManager::getBalance(const std::string& currency, const std::shared_p
                , bs::hd::Path::keyToElem(currency) });
             const auto &wallet = group->getLeaf(ccLeafPath);
             if (wallet) {
-               return wallet->getTotalBalance();
+               auto b = wallet->getTotalBalance();
+               qDebug() << "AssetManager::getBalance6" << QDateTime::currentMSecsSinceEpoch() - t1;
+               return b;
             }
          }
       }
+      qDebug() << "AssetManager::getBalance3" << QDateTime::currentMSecsSinceEpoch() - t1;
       return 1.0 / itCC->second.nbSatoshis;
    }
 
    auto it = balances_.find(currency);
    if (it != balances_.end()) {
+      qDebug() << "AssetManager::getBalance4" << QDateTime::currentMSecsSinceEpoch() - t1;
       return it->second;
    }
 
+   qDebug() << "AssetManager::getBalance5" << QDateTime::currentMSecsSinceEpoch() - t1;
    return 0.0;
 }
 
@@ -205,7 +214,11 @@ void AssetManager::onCCSecurityReceived(bs::network::CCSecurityDef ccSD)
 
 void AssetManager::onMDUpdate(bs::network::Asset::Type at, const QString &security, bs::network::MDFields fields)
 {
+   qint64 t1 = QDateTime::currentMSecsSinceEpoch();
+
+
    if ((at == bs::network::Asset::Undefined) || security.isEmpty()) {
+      qDebug() << "AssetManager::onMDUpdate1" << QDateTime::currentMSecsSinceEpoch() - t1;
       return;
    }
    double lastPx = 0;
@@ -245,6 +258,10 @@ void AssetManager::onMDUpdate(bs::network::Asset::Type at, const QString &securi
       if (ccy == cp.DenomCurrency()) {
          productPrice = 1 / productPrice;
       }
+      if (qFuzzyCompare(prices_[ccy], productPrice)) {
+         //qDebug() << "AssetManager::onMDUpdate SKIP" << QDateTime::currentMSecsSinceEpoch() - t1;
+         return;
+      }
       prices_[ccy] = productPrice;
       if (at == bs::network::Asset::PrivateMarket) {
          emit ccPriceChanged(ccy);
@@ -252,26 +269,37 @@ void AssetManager::onMDUpdate(bs::network::Asset::Type at, const QString &securi
          sendUpdatesOnXBTPrice(ccy);
       }
    }
+   qDebug() << "AssetManager::onMDUpdate2" << QDateTime::currentMSecsSinceEpoch() - t1;
 }
 
 
 double AssetManager::getCashTotal()
 {
+   qint64 t1 = QDateTime::currentMSecsSinceEpoch();
    double total = 0;
 
    for (const auto &currency : currencies()) {
       total += getBalance(currency) * getPrice(currency);
    }
+   qDebug() << "AssetManager::getCashTotal" << QDateTime::currentMSecsSinceEpoch() - t1 << sender();
+
    return total;
 }
 
 double AssetManager::getCCTotal()
 {
+   qint64 t = QDateTime::currentMSecsSinceEpoch();
+
    double total = 0;
 
    for (const auto &ccSec : ccSecurities_) {
+      qint64 t1 = QDateTime::currentMSecsSinceEpoch();
+
       total += getBalance(ccSec.first) * getPrice(ccSec.first);
+      qDebug() << "AssetManager::getCCTotal for " << QString::fromStdString(ccSec.first) << QDateTime::currentMSecsSinceEpoch() - t1;
    }
+   qDebug() << "AssetManager::getCCTotal TOTAL" << QDateTime::currentMSecsSinceEpoch() - t;
+
    return total;
 }
 
@@ -389,4 +417,19 @@ void AssetManager::sendUpdatesOnXBTPrice(const std::string& ccy)
    if (emitUpdate) {
       emit xbtPriceChanged(ccy);
    }
+}
+
+void AssetManager::emitTotalChangedAggregated()
+{
+//   if (needToEmitTotalChanged_) {
+//      return;
+//   }
+
+//   needToEmitTotalChanged_ = true;
+//   for (int i = 0; i < 10000 ; i++) {
+//      QApplication::processEvents();
+//   }
+//   needToEmitTotalChanged_ = false;
+
+   emit totalChanged();
 }

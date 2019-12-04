@@ -1137,6 +1137,8 @@ void HeadlessContainer::ProcessSyncHDWallet(unsigned int id, const std::string &
 
 void HeadlessContainer::ProcessSyncWallet(unsigned int id, const std::string &data)
 {
+   qint64 t1 = QDateTime::currentMSecsSinceEpoch();
+
    headless::SyncWalletResponse response;
    if (!response.ParseFromString(data)) {
       logger_->error("[HeadlessContainer::ProcessSyncWallet] Failed to parse reply");
@@ -1153,6 +1155,10 @@ void HeadlessContainer::ProcessSyncWallet(unsigned int id, const std::string &da
 
    itCb->second(result);
    cbWalletMap_.erase(itCb);
+   qDebug() << "HeadlessContainer::ProcessSyncWallet" << QDateTime::currentMSecsSinceEpoch() - t1
+            << result.highestExtIndex << result.highestIntIndex
+            << result.addresses.size() << result.addrPool.size() << result.txComments.size();
+
 }
 
 static bs::sync::SyncState mapFrom(headless::SyncState state)

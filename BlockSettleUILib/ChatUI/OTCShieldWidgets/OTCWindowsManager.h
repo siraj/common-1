@@ -52,12 +52,18 @@ signals:
    void updateMDDataRequired(bs::network::Asset::Type, const QString &, const bs::network::MDFields&);
    void updateBalances();
 
+public slots:
+   void onSyncInterfaceRequired();
+
 protected:
    std::shared_ptr<bs::sync::WalletsManager> walletsMgr_;
    std::shared_ptr<AuthAddressManager> authManager_;
    std::shared_ptr<MarketDataProvider> mdProvider_;
    std::shared_ptr<AssetManager> assetManager_;
    std::shared_ptr<ArmoryConnection> armory_;
+
+private:
+   bool syncInterfaceRequired_ = false;
 };
 
 #endif // __OTCWINDOWSADAPTERBASE_H__
