@@ -9,7 +9,7 @@
 
 */
 #include <algorithm>
-#include <QApplication>
+#include <QCoreApplication>
 #include <QMutexLocker>
 #include <spdlog/spdlog.h>
 #include "AssetManager.h"
