@@ -17,7 +17,6 @@
 #include "SelectedTransactionInputs.h"
 #include "ScriptRecipient.h"
 #include "RecipientContainer.h"
-#include "UiUtils.h"
 #include "Wallets/SyncHDGroup.h"
 #include "Wallets/SyncWallet.h"
 #include "Wallets/SyncWalletsManager.h"
@@ -198,7 +197,7 @@ bool TransactionData::UpdateTransactionData()
       availableBalance += tx.getValue();
    }
 
-   summary_.availableBalance = UiUtils::amountToBtc(availableBalance);
+   summary_.availableBalance = availableBalance / BTCNumericTypes::BalanceDivider;
    summary_.isAutoSelected = selectedInputs_->UseAutoSel();
 
    bool maxAmount = true;
@@ -224,7 +223,7 @@ bool TransactionData::UpdateTransactionData()
    PaymentStruct payment = (!totalFee && !qFuzzyIsNull(feePerByte_))
       ? PaymentStruct(recipientsMap, 0, feePerByte_, 0)
       : PaymentStruct(recipientsMap, totalFee, 0, 0);
-   summary_.balanceToSpend = UiUtils::amountToBtc(payment.spendVal_);
+   summary_.balanceToSpend = payment.spendVal_ / BTCNumericTypes::BalanceDivider;
 
    if (payment.spendVal_ <= availableBalance) {
       if (maxAmount) {
@@ -240,7 +239,7 @@ bool TransactionData::UpdateTransactionData()
          summary_.feePerByte =
             std::round((float)summary_.totalFee / (float)summary_.txVirtSize);
          summary_.hasChange = false;
-         summary_.selectedBalance = UiUtils::amountToBtc(availableBalance);
+         summary_.selectedBalance = availableBalance / BTCNumericTypes::BalanceDivider;
       } else if (selectedInputs_->UseAutoSel()) {
          UtxoSelection selection;
          try {
@@ -264,7 +263,7 @@ bool TransactionData::UpdateTransactionData()
          summary_.totalFee = selection.fee_;
          summary_.feePerByte = selection.fee_byte_;
          summary_.hasChange = selection.hasChange_;
-         summary_.selectedBalance = UiUtils::amountToBtc(selection.value_);
+         summary_.selectedBalance = selection.value_ / BTCNumericTypes::BalanceDivider;
       } else {
          UtxoSelection selection = computeSizeAndFee(transactions, payment);
          summary_.txVirtSize = getVirtSize(selection);
@@ -277,7 +276,7 @@ bool TransactionData::UpdateTransactionData()
          summary_.totalFee = selection.fee_;
          summary_.feePerByte = selection.fee_byte_;
          summary_.hasChange = selection.hasChange_;
-         summary_.selectedBalance = UiUtils::amountToBtc(selection.value_);
+         summary_.selectedBalance = selection.value_ / BTCNumericTypes::BalanceDivider;
 
          /*         if (!selection.hasChange_) {  // sometimes selection calculation is too intelligent - prevent change address removal
                      summary_.totalFee = totalFee();
