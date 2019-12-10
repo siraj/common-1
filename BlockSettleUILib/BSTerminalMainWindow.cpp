@@ -1372,7 +1372,7 @@ void BSTerminalMainWindow::createAuthWallet(const std::function<void()> &cb)
                else {
                   BSMessageBox createAuthReq(BSMessageBox::question, tr("Authentication Wallet")
                      , tr("Create Authentication Wallet")
-                     , tr("You don't have a sub-wallet to hold Authentication Addresses."
+                     , tr("You don't have a sub-wallet in which to hold Authentication Addresses."
                         " Would you like to create one?"), this);
                   if (createAuthReq.exec() == QDialog::Accepted) {
                      authManager_->createAuthWallet(cb);
