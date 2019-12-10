@@ -170,6 +170,7 @@ void WalletsManager::syncWallets(const CbProgress &cb)
    };
 
    synchronized_ = false;
+   emit walletsSynchronizationStarted();
    if (!signContainer_) {
       logger_->error("[WalletsManager::{}] signer is not set - aborting"
          , __func__);
