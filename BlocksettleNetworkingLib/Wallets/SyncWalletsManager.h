@@ -166,6 +166,7 @@ namespace bs {
          void walletDeleted(const std::string &walletId);
          void walletAdded(const std::string &walletId);
          void walletsReady();
+         void walletsSynchronizationStarted();
          void walletsSynchronized();
          void walletBalanceUpdated(const std::string &walletId);
          void walletMetaChanged(const std::string &walletId);
