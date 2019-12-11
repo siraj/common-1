@@ -53,10 +53,10 @@ public:
 
    void     SaveSettings();
 
-   enum EnvConfiguration
+   enum class EnvConfiguration
    {
-      PROD,
-      UAT,
+      Production,
+      Test,
       Staging,
       Custom,
    };
