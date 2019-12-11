@@ -121,9 +121,9 @@ ApplicationSettings::ApplicationSettings(const QString &appName
       { customPubBridgePort,     SettingDef(QLatin1String("CustomPubBridgePort"), 9091) },
       { pubBridgePubKey,         SettingDef(QLatin1String("PubBridgePubKey"), QString()) },
    #ifdef PRODUCTION_BUILD
-      { envConfiguration,        SettingDef(QLatin1String("envConfiguration"), int(PROD)) },
+      { envConfiguration,        SettingDef(QLatin1String("envConfiguration"), static_cast<int>(EnvConfiguration::Production)) },
    #else
-      { envConfiguration,        SettingDef(QLatin1String("envConfiguration"), int(Staging)) },
+      { envConfiguration,        SettingDef(QLatin1String("envConfiguration"), static_cast<int>(EnvConfiguration::Staging)) },
    #endif
       { mdServerHost,            SettingDef(QString()) },
       { mdServerPort,            SettingDef(QString()) },
@@ -704,13 +704,13 @@ std::string ApplicationSettings::pubBridgeHost() const
    auto env = EnvConfiguration(get<int>(ApplicationSettings::envConfiguration));
 
    switch (env) {
-      case PROD:
+   case EnvConfiguration::Production:
          return "185.213.153.36";
-      case UAT:
+   case EnvConfiguration::Test:
          return "185.213.153.44";
-      case Staging:
+   case EnvConfiguration::Staging:
          return "185.213.153.45";
-      case Custom:
+   case EnvConfiguration::Custom:
          return get<std::string>(ApplicationSettings::customPubBridgeHost);
    }
 
@@ -723,12 +723,12 @@ std::string ApplicationSettings::pubBridgePort() const
    auto env = EnvConfiguration(get<int>(ApplicationSettings::envConfiguration));
 
    switch (env) {
-      case PROD:
-      case UAT:
-      case Staging:
-         return "9091";
-      case Custom:
-         return get<std::string>(ApplicationSettings::customPubBridgePort);
+   case EnvConfiguration::Production:
+   case EnvConfiguration::Test:
+   case EnvConfiguration::Staging:
+      return "9091";
+   case EnvConfiguration::Custom:
+      return get<std::string>(ApplicationSettings::customPubBridgePort);
    }
 
    assert(false);
@@ -765,7 +765,7 @@ bool ApplicationSettings::isAutheidTestEnv() const
    auto conf = ApplicationSettings::EnvConfiguration(get<int>(ApplicationSettings::envConfiguration));
 
    switch (conf) {
-      case ApplicationSettings::EnvConfiguration::UAT:
+      case ApplicationSettings::EnvConfiguration::Test:
       case ApplicationSettings::EnvConfiguration::Staging:
       case ApplicationSettings::EnvConfiguration::Custom:
          return true;
@@ -778,9 +778,9 @@ bool ApplicationSettings::isAutheidTestEnv() const
 std::string ApplicationSettings::envName(ApplicationSettings::EnvConfiguration conf)
 {
    switch (conf) {
-      case ApplicationSettings::EnvConfiguration::PROD:
+      case ApplicationSettings::EnvConfiguration::Production:
          return "prod";
-      case ApplicationSettings::EnvConfiguration::UAT:
+      case ApplicationSettings::EnvConfiguration::Test:
          return "uat";
       case ApplicationSettings::EnvConfiguration::Staging:
          return "staging";
