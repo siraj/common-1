@@ -42,8 +42,13 @@ hd::Leaf::~Leaf() = default;
 
 void hd::Leaf::synchronize(const std::function<void()> &cbDone)
 {
-   const auto &cbProcess = [this, cbDone](bs::sync::WalletData data)
+   const auto &cbProcess = [this, cbDone, handle = validityFlag_.handle()]
+      (bs::sync::WalletData data) mutable
    {
+      ValidityGuard lock(handle);
+      if (!handle.isValid()) {
+         return;
+      }
       reset();
 
       if (wct_) {
