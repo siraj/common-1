@@ -15,6 +15,7 @@
 #include "BinaryData.h"
 #include "CheckRecipSigner.h"
 #include "PublicResolver.h"
+#include "SettableField.h"
 
 const char *bs::toString(const bs::PayoutSignatureType t)
 {
@@ -150,7 +151,8 @@ std::shared_ptr<bs::TradesVerification::Result> bs::TradesVerification::verifyUn
       uint64_t totalOutputAmount = 0;
       uint64_t settlementOutputsCount = 0;
       int totalOutputCount = 0;
-      bs::Address changeAddr;
+
+      SettableField<bs::Address> optionalChangeAddr;
 
       for (unsigned i=0; i<recipients.size(); i++) {
          auto& recipient = recipients[i];
@@ -168,7 +170,7 @@ std::shared_ptr<bs::TradesVerification::Result> bs::TradesVerification::verifyUn
             }
 
          } else {
-            changeAddr = addr;
+            optionalChangeAddr.setValue(addr);
          }
 
          totalOutputCount += 1;
@@ -208,12 +210,13 @@ std::shared_ptr<bs::TradesVerification::Result> bs::TradesVerification::verifyUn
       result->totalFee = totalInput - totalOutputAmount;
       result->estimatedFee = deserializedSigner.estimateFee(feePerByte, result->totalFee);
       result->totalOutputCount = totalOutputCount;
-      result->changeAddr = changeAddr.display();
+      if (optionalChangeAddr.isValid()) {
+         result->changeAddr = optionalChangeAddr.getValue().display();
+      }
 
       result->utxos.reserve(spenders.size());
 
       for (const auto& spender : spenders) {
-         const auto& utxo = spender->getUtxo();
          result->utxos.push_back(spender->getUtxo());
       }
 
