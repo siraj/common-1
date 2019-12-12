@@ -14,14 +14,28 @@
 
 
 FastLock::FastLock(std::atomic_flag &flag_to_lock)
-    : flag(flag_to_lock)
+    : flag_(flag_to_lock)
 {
-   while (std::atomic_flag_test_and_set_explicit(&flag, std::memory_order_acquire)) {
+   while (std::atomic_flag_test_and_set_explicit(&flag_, std::memory_order_acquire)) {
       std::this_thread::sleep_for(std::chrono::microseconds(1));
    }
 }
 
 FastLock::~FastLock()
 {
-   std::atomic_flag_clear_explicit(&flag, std::memory_order_release);
+   std::atomic_flag_clear_explicit(&flag_, std::memory_order_release);
+}
+
+
+FastTryLock::FastTryLock(std::atomic_flag &flag_to_lock)
+   : flag_(flag_to_lock)
+{
+   if (std::atomic_flag_test_and_set_explicit(&flag_, std::memory_order_acquire)) {
+      throw LockingFailed();
+   }
+}
+
+FastTryLock::~FastTryLock()
+{
+   std::atomic_flag_clear_explicit(&flag_, std::memory_order_release);
 }

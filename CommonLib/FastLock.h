@@ -24,8 +24,27 @@ public:
 
     FastLock(FastLock&&) = delete;
     FastLock& operator = (FastLock&&) = delete;
+
 private:
-     std::atomic_flag   &flag;
+     std::atomic_flag   &flag_;
+};
+
+class FastTryLock
+{
+public:
+   class LockingFailed {};
+
+   explicit FastTryLock(std::atomic_flag &);
+   ~FastTryLock();
+
+   FastTryLock(const FastTryLock&) = delete;
+   FastTryLock& operator = (FastTryLock) = delete;
+
+   FastTryLock(FastTryLock&&) = delete;
+   FastTryLock& operator = (FastTryLock&&) = delete;
+
+private:
+   std::atomic_flag   &flag_;
 };
 
 #endif // __FAST_LOCK_H__
