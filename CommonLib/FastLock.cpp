@@ -13,29 +13,23 @@
 #include "FastLock.h"
 
 
-FastLock::FastLock(std::atomic_flag &flag_to_lock)
+FastLock::FastLock(std::atomic_flag &flag_to_lock, bool acquire)
     : flag_(flag_to_lock)
 {
-   while (std::atomic_flag_test_and_set_explicit(&flag_, std::memory_order_acquire)) {
-      std::this_thread::sleep_for(std::chrono::microseconds(1));
+   if (acquire) {
+      while (std::atomic_flag_test_and_set_explicit(&flag_, std::memory_order_acquire)) {
+         std::this_thread::sleep_for(std::chrono::microseconds(1));
+      }
+      owns_ = true;
+   }
+   else {
+      if (!std::atomic_flag_test_and_set_explicit(&flag_, std::memory_order_acquire)) {
+         owns_ = true;
+      }
    }
 }
 
 FastLock::~FastLock()
-{
-   std::atomic_flag_clear_explicit(&flag_, std::memory_order_release);
-}
-
-
-FastTryLock::FastTryLock(std::atomic_flag &flag_to_lock)
-   : flag_(flag_to_lock)
-{
-   if (std::atomic_flag_test_and_set_explicit(&flag_, std::memory_order_acquire)) {
-      throw LockingFailed();
-   }
-}
-
-FastTryLock::~FastTryLock()
 {
    std::atomic_flag_clear_explicit(&flag_, std::memory_order_release);
 }
