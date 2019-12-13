@@ -31,5 +31,7 @@ FastLock::FastLock(std::atomic_flag &flag_to_lock, bool acquire)
 
 FastLock::~FastLock()
 {
-   std::atomic_flag_clear_explicit(&flag_, std::memory_order_release);
+   if (owns_) {
+      std::atomic_flag_clear_explicit(&flag_, std::memory_order_release);
+   }
 }
