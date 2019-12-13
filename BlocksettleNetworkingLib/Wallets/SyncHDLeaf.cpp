@@ -517,9 +517,14 @@ void hd::Leaf::topUpAddressPool(bool extInt, const std::function<void()> &cb)
       throw std::runtime_error("uninitialized sign container");
    }
 
-   auto fillUpAddressPoolCallback = [this, extInt, cb](
-      const std::vector<std::pair<bs::Address, std::string>>& addrVec)
+   auto fillUpAddressPoolCallback = [this, extInt, cb, handle = validityFlag_.handle()](
+      const std::vector<std::pair<bs::Address, std::string>>& addrVec) mutable
    {
+      ValidityGuard lock(handle);
+      if (!handle.isValid()) {
+         return;
+      }
+
       /***
       This lambda adds the newly generated addresses to the address pool.
 
