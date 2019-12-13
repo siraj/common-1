@@ -27,6 +27,9 @@ Wallet::Wallet(WalletSignerContainer *container, const std::shared_ptr<spdlog::l
 
 Wallet::~Wallet()
 {
+   // Make sure validityFlag_ is marked as destroyed before other members
+   validityFlag_.reset();
+
    {
       std::unique_lock<std::mutex> lock(balThrMutex_);
       balThreadRunning_ = false;
@@ -528,6 +531,11 @@ void Wallet::onZeroConfReceived(const std::vector<bs::TXEntry> &entries)
    const auto &cbTX = [this, balanceData = balanceData_, handle = validityFlag_.handle(), armory=armory_]
       (const Tx &tx) mutable
    {
+      ValidityGuard lock(handle);
+      if (!handle.isValid()) {
+         return;
+      }
+
       for (size_t i = 0; i < tx.getNumTxOut(); ++i) {
          const auto txOut = tx.getTxOutCopy(i);
          const auto addr = bs::Address::fromTxOut(txOut);
