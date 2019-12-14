@@ -203,7 +203,7 @@ namespace bs {
          public:
             XBTLeaf(const std::string &walletId, const std::string &name, const std::string &desc
                , WalletSignerContainer *, const std::shared_ptr<spdlog::logger> &, bool extOnlyAddresses);
-            ~XBTLeaf() override = default;
+            ~XBTLeaf() override;
          };
 
 
@@ -212,6 +212,7 @@ namespace bs {
          public:
             AuthLeaf(const std::string &walletId, const std::string &name, const std::string &desc
                , WalletSignerContainer *, const std::shared_ptr<spdlog::logger> &);
+            ~AuthLeaf() override;
          };
 
 
@@ -220,6 +221,7 @@ namespace bs {
          public:
             CCLeaf(const std::string &walletId, const std::string &name, const std::string &desc
                , WalletSignerContainer *,const std::shared_ptr<spdlog::logger> &);
+            ~CCLeaf() override;
 
             bs::core::wallet::Type type() const override { return bs::core::wallet::Type::ColorCoin; }
             std::string shortName() const override { return suffix_; }
@@ -267,6 +269,7 @@ namespace bs {
          public:
             SettlementLeaf(const std::string &walletId, const std::string &name,
                const std::string &desc, WalletSignerContainer *, const std::shared_ptr<spdlog::logger> &);
+            ~SettlementLeaf() override;
 
             void getRootPubkey(const std::function<void(const SecureBinaryData &)> &) const;
             void setSettlementID(const SecureBinaryData &, const std::function<void(bool)> &);

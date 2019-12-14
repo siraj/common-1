@@ -38,7 +38,10 @@ hd::Leaf::Leaf(const std::string &walletId, const std::string &name, const std::
    , isExtOnly_(extOnlyAddresses)
 {}
 
-hd::Leaf::~Leaf() = default;
+hd::Leaf::~Leaf()
+{
+   validityFlag_.reset();
+}
 
 void hd::Leaf::synchronize(const std::function<void()> &cbDone)
 {
@@ -859,6 +862,11 @@ hd::XBTLeaf::XBTLeaf(const std::string &walletId, const std::string &name, const
 {
 }
 
+hd::XBTLeaf::~XBTLeaf()
+{
+   validityFlag_.reset();
+}
+
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -870,6 +878,11 @@ hd::AuthLeaf::AuthLeaf(const std::string &walletId, const std::string &name, con
    extAddressPoolSize_ = 5;
 }
 
+hd::AuthLeaf::~AuthLeaf()
+{
+   validityFlag_.reset();
+}
+
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -877,6 +890,11 @@ hd::CCLeaf::CCLeaf(const std::string &walletId, const std::string &name, const s
    , WalletSignerContainer *container, const std::shared_ptr<spdlog::logger> &logger)
    : hd::Leaf(walletId, name, desc, container, logger, bs::core::wallet::Type::ColorCoin, true)
 {}
+
+hd::CCLeaf::~CCLeaf()
+{
+   validityFlag_.reset();
+}
 
 void hd::CCLeaf::setCCDataResolver(const std::shared_ptr<CCDataResolver> &resolver)
 {
@@ -1079,6 +1097,11 @@ hd::SettlementLeaf::SettlementLeaf(const std::string &walletId, const std::strin
 {
    intAddressPoolSize_ = 0;
    extAddressPoolSize_ = 0;
+}
+
+hd::SettlementLeaf::~SettlementLeaf()
+{
+   validityFlag_.reset();
 }
 
 void hd::SettlementLeaf::createAddress(const CbAddress &cb, const AddrPoolKey &key)
