@@ -63,6 +63,8 @@ namespace bs {
    private:
       void UpdateSettlementStatus(PayinState, int confPayIn, PayoutState, int confPayOut);
 
+      void DumpSpentnessInfo(const std::map<BinaryData, std::map<unsigned int, std::pair<BinaryData, unsigned int>>> &map);
+
    private:
       std::shared_ptr<ArmoryConnection>   armoryPtr_;
       std::shared_ptr<spdlog::logger>     logger_;
