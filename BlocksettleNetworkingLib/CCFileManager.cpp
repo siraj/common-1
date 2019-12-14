@@ -63,35 +63,7 @@ CCFileManager::CCFileManager(const std::shared_ptr<spdlog::logger> &logger
       , BinaryData::CreateFromHex(appSettings_->get<std::string>(ApplicationSettings::bsPublicKey))
       , cbSecLoaded, cbLoadComplete);
 
-   connect(appSettings_.get(), &ApplicationSettings::settingChanged, this, &CCFileManager::onPubSettingsChanged
-      , Qt::QueuedConnection);
-
    ccFilePath_ = appSettings->ccFilePath();
-}
-
-void CCFileManager::onPubSettingsChanged(int setting, QVariant)
-{
-   switch (setting) {
-      case ApplicationSettings::customPubBridgeHost:
-      case ApplicationSettings::customPubBridgePort:
-      case ApplicationSettings::envConfiguration:
-         RemoveAndDisableFileSave();
-         break;
-      default:
-         break;
-   }
-}
-
-void CCFileManager::RemoveAndDisableFileSave()
-{
-   saveToFileDisabled_ = true;
-   if (QFile::exists(ccFilePath_)) {
-      logger_->debug("[CCFileManager::RemoveAndDisableFileSave] remove {} and disable save"
-         , ccFilePath_.toStdString());
-      QFile::remove(ccFilePath_);
-   } else {
-      logger_->debug("[CCFileManager::RemoveAndDisableFileSave] disabling saving on cc gen file");
-   }
 }
 
 bool CCFileManager::hasLocalFile() const
@@ -154,11 +126,6 @@ void CCFileManager::ProcessGenAddressesResponse(const std::string& response, con
    }
 
    resolver_->fillFrom(&genAddrResp);
-
-   if (saveToFileDisabled_) {
-      logger_->debug("[{}] save to file disabled", __func__);
-      return;
-   }
 
    resolver_->saveToFile(ccFilePath_.toStdString(), response, sig);
 }
