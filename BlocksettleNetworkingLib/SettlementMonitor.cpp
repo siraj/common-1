@@ -129,6 +129,19 @@ void bs::SettlementMonitor::onNewBlock(unsigned int, unsigned int)
    process();
 }
 
+void bs::SettlementMonitor::DumpSpentnessInfo(const std::map<BinaryData, std::map<unsigned int, std::pair<BinaryData, unsigned int>>> &map)
+{
+   logger_->debug("[SettlementMonitor::DumpSpentnessInfo] payin hash: {}. Size {}"
+                  , payinHash_.toHexStr(true), map.size());
+
+   for (const auto &it : map) {
+      logger_->debug("[SettlementMonitor::DumpSpentnessInfo]    {} - size {}", it.first.toHexStr(true), it.second.size());
+      for (const auto& item : it.second) {
+         logger_->debug("[SettlementMonitor::DumpSpentnessInfo]        {} - {}  {}", item.first, item.second.first.toHexStr(true), item.second.second);
+      }
+   }
+}
+
 void bs::SettlementMonitor::process()
 {
    if (!cb_) {
@@ -244,9 +257,13 @@ void bs::SettlementMonitor::process()
       }
       else if (payinHashMatches == 0) {
          payinStateLocal = PayinState::DoubleSpend;
+         logger_->debug("[SettlementMonitor::SettlementMonitor] double spent detected: {}", tradeData_->settlementId);
+         DumpSpentnessInfo(map);
       }
       else {
          payinStateLocal = PayinState::Suspicious;
+         logger_->debug("[SettlementMonitor::SettlementMonitor] suspicious spent detected: {}", tradeData_->settlementId);
+         DumpSpentnessInfo(map);
       }
       auto payinConfirmationsLocal = armoryPtr_->getConfirmationsNumber(maxHeight);
 
