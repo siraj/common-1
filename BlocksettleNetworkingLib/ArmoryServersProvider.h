@@ -40,6 +40,8 @@ public:
    int indexOf(const QString &name) const;
    int indexOf(const ArmoryServer &server) const;
    int indexOfIpPort(const std::string &srvIPPort) const;
+   int getIndexOfMainNetServer() const;
+   int getIndexOfTestNetServer() const;
 
    bool add(const ArmoryServer &server);
    bool replace(int index, const ArmoryServer &server);
@@ -53,6 +55,8 @@ public:
 
    ArmorySettings connectedArmorySettings() const;
    void setConnectedArmorySettings(const ArmorySettings &connectedArmorySettings);
+
+   
 
 signals:
    void dataChanged();
