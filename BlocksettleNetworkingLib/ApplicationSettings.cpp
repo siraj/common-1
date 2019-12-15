@@ -708,10 +708,12 @@ std::string ApplicationSettings::pubBridgeHost() const
          return "185.213.153.36";
    case EnvConfiguration::Test:
          return "185.213.153.44";
+#ifndef PRODUCTION_BUILD
    case EnvConfiguration::Staging:
          return "185.213.153.45";
    case EnvConfiguration::Custom:
          return get<std::string>(ApplicationSettings::customPubBridgeHost);
+#endif
    }
 
    assert(false);
@@ -725,10 +727,13 @@ std::string ApplicationSettings::pubBridgePort() const
    switch (env) {
    case EnvConfiguration::Production:
    case EnvConfiguration::Test:
+      return "9091";
+#ifndef PRODUCTION_BUILD
    case EnvConfiguration::Staging:
       return "9091";
    case EnvConfiguration::Custom:
       return get<std::string>(ApplicationSettings::customPubBridgePort);
+#endif
    }
 
    assert(false);
@@ -766,9 +771,12 @@ bool ApplicationSettings::isAutheidTestEnv() const
 
    switch (conf) {
       case ApplicationSettings::EnvConfiguration::Test:
+         return true;
+#ifndef PRODUCTION_BUILD
       case ApplicationSettings::EnvConfiguration::Staging:
       case ApplicationSettings::EnvConfiguration::Custom:
          return true;
+#endif
       default:
          return false;
    }
@@ -782,10 +790,12 @@ std::string ApplicationSettings::envName(ApplicationSettings::EnvConfiguration c
          return "prod";
       case ApplicationSettings::EnvConfiguration::Test:
          return "uat";
+#ifndef PRODUCTION_BUILD
       case ApplicationSettings::EnvConfiguration::Staging:
          return "staging";
       case ApplicationSettings::EnvConfiguration::Custom:
          return "custom";
+#endif
    }
 
    assert(false);
