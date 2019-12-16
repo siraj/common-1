@@ -57,8 +57,10 @@ public:
    {
       Production,
       Test,
+#ifndef PRODUCTION_BUILD
       Staging,
       Custom,
+#endif
    };
    Q_ENUM(EnvConfiguration)
 
