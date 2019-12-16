@@ -184,7 +184,7 @@ ApplicationSettings::ApplicationSettings(const QString &appName
       { armoryServers,                    SettingDef(QLatin1String("ArmoryServers")) },
       { defaultArmoryServersKeys,         SettingDef(QLatin1String("DefaultArmoryServersKeys"), QStringList()
          << QLatin1String("02b4abf18a3ea48550e77a7e017394d3f31df276123922cf9c73568d31eca59e93")       // mainnet Armory cluster key
-         << QLatin1String("02ed6116a7844cae8a1dc4d5fb27922594b79cc41df081d84d2f36983757904de5")) },   // testnet Armory cluster key
+         << QLatin1String("02219ecd0e6a6e560d53f9958678213bc51036496223405232fe54fb42dcea18b6")) },   // testnet Armory cluster key
       { twoWaySignerAuth,        SettingDef(QLatin1String("TwoWaySignerAuth"), true) },
       { proxyServerPubKey,       SettingDef(QLatin1String("ProxyServerPubKey"), QString()) },
       { LastAqDir,               SettingDef(QLatin1String("LastAqDir")) },
@@ -770,16 +770,16 @@ bool ApplicationSettings::isAutheidTestEnv() const
    auto conf = ApplicationSettings::EnvConfiguration(get<int>(ApplicationSettings::envConfiguration));
 
    switch (conf) {
+      case ApplicationSettings::EnvConfiguration::Production:
       case ApplicationSettings::EnvConfiguration::Test:
-         return true;
+         return false;
 #ifndef PRODUCTION_BUILD
       case ApplicationSettings::EnvConfiguration::Staging:
       case ApplicationSettings::EnvConfiguration::Custom:
          return true;
 #endif
-      default:
-         return false;
    }
+   return false;
 }
 
 // static
