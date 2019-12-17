@@ -112,6 +112,10 @@ public:
 
    void resetConnection(ServerConnection *connection);
 
+   // Used only to show prompt in terminal to create new wallets.
+   // Terminal should not prompt if there is encrypted wallets with unknown master password.
+   void setNoWallets(bool noWallets);
+
 protected:
    bool isAutoSignActive(const std::string &walletId) const;
 
@@ -192,6 +196,8 @@ private:
 
    bool CheckSpendLimit(uint64_t value, const std::string &walletId);
 
+   void sendUpdateStatuses(std::string clientId = {});
+
 private:
    std::shared_ptr<spdlog::logger>     logger_;
    ServerConnection                    *connection_{};
@@ -221,6 +227,9 @@ private:
    HeadlessContainerCallbacks *callbacks_{};
 
    std::map<std::pair<std::string, bs::Address>, std::vector<uint32_t>> settlLeafReqs_;
+
+   bool noWallets_{false};
+
 };
 
 #endif // __HEADLESS_CONTAINER_LISTENER_H__

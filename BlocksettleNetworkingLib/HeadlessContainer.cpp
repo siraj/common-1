@@ -974,6 +974,19 @@ void HeadlessContainer::ProcessAddrPreimageResponse(unsigned int id, const std::
    cbAddrPreimageMap_.erase(itCb);
 }
 
+void HeadlessContainer::ProcessUpdateStatus(const std::string &data)
+{
+   headless::UpdateStatus evt;
+   if (!evt.ParseFromString(data)) {
+      logger_->error("[HeadlessContainer::ProcessUpdateControlPasswordStatus] Failed to parse reply");
+      return;
+   }
+
+   if (evt.status() == headless::UpdateStatus_WalletsStatus_NoWallets) {
+      emit needNewWalletPrompt();
+   }
+}
+
 void HeadlessContainer::ProcessSettlWalletCreate(unsigned int id, const std::string &data)
 {
    headless::CreateSettlWalletResponse response;
@@ -1507,6 +1520,10 @@ void RemoteSigner::onPacketReceived(headless::RequestPacket packet)
 
    case headless::AddressPreimageType:
       ProcessAddrPreimageResponse(packet.id(), packet.data());
+      break;
+
+   case headless::UpdateStatusType:
+      ProcessUpdateStatus(packet.data());
       break;
 
    case headless::ChatNodeRequestType:
