@@ -111,7 +111,6 @@ public:
    void walletsListUpdated();
 
    void resetConnection(ServerConnection *connection);
-   void sendControlPasswordStatusUpdate(headless::ControlPasswordStatus status);
 
 protected:
    bool isAutoSignActive(const std::string &walletId) const;

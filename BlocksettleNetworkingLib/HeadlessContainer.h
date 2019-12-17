@@ -143,7 +143,6 @@ protected:
    void ProcessGetPayinAddr(unsigned int id, const std::string &data);
    void ProcessSettlGetRootPubkey(unsigned int id, const std::string &data);
    void ProcessAddrPreimageResponse(unsigned int id, const std::string &data);
-   void ProcessUpdateControlPasswordStatus(const std::string &data);
    void ProcessChatNodeResponse(unsigned int id, const std::string &data);
 
 protected:
