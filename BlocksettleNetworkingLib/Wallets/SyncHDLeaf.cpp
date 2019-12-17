@@ -601,6 +601,10 @@ void hd::Leaf::scan(const std::function<void(bs::sync::SyncState)> &cb)
       for (auto& addrPair : addrVec) {
          addrHashes.push_back(addrPair.first.prefixed());
       }
+      if (!scanWallet_) {
+         SPDLOG_LOGGER_ERROR(logger_, "scanWallet_ is not set");
+         return;
+      }
       scanRegId_ = scanWallet_->registerAddresses(addrHashes, false);
       cbScanMap_[scanRegId_] = cb;
    };
