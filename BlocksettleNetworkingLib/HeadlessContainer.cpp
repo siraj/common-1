@@ -1524,6 +1524,7 @@ void RemoteSigner::onPacketReceived(headless::RequestPacket packet)
 
    case headless::UpdateControlPasswordStatusType:
       ProcessUpdateControlPasswordStatus(packet.data());
+      break;
 
    case headless::ChatNodeRequestType:
       ProcessChatNodeResponse(packet.id(), packet.data());
