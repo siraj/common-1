@@ -27,6 +27,8 @@ Wallet::Wallet(WalletSignerContainer *container, const std::shared_ptr<spdlog::l
 
 Wallet::~Wallet()
 {
+   act_.reset();
+
    // Make sure validityFlag_ is marked as destroyed before other members
    validityFlag_.reset();
 
@@ -506,7 +508,17 @@ void Wallet::onZCInvalidated(const std::set<BinaryData> &ids)
             invalidatedBalance += addrBal / BTCNumericTypes::BalanceDivider;
 
             std::unique_lock<std::mutex> lock(balanceData_->addrMapsMtx);
-            auto &addrBalances = balanceData_->addressBalanceMap[addr.prefixed()];
+            auto it = balanceData_->addressBalanceMap.find(addr.prefixed());
+            if (it == balanceData_->addressBalanceMap.end()) {
+               return;
+            }
+
+            auto &addrBalances = it->second;
+            if (addrBalances.size() < 3) {
+               SPDLOG_LOGGER_ERROR(logger_, "invalid addr balances vector");
+               return;
+            }
+
             addrBalances[0] -= addrBal;
             addrBalances[1] -= addrBal;
          }
