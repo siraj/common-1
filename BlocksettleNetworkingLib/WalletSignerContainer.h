@@ -67,6 +67,7 @@ signals:
    // Notified from remote/local signer when wallets list is updated
    void walletsListUpdated();
    void walletsStorageDecrypted();
+   void needNewWalletPrompt();
 };
 
 #endif // __WALLET_SIGNER_CONTAINER_H__

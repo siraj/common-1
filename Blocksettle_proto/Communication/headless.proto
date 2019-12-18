@@ -27,8 +27,7 @@ enum RequestType
    SyncCommentType             = 19;
    SyncAddressesType           = 20;
    ExecCustomDialogRequestType = 21;
-   // Sent from headless signer when wallet added, removed or changed somehow (request body is empty)
-   WalletsListUpdatedType      = 22;
+   WalletsListUpdatedType      = 22; // Sent from headless signer when wallet added, removed or changed somehow (request body is empty)
    ExtendAddressChainType      = 23;
    SyncNewAddressType	       = 24;
    SignSettlementTxRequestType = 25;
@@ -41,7 +40,7 @@ enum RequestType
    UpdateDialogDataType        = 32; // update fields in password input dialogs in signer ui
    AddressPreimageType         = 33;
    ChatNodeRequestType         = 34;
-   UpdateControlPasswordStatusType   = 35; // send message to ui if control password wrong, accepted or requested new
+   UpdateStatusType            = 35; // sent to terminal with latest status update
 }
 
 message RequestPacket
@@ -68,13 +67,6 @@ enum NetworkType
 {
    MainNetType = 0;
    TestNetType = 1;
-}
-
-enum ControlPasswordStatus
-{
-   Accepted = 0;
-   Rejected = 1;
-   RequestedNew = 2;
 }
 
 message AuthenticationRequest
@@ -513,9 +505,17 @@ message UpdateDialogDataRequest
    Blocksettle.Communication.Internal.PasswordDialogData passwordDialogData    = 2;
 }
 
-message UpdateControlPasswordStatus
+message UpdateStatus
 {
-   ControlPasswordStatus controlPasswordStatus = 1;
+   enum WalletsStatus
+   {
+      Unknown = 0;
+
+      // Need to show create wallet prompt
+      NoWallets = 1;
+   }
+
+   WalletsStatus status = 1;
 }
 
 message ChatNodeRequest

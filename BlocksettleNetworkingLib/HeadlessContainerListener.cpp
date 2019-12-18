@@ -101,6 +101,7 @@ void HeadlessContainerListener::OnClientConnected(const std::string &clientId)
 
    queue_->dispatch([this, clientId] {
       connectedClients_.insert(clientId);
+      sendUpdateStatuses(clientId);
    });
 }
 
@@ -1686,6 +1687,18 @@ bool HeadlessContainerListener::CheckSpendLimit(uint64_t value, const std::strin
    return true;
 }
 
+void HeadlessContainerListener::sendUpdateStatuses(std::string clientId)
+{
+   headless::UpdateStatus evt;
+   evt.set_status(noWallets_ ? headless::UpdateStatus_WalletsStatus_NoWallets : headless::UpdateStatus_WalletsStatus_Unknown);
+
+   headless::RequestPacket packet;
+   packet.set_type(headless::UpdateStatusType);
+   packet.set_data(evt.SerializeAsString());
+
+   sendData(packet.SerializeAsString(), clientId);
+}
+
 void HeadlessContainerListener::onXbtSpent(int64_t value, bool autoSign)
 {
    if (autoSign) {
@@ -2135,16 +2148,12 @@ bool HeadlessContainerListener::onExecCustomDialog(const std::string &clientId, 
    return true;
 }
 
-void HeadlessContainerListener::sendControlPasswordStatusUpdate(headless::ControlPasswordStatus status)
+void HeadlessContainerListener::setNoWallets(bool noWallets)
 {
-   headless::UpdateControlPasswordStatus evt;
-   evt.set_controlpasswordstatus(status);
-
-   headless::RequestPacket packet;
-   packet.set_type(headless::UpdateControlPasswordStatusType);
-   packet.set_data(evt.SerializeAsString());
-
-   sendData(packet.SerializeAsString());
+   if (noWallets_ != noWallets) {
+      noWallets_ = noWallets;
+      sendUpdateStatuses();
+   }
 }
 
 bool PasswordRequest::operator <(const PasswordRequest &other) const
