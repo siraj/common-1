@@ -111,6 +111,7 @@ namespace bs {
          bool deleteWallet(HDWalletPtr);
 
          void setUserId(const BinaryData &userId);
+         const BinaryData &userId() const { return userId_; }
          std::shared_ptr<CCDataResolver> ccResolver() const { return ccResolver_; }
 
          bool isArmoryReady() const;

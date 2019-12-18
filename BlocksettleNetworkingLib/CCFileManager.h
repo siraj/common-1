@@ -105,6 +105,8 @@ signals:
    void Loaded();
    void LoadingFailed();
 
+   void ccDefinitionsLoaded();
+
 protected:
    void ProcessGenAddressesResponse(const std::string& response, const std::string &sig) override;
    void ProcessSubmitAddrResponse(const std::string& response) override;

@@ -128,6 +128,8 @@ void CCFileManager::ProcessGenAddressesResponse(const std::string& response, con
    resolver_->fillFrom(&genAddrResp);
 
    resolver_->saveToFile(ccFilePath_.toStdString(), response, sig);
+
+   emit ccDefinitionsLoaded();
 }
 
 bool CCFileManager::SubmitAddressToPuB(const bs::Address &address, uint32_t seed, const std::string &srcToken)
