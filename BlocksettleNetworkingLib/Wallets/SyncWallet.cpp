@@ -508,11 +508,15 @@ void Wallet::onZCInvalidated(const std::set<BinaryData> &ids)
             invalidatedBalance += addrBal / BTCNumericTypes::BalanceDivider;
 
             std::unique_lock<std::mutex> lock(balanceData_->addrMapsMtx);
-            auto &addrBalances = balanceData_->addressBalanceMap[addr.prefixed()];
+            auto it = balanceData_->addressBalanceMap.find(addr.prefixed());
+            if (it == balanceData_->addressBalanceMap.end()) {
+               return;
+            }
 
-            if (addrBalances.size() < 2) {
-               SPDLOG_LOGGER_CRITICAL(logger_, "invalid addr balances vector");
-               throw std::runtime_error("invalid addr balances vector");
+            auto &addrBalances = it->second;
+            if (addrBalances.size() < 3) {
+               SPDLOG_LOGGER_ERROR(logger_, "invalid addr balances vector");
+               return;
             }
 
             addrBalances[0] -= addrBal;
