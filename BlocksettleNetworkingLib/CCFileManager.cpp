@@ -115,6 +115,8 @@ void CCFileManager::ProcessGenAddressesResponse(const std::string& response, con
       return;
    }
 
+   emit definitionsLoadedFromPub();
+
    if (currentRev_ > 0 && genAddrResp.revision() == currentRev_) {
       logger_->debug("[CCFileManager::ProcessCCGenAddressesResponse] having the same revision already");
       return;
@@ -128,8 +130,6 @@ void CCFileManager::ProcessGenAddressesResponse(const std::string& response, con
    resolver_->fillFrom(&genAddrResp);
 
    resolver_->saveToFile(ccFilePath_.toStdString(), response, sig);
-
-   emit definitionsLoadedFromPub();
 }
 
 bool CCFileManager::SubmitAddressToPuB(const bs::Address &address, uint32_t seed, const std::string &srcToken)
