@@ -597,6 +597,10 @@ void hd::Leaf::scan(const std::function<void(bs::sync::SyncState)> &cb)
    const auto &cbExtAddrChain = [this, cb]
       (const std::vector<std::pair<bs::Address, std::string>>& addrVec)
    {
+      if (!scanWallet_) {
+         SPDLOG_LOGGER_ERROR(logger_, "scanWallet_ is not set");
+         return;
+      }
       std::vector<BinaryData> addrHashes;
       for (auto& addrPair : addrVec) {
          addrHashes.push_back(addrPair.first.prefixed());
