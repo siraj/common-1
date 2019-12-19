@@ -18,6 +18,8 @@
 #include <exception>
 #include <condition_variable>
 
+#include <spdlog/spdlog.h>
+
 #include "ClientClasses.h"
 #include "DbHeader.h"
 #include "EncryptionUtils.h"
@@ -30,6 +32,8 @@ namespace {
 
    const int kDefaultArmoryDBStartTimeoutMsec = 500;
 
+   const uint32_t kRequiredConfCountForCache = 6;
+
 } // namespace
 
 
@@ -37,9 +41,7 @@ ArmoryObject::ArmoryObject(const std::shared_ptr<spdlog::logger> &logger
    , const std::string &txCacheFN, bool cbInMainThread)
    : ArmoryConnection(logger)
    , cbInMainThread_(cbInMainThread)
-#ifdef USE_LOCAL_TX_CACHE
    , txCache_(txCacheFN)
-#endif
 {}
 
 bool ArmoryObject::startLocalArmoryProcess(const ArmorySettings &settings)
@@ -146,9 +148,8 @@ bool ArmoryObject::getWalletsLedgerDelegate(const LedgerDelegateCb &cb)
 }
 
 bool ArmoryObject::getTxByHash(const BinaryData &hash, const TxCb &cb)
-{      // don't use local cache to have actual height in TX
-#ifdef USE_LOCAL_TX_CACHE
-   const auto tx = txCache_.get(hash);
+{
+   const auto tx = getFromCache(hash);
    if (tx.isInitialized()) {
       if (needInvokeCb()) {
          QMetaObject::invokeMethod(this, [cb, tx] {
@@ -159,11 +160,8 @@ bool ArmoryObject::getTxByHash(const BinaryData &hash, const TxCb &cb)
       }
       return true;
    }
-#endif   //USE_LOCAL_TX_CACHE
    const auto &cbWrap = [this, cb, hash](Tx tx) {
-#ifdef USE_LOCAL_TX_CACHE
-      txCache_.put(hash, tx);
-#endif
+      putToCacheIfNeeded(tx);
       if (!cb) {
          return;
       }
@@ -180,10 +178,9 @@ bool ArmoryObject::getTxByHash(const BinaryData &hash, const TxCb &cb)
 bool ArmoryObject::getTXsByHash(const std::set<BinaryData> &hashes, const TXsCb &cb)
 {
    auto result = std::make_shared<std::vector<Tx>>();
-#ifdef USE_LOCAL_TX_CACHE  // TXs need to contain the actual height, caching by hash forbids this
    std::set<BinaryData> missedHashes;
    for (const auto &hash : hashes) {
-      const auto tx = txCache_.get(hash);
+      const auto tx = getFromCache(hash);
       if (tx.isInitialized()) {
          result->push_back(tx);
       }
@@ -194,14 +191,13 @@ bool ArmoryObject::getTXsByHash(const std::set<BinaryData> &hashes, const TXsCb 
    if (missedHashes.empty()) {
       if (needInvokeCb()) {
          QMetaObject::invokeMethod(this, [cb, result] {
-            cb(*result);
+            cb(*result, nullptr);
          });
       } else {
-         cb(*result);
+         cb(*result, nullptr);
       }
       return true;
    }
-#endif   //USE_LOCAL_TX_CACHE
    const auto &cbWrap = [this, cb, result]
       (const std::vector<Tx> &txs, std::exception_ptr exPtr)
    {
@@ -210,11 +206,7 @@ bool ArmoryObject::getTXsByHash(const std::set<BinaryData> &hashes, const TXsCb 
          return;
       }
       for (const auto &tx : txs) {
-#ifdef USE_LOCAL_TX_CACHE
-         if (tx.isInitialized()) {
-            txCache_.put(tx.getThisHash(), tx);
-         }
-#endif   // USE_LOCAL_TX_CACHE
+         putToCacheIfNeeded(tx);
          result->push_back(tx);
       }
       if (needInvokeCb()) {
@@ -224,7 +216,7 @@ bool ArmoryObject::getTXsByHash(const std::set<BinaryData> &hashes, const TXsCb 
          cb(*result, nullptr);
       }
    };
-   return ArmoryConnection::getTXsByHash(/*missedHashes*/hashes, cbWrap);
+   return ArmoryConnection::getTXsByHash(missedHashes, cbWrap);
 }
 
 bool ArmoryObject::getRawHeaderForTxHash(const BinaryData& inHash, const BinaryDataCb &callback)
@@ -292,4 +284,36 @@ bool ArmoryObject::getFeeSchedule(const FloatMapCb &cb)
       }
    };
    return ArmoryConnection::getFeeSchedule(cbWrap);
+}
+
+Tx ArmoryObject::getFromCache(const BinaryData &hash)
+{
+   return txCache_.get(hash);
+}
+
+void ArmoryObject::putToCacheIfNeeded(const Tx &tx)
+{
+   if (!tx.isInitialized() || tx.getTxHeight() == UINT32_MAX) {
+      return;
+   }
+   const auto topBlock = topBlock_.load();
+   if (topBlock == 0 || topBlock == UINT32_MAX) {
+      return;
+   }
+
+   if (tx.getTxHeight() > topBlock) {
+      // should not happen
+      SPDLOG_LOGGER_ERROR(logger_, "invalid tx height: {}, topBlock: {}", tx.getTxHeight(), topBlock);
+      return;
+   }
+   if (topBlock - tx.getTxHeight() < kRequiredConfCountForCache) {
+      return;
+   }
+
+   try {
+      auto hash = tx.getThisHash();
+      txCache_.put(hash, tx);
+   } catch (const std::exception &e) {
+      SPDLOG_LOGGER_ERROR(logger_, "caching tx failed: {}", e.what());
+   }
 }
