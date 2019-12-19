@@ -1651,13 +1651,6 @@ void WalletsManager::processCreatedCCLeaf(const std::string &ccName, bs::error::
 bool WalletsManager::PromoteHDWallet(const std::string& walletId
    , const std::function<void(bs::error::ErrorCode result)> &cb)
 {
-   const auto primaryWallet = getPrimaryWallet();
-   if (primaryWallet != nullptr) {
-      logger_->error("[WalletsManager::PromoteWallet] Primary wallet already exists {}"
-                     , primaryWallet->walletId());
-      return false;
-   }
-
    bs::sync::PasswordDialogData dialogData;
    dialogData.setValue(PasswordDialogData::Title, tr("Promote To Primary Wallet"));
    dialogData.setValue(PasswordDialogData::XBT, tr("Authentification Addresses"));
