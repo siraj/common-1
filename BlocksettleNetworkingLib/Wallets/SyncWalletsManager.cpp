@@ -1865,7 +1865,7 @@ bs::core::wallet::TXSignRequest WalletsManager::createPartialTXRequest(uint64_t 
    , float feePerByte
    , const std::vector<std::shared_ptr<ScriptRecipient>> &recipients
    , const bs::core::wallet::OutputSortOrder &outSortOrder
-   , const BinaryData prevPart, bool feeCalcUsePrevPart)
+   , const BinaryData prevPart, bool feeCalcUsePrevPart, bool userAllInputs)
 {
    if (inputs.empty()) {
       throw std::invalid_argument("No usable UTXOs");
@@ -1896,12 +1896,17 @@ bs::core::wallet::TXSignRequest WalletsManager::createPartialTXRequest(uint64_t 
          utxo.isInputSW_ = (scrAddr.getWitnessDataSize() != UINT32_MAX);
       }
 
-      const auto coinSelection = std::make_shared<CoinSelection>([utxos](uint64_t) { return utxos; }
-         , std::vector<AddressBookEntry>{}, spendableVal
-         , armory_ ? armory_->topBlock() : UINT32_MAX);
+      auto coinSelection = CoinSelection(nullptr, {}, spendableVal, armory_ ? armory_->topBlock() : UINT32_MAX);
 
       try {
-         const auto selection = coinSelection->getUtxoSelectionForRecipients(payment, utxos);
+         UtxoSelection selection;
+         if (!userAllInputs) {
+            selection = coinSelection.getUtxoSelectionForRecipients(payment, utxos);
+         } else {
+            selection = UtxoSelection(utxos);
+            selection.fee_byte_ = feePerByte;
+            selection.computeSizeAndFee(payment);
+         }
          fee = selection.fee_;
          utxos = selection.utxoVec_;
       } catch (const std::exception &e) {

@@ -151,7 +151,7 @@ namespace bs {
             , const std::vector<std::shared_ptr<ScriptRecipient>> &recipients = {}
             , const bs::core::wallet::OutputSortOrder &outSortOrder = { bs::core::wallet::OutputOrderType::PrevState
                , bs::core::wallet::OutputOrderType::Recipients, bs::core::wallet::OutputOrderType::Change }
-         , const BinaryData prevPart = {}, bool feeCalcUsePrevPart = true);
+         , const BinaryData prevPart = {}, bool feeCalcUsePrevPart = true, bool userAllInputs = false);
 
       signals:
          void CCLeafCreated(const std::string& ccName);
