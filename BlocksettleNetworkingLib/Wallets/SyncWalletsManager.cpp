@@ -1865,7 +1865,7 @@ bs::core::wallet::TXSignRequest WalletsManager::createPartialTXRequest(uint64_t 
    , float feePerByte
    , const std::vector<std::shared_ptr<ScriptRecipient>> &recipients
    , const bs::core::wallet::OutputSortOrder &outSortOrder
-   , const BinaryData prevPart, bool feeCalcUsePrevPart, bool userAllInputs)
+   , const BinaryData prevPart, bool feeCalcUsePrevPart, bool useAllInputs)
 {
    if (inputs.empty()) {
       throw std::invalid_argument("No usable UTXOs");
@@ -1900,12 +1900,12 @@ bs::core::wallet::TXSignRequest WalletsManager::createPartialTXRequest(uint64_t 
 
       try {
          UtxoSelection selection;
-         if (!userAllInputs) {
-            selection = coinSelection.getUtxoSelectionForRecipients(payment, utxos);
-         } else {
+         if (useAllInputs) {
             selection = UtxoSelection(utxos);
             selection.fee_byte_ = feePerByte;
             selection.computeSizeAndFee(payment);
+         } else {
+            selection = coinSelection.getUtxoSelectionForRecipients(payment, utxos);
          }
          fee = selection.fee_;
          utxos = selection.utxoVec_;
