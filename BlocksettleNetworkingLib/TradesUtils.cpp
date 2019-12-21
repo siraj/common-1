@@ -167,7 +167,7 @@ void bs::tradeutils::createPayin(bs::tradeutils::PayinArgs args, bs::tradeutils:
                return;
             }
 
-            auto inputsCb = [args, cb, settlAddr, feePerByte, xbtWallet](const std::vector<UTXO> &utxosOrig, bool useAll) {
+            auto inputsCb = [args, cb, settlAddr, feePerByte, xbtWallet](const std::vector<UTXO> &utxosOrig, bool useAllInputs) {
                auto utxos = bs::Address::decorateUTXOsCopy(utxosOrig);
 
                std::map<unsigned, std::shared_ptr<ScriptRecipient>> recipientsMap;
@@ -179,12 +179,12 @@ void bs::tradeutils::createPayin(bs::tradeutils::PayinArgs args, bs::tradeutils:
 
                try {
                   UtxoSelection selection;
-                  if (!useAll) {
-                     selection = coinSelection.getUtxoSelectionForRecipients(payment, utxos);
-                  } else {
+                  if (useAllInputs) {
                      selection = UtxoSelection(utxos);
                      selection.fee_byte_ = feePerByte;
                      selection.computeSizeAndFee(payment);
+                  } else {
+                     selection = coinSelection.getUtxoSelectionForRecipients(payment, utxos);
                   }
                   auto selectedInputs = selection.utxoVec_;
                   auto fee = selection.fee_;
