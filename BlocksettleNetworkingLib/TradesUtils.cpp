@@ -212,9 +212,18 @@ void bs::tradeutils::createPayin(bs::tradeutils::PayinArgs args, bs::tradeutils:
 
                         auto recipients = std::vector<std::shared_ptr<ScriptRecipient>>(1, recipient);
                         try {
-                           result.signRequest = xbtWallet->createTXRequest(selectedInputs, recipients, fee, false, changeAddr);
+                           std::vector<std::string> walletIds;
+                           for (const auto &wallet : args.inputXbtWallets) {
+                              walletIds.push_back(wallet->walletId());
+                           }
+
+                           result.signRequest = bs::sync::wallet::createTXRequest(walletIds, selectedInputs, recipients, changeAddr, fee, false);
                            result.preimageData = preimages;
                            result.payinHash = result.signRequest.txId(resolver);
+
+                           if (result.signRequest.change.value != 0) {
+                              xbtWallet->setAddressComment(changeAddr, bs::sync::wallet::Comment::toString(bs::sync::wallet::Comment::ChangeAddress));
+                           }
 
                         } catch (const std::exception &e) {
                            cb(PayinResult::error(fmt::format("creating paying request failed: {}", e.what())));
