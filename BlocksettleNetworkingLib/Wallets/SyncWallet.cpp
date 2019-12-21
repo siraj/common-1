@@ -502,6 +502,10 @@ void Wallet::onZCInvalidated(const std::set<BinaryData> &ids)
       BTCNumericTypes::balance_type invalidatedBalance = 0;
       for (size_t i = 0; i < itTx->second.getNumTxOut(); ++i) {
          const auto txOut = itTx->second.getTxOutCopy(i);
+         const auto txType = txOut.getScriptType();
+         if (txType == TXOUT_SCRIPT_OPRETURN || txType == TXOUT_SCRIPT_NONSTANDARD) {
+            continue;
+         }
          const auto addr = bs::Address::fromTxOut(txOut);
          if (containsAddress(addr)) {
             const auto addrBal = txOut.getValue();
@@ -550,6 +554,10 @@ void Wallet::onZeroConfReceived(const std::vector<bs::TXEntry> &entries)
 
       for (size_t i = 0; i < tx.getNumTxOut(); ++i) {
          const auto txOut = tx.getTxOutCopy(i);
+         const auto txType = txOut.getScriptType();
+         if (txType == TXOUT_SCRIPT_OPRETURN || txType == TXOUT_SCRIPT_NONSTANDARD) {
+            continue;
+         }
          const auto addr = bs::Address::fromTxOut(txOut);
          if (containsAddress(addr)) {
             zcEntries_[tx.getThisHash()] = tx;
