@@ -167,7 +167,7 @@ void bs::tradeutils::createPayin(bs::tradeutils::PayinArgs args, bs::tradeutils:
                return;
             }
 
-            auto inputsCb = [args, cb, settlAddr, feePerByte, xbtWallet](const std::vector<UTXO> &utxosOrig) {
+            auto inputsCb = [args, cb, settlAddr, feePerByte, xbtWallet](const std::vector<UTXO> &utxosOrig, bool useAllInputs) {
                auto utxos = bs::Address::decorateUTXOsCopy(utxosOrig);
 
                std::map<unsigned, std::shared_ptr<ScriptRecipient>> recipientsMap;
@@ -178,7 +178,14 @@ void bs::tradeutils::createPayin(bs::tradeutils::PayinArgs args, bs::tradeutils:
                auto coinSelection = CoinSelection(nullptr, {}, args.amount.GetValue(), args.armory->topBlock());
 
                try {
-                  auto selection = coinSelection.getUtxoSelectionForRecipients(payment, utxos);
+                  UtxoSelection selection;
+                  if (useAllInputs) {
+                     selection = UtxoSelection(utxos);
+                     selection.fee_byte_ = feePerByte;
+                     selection.computeSizeAndFee(payment);
+                  } else {
+                     selection = coinSelection.getUtxoSelectionForRecipients(payment, utxos);
+                  }
                   auto selectedInputs = selection.utxoVec_;
                   auto fee = selection.fee_;
 
@@ -186,7 +193,7 @@ void bs::tradeutils::createPayin(bs::tradeutils::PayinArgs args, bs::tradeutils:
                   {
                      std::vector<UTXO> p2shInputs;
 
-                     for ( const auto& input : selectedInputs) {
+                     for (const auto& input : selectedInputs) {
                         const auto scrType = BtcUtils::getTxOutScriptType(input.getScript());
 
                         if (scrType == TXOUT_SCRIPT_P2SH) {
@@ -248,11 +255,11 @@ void bs::tradeutils::createPayin(bs::tradeutils::PayinArgs args, bs::tradeutils:
                      // Ignore filter return value as it fails if there were no reservations before
                      args.utxoReservation->filter(args.utxoReservationWalletId, utxos);
                   }
-                  inputsCb(utxos);
+                  inputsCb(utxos, false);
                };
                getSpendableTxOutList(args.inputXbtWallets, inputsCbWrap);
             } else {
-               inputsCb(args.fixedInputs);
+               inputsCb(args.fixedInputs, true);
             }
          };
 
