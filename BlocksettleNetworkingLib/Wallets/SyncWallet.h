@@ -69,7 +69,7 @@ namespace bs {
          };
 
          // if there is change then changeAddr must be set
-         bs::core::wallet::TXSignRequest createTXRequest(std::vector<std::string> walletIds
+         bs::core::wallet::TXSignRequest createTXRequest(const std::vector<std::string> &walletIds
             , const std::vector<UTXO> &inputs
             , const std::vector<std::shared_ptr<ScriptRecipient>> &
             , const bs::Address &changeAddr = {}

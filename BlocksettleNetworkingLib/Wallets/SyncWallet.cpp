@@ -757,14 +757,14 @@ void Wallet::init(bool force)
    }
 }
 
-bs::core::wallet::TXSignRequest wallet::createTXRequest(std::vector<std::string> walletIds
+bs::core::wallet::TXSignRequest wallet::createTXRequest(const std::vector<std::string> &walletIds
    , const std::vector<UTXO> &inputs
    , const std::vector<std::shared_ptr<ScriptRecipient>> &recipients
    , const bs::Address &changeAddr
    , const uint64_t fee, bool isRBF)
 {
    bs::core::wallet::TXSignRequest request;
-   request.walletIds = std::move(walletIds);
+   request.walletIds = walletIds;
 
    uint64_t inputAmount = 0;
    uint64_t spendAmount = 0;
