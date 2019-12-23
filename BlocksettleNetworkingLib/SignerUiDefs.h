@@ -31,6 +31,7 @@ namespace bs {
          DeleteWallet,
          ManageWallet,
          ActivateAutoSign,
+         ManagePublicDataEncryption
       };
       Q_ENUM_NS(GeneralDialogType)
 
@@ -48,6 +49,8 @@ namespace bs {
             return QStringLiteral("manageEncryptionDialog");
          case GeneralDialogType::ActivateAutoSign:
             return QStringLiteral("activateAutoSignDialog");
+         case GeneralDialogType::ManagePublicDataEncryption:
+            return QStringLiteral("managePublicDataEncryption");
          }
 
          assert(false);
