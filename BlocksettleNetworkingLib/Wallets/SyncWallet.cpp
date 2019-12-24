@@ -140,10 +140,10 @@ bool Wallet::setTransactionComment(const BinaryData &txOrHash, const std::string
 
 bool Wallet::isBalanceAvailable() const
 {
-   return
-      (armory_ != nullptr) &&
-      (armory_->state() == ArmoryState::Ready) &&
-      isRegistered();
+   return (armory_ != nullptr)
+      && (armory_->state() == ArmoryState::Ready)
+      // Keep balances if registration is just updating
+      && (isRegistered() == Registered::Registered || isRegistered() == Registered::Updating);
 }
 
 BTCNumericTypes::balance_type Wallet::getSpendableBalance() const
@@ -687,7 +687,7 @@ void Wallet::onRefresh(const std::vector<BinaryData> &ids, bool online)
       if (id == regId_) {
          regId_.clear();
          logger_->debug("[bs::sync::Wallet::registerWallet] wallet {} registered", walletId());
-         isRegistered_ = true;
+         isRegistered_ = Registered::Registered;
          init();
 
          const auto &cbTrackAddrChain = [this, handle = validityFlag_.handle()]
