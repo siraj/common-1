@@ -235,7 +235,17 @@ namespace bs {
                , std::vector<ClientClasses::LedgerEntry>)>, bool onlyNew = false) const;
 
       public:
-         bool isRegistered(void) const { return isRegistered_; }
+         enum class Registered
+         {
+            // Wallet is not registered
+            Offline,
+            // Wallet was successfully registered
+            Registered,
+            // Wallet was successfully registered before but new registration has been started
+            Updating,
+         };
+
+         Registered isRegistered(void) const { return isRegistered_; }
 
       protected:
          std::string                walletName_;
@@ -275,7 +285,7 @@ namespace bs {
       protected:
          bool firstInit_ = false;
          bool skipPostOnline_ = false;
-         std::atomic_bool isRegistered_{false};
+         std::atomic<Registered> isRegistered_{Registered::Offline};
 
          struct BalanceData {
             std::atomic<BTCNumericTypes::balance_type>   spendableBalance{0};
