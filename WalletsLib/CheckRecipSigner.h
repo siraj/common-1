@@ -52,6 +52,10 @@ namespace bs {
          : Signer(), armory_(armory) {
          deserializeState(bd);
       }
+      CheckRecipSigner(Signer&& signer)
+         : Signer(std::move(signer))
+      {}
+      ~CheckRecipSigner() override = default;
 
       using cbFindRecip = std::function<void(uint64_t valOutput, uint64_t valReturn, uint64_t valInput)>;
       bool findRecipAddress(const Address &address, cbFindRecip cb) const;
@@ -71,6 +75,8 @@ namespace bs {
       static bs::Address getRecipientAddress(const std::shared_ptr<ScriptRecipient> &recip) {
          return bs::Address::fromScript(getRecipientOutputScript(recip));
       }
+
+      bool verifyPartial(void);
 
    private:
       static BinaryData getRecipientOutputScript(const std::shared_ptr<ScriptRecipient> &recip) {
