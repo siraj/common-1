@@ -334,8 +334,9 @@ bool CheckRecipSigner::verifyPartial(void)
 {
    for (auto& spender : spenders_)
    {
-      if (spender->resolved())
+      if (spender->resolved()) {
          return true;
+      }
    }
 
    return false;
