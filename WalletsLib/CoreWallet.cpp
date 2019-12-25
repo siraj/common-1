@@ -886,7 +886,7 @@ BinaryData Wallet::signPartialTXRequest(const wallet::TXSignRequest &request)
 BinaryData bs::core::SignMultiInputTX(const bs::core::wallet::TXMultiSignRequest &txMultiReq
    , const WalletMap &wallets, bool partial)
 {
-   Signer signer;
+   bs::CheckRecipSigner signer;
    if (!txMultiReq.prevState.isNull()) {
       signer.deserializeState(txMultiReq.prevState);
 
