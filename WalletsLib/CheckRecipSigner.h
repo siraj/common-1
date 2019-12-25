@@ -72,6 +72,8 @@ namespace bs {
          return bs::Address::fromScript(getRecipientOutputScript(recip));
       }
 
+      bool verifyPartial(void);
+
    private:
       static BinaryData getRecipientOutputScript(const std::shared_ptr<ScriptRecipient> &recip) {
          const auto &recipScr = recip->getSerializedScript();

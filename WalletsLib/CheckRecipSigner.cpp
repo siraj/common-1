@@ -330,6 +330,16 @@ bool CheckRecipSigner::GetInputAddressList(const std::shared_ptr<spdlog::logger>
    return true;
 }
 
+bool bs::CheckRecipSigner::verifyPartial(void)
+{
+   for (auto& spender : spenders_)
+   {
+      if (spender->resolved())
+         return true;
+   }
+
+   return false;
+}
 
 int TxChecker::receiverIndex(const bs::Address &addr) const
 {
