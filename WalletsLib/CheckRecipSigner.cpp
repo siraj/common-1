@@ -330,7 +330,7 @@ bool CheckRecipSigner::GetInputAddressList(const std::shared_ptr<spdlog::logger>
    return true;
 }
 
-bool bs::CheckRecipSigner::verifyPartial(void)
+bool CheckRecipSigner::verifyPartial(void)
 {
    for (auto& spender : spenders_)
    {
