@@ -874,9 +874,9 @@ BinaryData Wallet::signTXRequest(const wallet::TXSignRequest &request, bool keep
 BinaryData Wallet::signPartialTXRequest(const wallet::TXSignRequest &request)
 {
    auto lock = lockDecryptedContainer();
-   auto signer = getSigner(request);
+   bs::CheckRecipSigner signer{ getSigner(request) };
    signer.sign();
-   if (!static_cast<bs::CheckRecipSigner*>(&signer)->verifyPartial()) {
+   if (signer.verifyPartial()) {
       throw std::logic_error("signer failed to verify");
    }
    return signer.serializeState();
