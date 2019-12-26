@@ -94,6 +94,11 @@ bool CCFileManager::wasAddressSubmitted(const bs::Address &addr)
    return celerClient_->IsCCAddressSubmitted(addr.display());
 }
 
+void CCFileManager::cancelSubmitAddressToPub()
+{
+   bsClient_->cancelSign();
+}
+
 void CCFileManager::ProcessGenAddressesResponse(const std::string& response, const std::string &sig)
 {
    bool sigVerified = resolver_->verifySignature(response, sig);
