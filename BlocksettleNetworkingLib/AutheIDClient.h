@@ -30,6 +30,13 @@ namespace autheid {
 class QNetworkReply;
 class QNetworkAccessManager;
 
+enum class AuthEidEnv : int
+{
+   Prod,
+   Test,
+   Staging,
+};
+
 class AutheIDClient : public QObject
 {
    Q_OBJECT
@@ -116,12 +123,6 @@ public:
    };
    Q_ENUM(ErrorType)
 
-   enum class AuthEidEnv
-   {
-      Prod,
-      Test,
-   };
-
    struct SignVerifyStatus
    {
       bool valid{false};
@@ -161,7 +162,7 @@ public:
    // QNetworkAccessManager must live long enough to be able send cancel message
    // (if cancelling request in mobile app is needed)
    AutheIDClient(const std::shared_ptr<spdlog::logger> &, const std::shared_ptr<QNetworkAccessManager> &
-      , const AuthKeys &authKeys, bool autheidTestEnv, QObject *parent = nullptr);
+      , const AuthKeys &authKeys, AuthEidEnv authEidEnv, QObject *parent = nullptr);
    ~AutheIDClient() override;
 
    // If timestamp is set (unix time in seconds) then auth eid server will use correct timeout.
@@ -178,6 +179,7 @@ public:
    void requestResult();
 
    void setApiKey(const std::string &apiKey);
+
 signals:
    void createRequestDone();
    void succeeded(const std::string& encKey, const SecureBinaryData &password);
