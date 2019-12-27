@@ -10,11 +10,12 @@
 */
 #include "ApplicationSettings.h"
 
+#include "ArmoryConnection.h"
+#include "ArmoryServersProvider.h"
+#include "AutheIDClient.h"
 #include "BlockDataManagerConfig.h"
 #include "EncryptionUtils.h"
 #include "FastLock.h"
-#include "ArmoryConnection.h"
-#include "ArmoryServersProvider.h"
 
 #include <QCommandLineParser>
 #include <QRect>
@@ -765,21 +766,21 @@ void ApplicationSettings::selectNetwork()
    }
 }
 
-bool ApplicationSettings::isAutheidTestEnv() const
+AuthEidEnv ApplicationSettings::autheidEnv() const
 {
    auto conf = ApplicationSettings::EnvConfiguration(get<int>(ApplicationSettings::envConfiguration));
-
    switch (conf) {
       case ApplicationSettings::EnvConfiguration::Production:
+         return AuthEidEnv::Prod;
       case ApplicationSettings::EnvConfiguration::Test:
-         return false;
+         return AuthEidEnv::Test;
 #ifndef PRODUCTION_BUILD
       case ApplicationSettings::EnvConfiguration::Staging:
       case ApplicationSettings::EnvConfiguration::Custom:
-         return true;
+         return AuthEidEnv::Staging;
 #endif
    }
-   return false;
+   return AuthEidEnv::Prod;
 }
 
 // static

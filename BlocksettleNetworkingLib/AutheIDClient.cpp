@@ -43,10 +43,11 @@ namespace
    const auto ProtobufMimeType = "application/protobuf";
 
    const auto kServerAddrLive = "https://api.autheid.com/v1/requests";
-   const auto kAuthorizationKeyLive = "Bearer live_17ec2nlP5NzHWkEAQUwVpqhN63fiyDPWGc5Z3ZQ8npaf";
+   const auto kServerAddrStaging = "https://api.staging.autheid.com/v1/requests";
 
-   const auto kServerAddrTest = "https://api.staging.autheid.com/v1/requests";
-   const auto kAuthorizationKeyTest = "Bearer live_opnKv0PyeML0WvYm66ka2k29qPPoDjS3rzw13bRJzITY";
+   const auto kAuthorizationKeyProd = "Bearer live_17ec2nlP5NzHWkEAQUwVpqhN63fiyDPWGc5Z3ZQ8npaf";
+   const auto kAuthorizationKeyTest = "Bearer live_FnB0_5FpF5O_pZi0UyBry2dY4-ljyXgQ0iME9qEDQ6kK";
+   const auto kAuthorizationKeyStaging = "Bearer live_opnKv0PyeML0WvYm66ka2k29qPPoDjS3rzw13bRJzITY";
 
    const char AuthEidProdRootCert[] =
       "-----BEGIN CERTIFICATE-----"
@@ -250,7 +251,7 @@ AutheIDClient::SignVerifyStatus AutheIDClient::verifySignature(const SignResult 
 AutheIDClient::AutheIDClient(const std::shared_ptr<spdlog::logger> &logger
    , const std::shared_ptr<QNetworkAccessManager> &nam
    , const AuthKeys &authKeys
-   , bool autheidTestEnv
+   , AuthEidEnv authEidEnv
    , QObject *parent)
    : QObject(parent)
    , logger_(logger)
@@ -258,12 +259,19 @@ AutheIDClient::AutheIDClient(const std::shared_ptr<spdlog::logger> &logger
    , authKeys_(authKeys)
    , resultAuth_(false)
 {
-   if (autheidTestEnv) {
-      baseUrl_ = kServerAddrTest;
-      apiKey_ = kAuthorizationKeyTest;
-   } else {
-      baseUrl_ = kServerAddrLive;
-      apiKey_ = kAuthorizationKeyLive;
+   switch (authEidEnv) {
+      case AuthEidEnv::Prod:
+         baseUrl_ = kServerAddrLive;
+         apiKey_ = kAuthorizationKeyProd;
+         break;
+      case AuthEidEnv::Test:
+         baseUrl_ = kServerAddrLive;
+         apiKey_ = kAuthorizationKeyTest;
+         break;
+      case AuthEidEnv::Staging:
+         baseUrl_ = kServerAddrStaging;
+         apiKey_ = kAuthorizationKeyStaging;
+         break;
    }
 }
 
