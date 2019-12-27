@@ -96,7 +96,9 @@ bool CCFileManager::wasAddressSubmitted(const bs::Address &addr)
 
 void CCFileManager::cancelSubmitAddressToPub()
 {
-   bsClient_->cancelSign();
+   if (bsClient_) {
+      bsClient_->cancelSign();
+   }
 }
 
 void CCFileManager::ProcessGenAddressesResponse(const std::string& response, const std::string &sig)
