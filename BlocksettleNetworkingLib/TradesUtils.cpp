@@ -167,7 +167,7 @@ void bs::tradeutils::createPayin(bs::tradeutils::PayinArgs args, bs::tradeutils:
                return;
             }
 
-            auto inputsCb = [args, cb, settlAddr, feePerByte, xbtWallet](const std::vector<UTXO> &utxosOrig) {
+            auto inputsCb = [args, cb, settlAddr, feePerByte, xbtWallet](const std::vector<UTXO> &utxosOrig, bool useAllInputs) {
                auto utxos = bs::Address::decorateUTXOsCopy(utxosOrig);
 
                std::map<unsigned, std::shared_ptr<ScriptRecipient>> recipientsMap;
@@ -178,7 +178,14 @@ void bs::tradeutils::createPayin(bs::tradeutils::PayinArgs args, bs::tradeutils:
                auto coinSelection = CoinSelection(nullptr, {}, args.amount.GetValue(), args.armory->topBlock());
 
                try {
-                  auto selection = coinSelection.getUtxoSelectionForRecipients(payment, utxos);
+                  UtxoSelection selection;
+                  if (useAllInputs) {
+                     selection = UtxoSelection(utxos);
+                     selection.fee_byte_ = feePerByte;
+                     selection.computeSizeAndFee(payment);
+                  } else {
+                     selection = coinSelection.getUtxoSelectionForRecipients(payment, utxos);
+                  }
                   auto selectedInputs = selection.utxoVec_;
                   auto fee = selection.fee_;
 
@@ -186,7 +193,7 @@ void bs::tradeutils::createPayin(bs::tradeutils::PayinArgs args, bs::tradeutils:
                   {
                      std::vector<UTXO> p2shInputs;
 
-                     for ( const auto& input : selectedInputs) {
+                     for (const auto& input : selectedInputs) {
                         const auto scrType = BtcUtils::getTxOutScriptType(input.getScript());
 
                         if (scrType == TXOUT_SCRIPT_P2SH) {
@@ -205,9 +212,18 @@ void bs::tradeutils::createPayin(bs::tradeutils::PayinArgs args, bs::tradeutils:
 
                         auto recipients = std::vector<std::shared_ptr<ScriptRecipient>>(1, recipient);
                         try {
-                           result.signRequest = xbtWallet->createTXRequest(selectedInputs, recipients, fee, false, changeAddr);
+                           std::vector<std::string> walletIds;
+                           for (const auto &wallet : args.inputXbtWallets) {
+                              walletIds.push_back(wallet->walletId());
+                           }
+
+                           result.signRequest = bs::sync::wallet::createTXRequest(walletIds, selectedInputs, recipients, changeAddr, fee, false);
                            result.preimageData = preimages;
                            result.payinHash = result.signRequest.txId(resolver);
+
+                           if (result.signRequest.change.value != 0) {
+                              xbtWallet->setAddressComment(changeAddr, bs::sync::wallet::Comment::toString(bs::sync::wallet::Comment::ChangeAddress));
+                           }
 
                         } catch (const std::exception &e) {
                            cb(PayinResult::error(fmt::format("creating paying request failed: {}", e.what())));
@@ -248,11 +264,11 @@ void bs::tradeutils::createPayin(bs::tradeutils::PayinArgs args, bs::tradeutils:
                      // Ignore filter return value as it fails if there were no reservations before
                      args.utxoReservation->filter(args.utxoReservationWalletId, utxos);
                   }
-                  inputsCb(utxos);
+                  inputsCb(utxos, false);
                };
                getSpendableTxOutList(args.inputXbtWallets, inputsCbWrap);
             } else {
-               inputsCb(args.fixedInputs);
+               inputsCb(args.fixedInputs, true);
             }
          };
 

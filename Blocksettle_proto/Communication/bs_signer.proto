@@ -27,7 +27,6 @@ enum PacketType
    PasswordReceivedType = 15;
    RequestCloseType = 16;
    UpdateWalletType  = 17;
-   ReloadWalletsType = 18;
 
    // Execute QML dialog by it's name
    // Request from headless, no response from ui
@@ -281,11 +280,6 @@ message SetLimitsRequest
    uint32 password_keep_in_mem = 5;
 }
 
-message ReloadWalletsRequest
-{
-   string path = 1;
-}
-
 message CustomDialogRequest
 {
    string dialogName = 1;
@@ -344,7 +338,7 @@ message CreateHDWalletRequest
 message CreateHDWalletResponse
 {
    uint32    errorCode = 1;
-   string    wallet_id = 2;   
+   string    wallet_id = 2;
 }
 
 message AutoSignActRequest

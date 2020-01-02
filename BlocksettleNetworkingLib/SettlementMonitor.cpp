@@ -239,15 +239,28 @@ void bs::SettlementMonitor::process()
 
       unsigned int payinHashMatches = 0;
       unsigned int maxHeight = 0;
+      unsigned int spentInputs = 0;
       for (const auto &item : map) {
          for (const auto &txPair : item.second) {
+            if (txPair.second.first.isNull()) {
+               // empty hash for TX. UTXO is not spent
+               continue;
+            }
+
+            ++spentInputs;
+
             if (txPair.second.first == payinHash_) {
-               payinHashMatches++;
+               ++payinHashMatches;
             }
             if (txPair.second.second > maxHeight) {
                maxHeight = txPair.second.second;
             }
          }
+      }
+
+      if (spentInputs == 0) {
+         // do not update that inputs are not spent
+         return;
       }
 
       PayinState payinStateLocal = PayinState::Unknown;

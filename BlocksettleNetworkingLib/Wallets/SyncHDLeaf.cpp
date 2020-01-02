@@ -130,7 +130,7 @@ bool hd::Leaf::isOwnId(const std::string &wId) const
 void hd::Leaf::onRefresh(const std::vector<BinaryData> &ids, bool online)
 {
    const auto &cbRegistered = [this] {
-      isRegistered_ = true;
+      isRegistered_ = Registered::Registered;
       onRegistrationCompleted();
    };
    const auto &cbRegisterExt = [this, online, cbRegistered] {
@@ -421,7 +421,7 @@ std::vector<std::string> hd::Leaf::registerWallet(
 
    if (armory_) {
       firstInit_ = false;
-      isRegistered_ = false;
+      isRegistered_ = (isRegistered_ == Registered::Registered) ? Registered::Updating : Registered::Offline;
       const auto addrsExt = getAddrHashesExt();
       const auto addrsInt = isExtOnly_ ? std::vector<BinaryData>{} : getAddrHashesInt();
       std::vector<std::string> regIds;
@@ -597,6 +597,10 @@ void hd::Leaf::scan(const std::function<void(bs::sync::SyncState)> &cb)
    const auto &cbExtAddrChain = [this, cb]
       (const std::vector<std::pair<bs::Address, std::string>>& addrVec)
    {
+      if (!scanWallet_) {
+         SPDLOG_LOGGER_ERROR(logger_, "scanWallet_ is not set");
+         return;
+      }
       std::vector<BinaryData> addrHashes;
       for (auto& addrPair : addrVec) {
          addrHashes.push_back(addrPair.first.prefixed());

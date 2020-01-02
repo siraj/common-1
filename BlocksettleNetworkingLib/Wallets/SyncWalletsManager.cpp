@@ -1651,13 +1651,6 @@ void WalletsManager::processCreatedCCLeaf(const std::string &ccName, bs::error::
 bool WalletsManager::PromoteHDWallet(const std::string& walletId
    , const std::function<void(bs::error::ErrorCode result)> &cb)
 {
-   const auto primaryWallet = getPrimaryWallet();
-   if (primaryWallet != nullptr) {
-      logger_->error("[WalletsManager::PromoteWallet] Primary wallet already exists {}"
-                     , primaryWallet->walletId());
-      return false;
-   }
-
    bs::sync::PasswordDialogData dialogData;
    dialogData.setValue(PasswordDialogData::Title, tr("Promote To Primary Wallet"));
    dialogData.setValue(PasswordDialogData::XBT, tr("Authentification Addresses"));
@@ -1872,7 +1865,7 @@ bs::core::wallet::TXSignRequest WalletsManager::createPartialTXRequest(uint64_t 
    , float feePerByte
    , const std::vector<std::shared_ptr<ScriptRecipient>> &recipients
    , const bs::core::wallet::OutputSortOrder &outSortOrder
-   , const BinaryData prevPart, bool feeCalcUsePrevPart)
+   , const BinaryData prevPart, bool feeCalcUsePrevPart, bool useAllInputs)
 {
    if (inputs.empty()) {
       throw std::invalid_argument("No usable UTXOs");
@@ -1903,12 +1896,17 @@ bs::core::wallet::TXSignRequest WalletsManager::createPartialTXRequest(uint64_t 
          utxo.isInputSW_ = (scrAddr.getWitnessDataSize() != UINT32_MAX);
       }
 
-      const auto coinSelection = std::make_shared<CoinSelection>([utxos](uint64_t) { return utxos; }
-         , std::vector<AddressBookEntry>{}, spendableVal
-         , armory_ ? armory_->topBlock() : UINT32_MAX);
+      auto coinSelection = CoinSelection(nullptr, {}, spendableVal, armory_ ? armory_->topBlock() : UINT32_MAX);
 
       try {
-         const auto selection = coinSelection->getUtxoSelectionForRecipients(payment, utxos);
+         UtxoSelection selection;
+         if (useAllInputs) {
+            selection = UtxoSelection(utxos);
+            selection.fee_byte_ = feePerByte;
+            selection.computeSizeAndFee(payment);
+         } else {
+            selection = coinSelection.getUtxoSelectionForRecipients(payment, utxos);
+         }
          fee = selection.fee_;
          utxos = selection.utxoVec_;
       } catch (const std::exception &e) {

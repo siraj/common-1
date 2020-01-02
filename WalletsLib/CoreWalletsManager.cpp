@@ -93,10 +93,14 @@ WalletsManager::HDWalletPtr WalletsManager::loadWoWallet(NetworkType netType
    try {
       logger_->debug("Loading BIP44 WO-wallet from {}", fileName);
       const auto wallet = std::make_shared<hd::Wallet>(fileName
-         , netType, walletsPath, controlPassphrase, logger_);
+         , netType, walletsPath, SecureBinaryData(), logger_);
       if (!wallet->isWatchingOnly()) {
          logger_->error("Wallet {} is not watching-only", fileName);
          return nullptr;
+      }
+
+      if (!controlPassphrase.isNull()) {
+         wallet->changeControlPassword({}, controlPassphrase);
       }
 
       saveWallet(wallet);

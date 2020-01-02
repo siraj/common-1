@@ -94,6 +94,13 @@ bool CCFileManager::wasAddressSubmitted(const bs::Address &addr)
    return celerClient_->IsCCAddressSubmitted(addr.display());
 }
 
+void CCFileManager::cancelSubmitAddressToPub()
+{
+   if (bsClient_) {
+      bsClient_->cancelSign();
+   }
+}
+
 void CCFileManager::ProcessGenAddressesResponse(const std::string& response, const std::string &sig)
 {
    bool sigVerified = resolver_->verifySignature(response, sig);
@@ -114,6 +121,8 @@ void CCFileManager::ProcessGenAddressesResponse(const std::string& response, con
          , (int)genAddrResp.networktype());
       return;
    }
+
+   emit definitionsLoadedFromPub();
 
    if (currentRev_ > 0 && genAddrResp.revision() == currentRev_) {
       logger_->debug("[CCFileManager::ProcessCCGenAddressesResponse] having the same revision already");

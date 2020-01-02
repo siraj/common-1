@@ -27,6 +27,8 @@ Wallet::Wallet(WalletSignerContainer *container, const std::shared_ptr<spdlog::l
 
 Wallet::~Wallet()
 {
+   act_.reset();
+
    // Make sure validityFlag_ is marked as destroyed before other members
    validityFlag_.reset();
 
@@ -138,10 +140,10 @@ bool Wallet::setTransactionComment(const BinaryData &txOrHash, const std::string
 
 bool Wallet::isBalanceAvailable() const
 {
-   return
-      (armory_ != nullptr) &&
-      (armory_->state() == ArmoryState::Ready) &&
-      isRegistered();
+   return (armory_ != nullptr)
+      && (armory_->state() == ArmoryState::Ready)
+      // Keep balances if registration is just updating
+      && (isRegistered() == Registered::Registered || isRegistered() == Registered::Updating);
 }
 
 BTCNumericTypes::balance_type Wallet::getSpendableBalance() const
@@ -500,13 +502,27 @@ void Wallet::onZCInvalidated(const std::set<BinaryData> &ids)
       BTCNumericTypes::balance_type invalidatedBalance = 0;
       for (size_t i = 0; i < itTx->second.getNumTxOut(); ++i) {
          const auto txOut = itTx->second.getTxOutCopy(i);
+         const auto txType = txOut.getScriptType();
+         if (txType == TXOUT_SCRIPT_OPRETURN || txType == TXOUT_SCRIPT_NONSTANDARD) {
+            continue;
+         }
          const auto addr = bs::Address::fromTxOut(txOut);
          if (containsAddress(addr)) {
             const auto addrBal = txOut.getValue();
             invalidatedBalance += addrBal / BTCNumericTypes::BalanceDivider;
 
             std::unique_lock<std::mutex> lock(balanceData_->addrMapsMtx);
-            auto &addrBalances = balanceData_->addressBalanceMap[addr.prefixed()];
+            auto it = balanceData_->addressBalanceMap.find(addr.prefixed());
+            if (it == balanceData_->addressBalanceMap.end()) {
+               return;
+            }
+
+            auto &addrBalances = it->second;
+            if (addrBalances.size() < 3) {
+               SPDLOG_LOGGER_ERROR(logger_, "invalid addr balances vector");
+               return;
+            }
+
             addrBalances[0] -= addrBal;
             addrBalances[1] -= addrBal;
          }
@@ -538,6 +554,10 @@ void Wallet::onZeroConfReceived(const std::vector<bs::TXEntry> &entries)
 
       for (size_t i = 0; i < tx.getNumTxOut(); ++i) {
          const auto txOut = tx.getTxOutCopy(i);
+         const auto txType = txOut.getScriptType();
+         if (txType == TXOUT_SCRIPT_OPRETURN || txType == TXOUT_SCRIPT_NONSTANDARD) {
+            continue;
+         }
          const auto addr = bs::Address::fromTxOut(txOut);
          if (containsAddress(addr)) {
             zcEntries_[tx.getThisHash()] = tx;
@@ -667,7 +687,7 @@ void Wallet::onRefresh(const std::vector<BinaryData> &ids, bool online)
       if (id == regId_) {
          regId_.clear();
          logger_->debug("[bs::sync::Wallet::registerWallet] wallet {} registered", walletId());
-         isRegistered_ = true;
+         isRegistered_ = Registered::Registered;
          init();
 
          const auto &cbTrackAddrChain = [this, handle = validityFlag_.handle()]
@@ -737,14 +757,14 @@ void Wallet::init(bool force)
    }
 }
 
-bs::core::wallet::TXSignRequest wallet::createTXRequest(const std::string &walletId
+bs::core::wallet::TXSignRequest wallet::createTXRequest(const std::vector<std::string> &walletIds
    , const std::vector<UTXO> &inputs
    , const std::vector<std::shared_ptr<ScriptRecipient>> &recipients
    , const bs::Address &changeAddr
    , const uint64_t fee, bool isRBF)
 {
    bs::core::wallet::TXSignRequest request;
-   request.walletIds = { walletId };
+   request.walletIds = walletIds;
 
    uint64_t inputAmount = 0;
    uint64_t spendAmount = 0;
@@ -791,7 +811,7 @@ bs::core::wallet::TXSignRequest Wallet::createTXRequest(const std::vector<UTXO> 
    if (!changeAddress.isNull()) {
       setAddressComment(changeAddress, wallet::Comment::toString(wallet::Comment::ChangeAddress));
    }
-   return wallet::createTXRequest(walletId(), inputs, recipients, changeAddress
+   return wallet::createTXRequest({ walletId() }, inputs, recipients, changeAddress
       , fee, isRBF);
 }
 

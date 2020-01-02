@@ -45,11 +45,13 @@ private:
 
    bool needInvokeCb() const;
 
+   Tx getFromCache(const BinaryData &hash);
+   // Will store only transactions with >= 6 confirmations
+   void putToCacheIfNeeded(const Tx &tx);
+
 private:
    const bool     cbInMainThread_;
-#ifdef USE_LOCAL_TX_CACHE
    TxCacheFile    txCache_;
-#endif
    std::shared_ptr<QProcess>  armoryProcess_;
 };
 

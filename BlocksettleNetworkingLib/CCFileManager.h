@@ -89,6 +89,7 @@ public:
 
    bool SubmitAddressToPuB(const bs::Address &, uint32_t seed, const std::string &srcToken);
    bool wasAddressSubmitted(const bs::Address &);
+   void cancelSubmitAddressToPub();
 
    bool hasLocalFile() const;
 
@@ -104,6 +105,7 @@ signals:
    void CCSubmitFailed(const QString address, const QString &err);
    void Loaded();
    void LoadingFailed();
+   void definitionsLoadedFromPub();
 
 protected:
    void ProcessGenAddressesResponse(const std::string& response, const std::string &sig) override;

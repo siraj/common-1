@@ -111,6 +111,7 @@ namespace bs {
          bool deleteWallet(HDWalletPtr);
 
          void setUserId(const BinaryData &userId);
+         bool isUserIdSet() const { return !userId_.isNull(); }
          std::shared_ptr<CCDataResolver> ccResolver() const { return ccResolver_; }
 
          bool isArmoryReady() const;
@@ -150,7 +151,7 @@ namespace bs {
             , const std::vector<std::shared_ptr<ScriptRecipient>> &recipients = {}
             , const bs::core::wallet::OutputSortOrder &outSortOrder = { bs::core::wallet::OutputOrderType::PrevState
                , bs::core::wallet::OutputOrderType::Recipients, bs::core::wallet::OutputOrderType::Change }
-         , const BinaryData prevPart = {}, bool feeCalcUsePrevPart = true);
+         , const BinaryData prevPart = {}, bool feeCalcUsePrevPart = true, bool useAllInputs = false);
 
       signals:
          void CCLeafCreated(const std::string& ccName);
