@@ -32,7 +32,7 @@ struct EnumClassHash
     }
 };
 
-
+enum class AuthEidEnv : int;
 
 class ApplicationSettings : public QObject
 {
@@ -194,7 +194,7 @@ public:
 
    void selectNetwork();
 
-   bool isAutheidTestEnv() const;
+   AuthEidEnv autheidEnv() const;
 
    // Returns "prod", "uat", "staging" or "custom"
    static std::string envName(EnvConfiguration conf);
