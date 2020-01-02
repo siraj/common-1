@@ -28,12 +28,16 @@ namespace bs {
          Suspicious,
          BroadcastFailed
       };
+      static std::string PayinStateToString(const PayinState &state);
+
       enum class PayoutState {
          NotDetected,
          Spent,
          Revoked,
          Suspicious
       };
+      static std::string PayoutStateToString(const PayoutState& state);
+
       using EventCb = std::function<void(PayinState, int confPayIn
          , PayoutState, int confPayOut)>;
 
