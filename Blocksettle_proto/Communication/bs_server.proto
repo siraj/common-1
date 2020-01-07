@@ -858,7 +858,7 @@ message TradeHistMessage
       TradeHistSnapshotResponse trades_snapshot = 9;
       TradeHistPricesResponse prices = 10;
       Communication.TradeHistory.DateContainer eod_request = 11;
-      string eod_data = 12;
+      bytes eod_data = 12;
       TradeHistEODSnapshotResponse eod_snapshot = 13;
    }
 }
