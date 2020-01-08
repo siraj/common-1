@@ -1354,7 +1354,7 @@ bool ColoredCoinTracker::goOnline()
       }
       if (notif->type_ == DBNS_Refresh) {
          if (notif->ids_.size() == 1 &&
-            notif->ids_[0] == regID) {
+            notif->ids_[0] == BinaryData::fromString(regID)) {
             break;
          }
       }
@@ -1379,7 +1379,7 @@ bool ColoredCoinTracker::goOnline()
       }
       if (notif->type_ == DBNS_Refresh) {
          if (notif->ids_.size() == 1 &&
-            notif->ids_[0] == regID) {
+            notif->ids_[0] == BinaryData::fromString(regID)) {
             break;
          }
       }
@@ -1579,7 +1579,7 @@ void ColoredCoinACT::processNotification()
    {
       if (ptr->type_ == DBNS_Refresh) {
          if (ptr->ids_.size() == 1 &&
-            ptr->ids_[0] == regStruct.regID_) {
+            ptr->ids_[0] == BinaryData::fromString(regStruct.regID_)) {
             return true;
          }
       }
