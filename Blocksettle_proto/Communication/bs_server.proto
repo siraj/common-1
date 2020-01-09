@@ -70,6 +70,7 @@ enum StorageAccountDomain
    StorageAccountUnknown = 0;
    StorageAccountUser    = 1;
    StorageAccountUsers   = 2;
+   StorageAccountBalance = 3;
 }
 
 message StorageAccountMessage
@@ -79,6 +80,7 @@ message StorageAccountMessage
       StorageAccountUserRequest   user_request = 2;
       CustomerAccountData account_data = 3;
       StorageAccountsData accounts = 4;
+      bytes balance_snapshot = 5;
    }
 }
 
