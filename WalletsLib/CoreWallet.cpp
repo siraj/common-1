@@ -944,6 +944,9 @@ BinaryData bs::core::SignMultiInputTX(const bs::core::wallet::TXMultiSignRequest
 BinaryData wallet::computeID(const BinaryData &input)
 {
    auto result = BtcUtils::computeID(input);
+   if (!result.empty() && result.back() == 0) {
+      result.pop_back();
+   }
    return BinaryData::fromString(result);
 }
 
