@@ -65,6 +65,13 @@ message StorageAccountsData
    repeated CustomerAccountData data = 1;
 }
 
+message StorageAccountsBalanceUpdate
+{
+   string entity_name = 1;
+   string currency = 2;
+   double balance = 3;
+}
+
 enum StorageAccountDomain
 {
    StorageAccountUnknown = 0;
@@ -81,6 +88,7 @@ message StorageAccountMessage
       CustomerAccountData account_data = 3;
       StorageAccountsData accounts = 4;
       bytes balance_snapshot = 5;
+      StorageAccountsBalanceUpdate balance_update = 6;
    }
 }
 
