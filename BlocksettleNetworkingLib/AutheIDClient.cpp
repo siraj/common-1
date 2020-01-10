@@ -241,7 +241,7 @@ AutheIDClient::SignVerifyStatus AutheIDClient::verifySignature(const SignResult 
       status.title = sigData.title();
       status.description = sigData.description();
       status.finished = signTimestamp;
-      status.invisibleData = sigData.invisible_data();
+      status.invisibleData = BinaryData::fromString(sigData.invisible_data());
       return status;
    } catch (const std::exception &e) {
       return SignVerifyStatus::failed(fmt::format("signature verification failed: {}", e.what()));
@@ -505,7 +505,7 @@ void AutheIDClient::processResultReply(const QByteArray &payload)
       + kSeparatorSymbol + reply.device_id()
       + kSeparatorSymbol + reply.device_name();
 
-   emit succeeded(encKey, SecureBinaryData(deviceKey));
+   emit succeeded(encKey, SecureBinaryData::fromString(deviceKey));
 }
 
 void AutheIDClient::processNetworkReply(QNetworkReply *reply, int timeoutSeconds, const AutheIDClient::ResultCallback &callback)
@@ -675,11 +675,11 @@ void AutheIDClient::processSignatureReply(const autheid::rp::GetResultResponse_S
 
    SignResult result;
    result.serialization = Serialization(reply.serialization());
-   result.data = reply.signature_data();
-   result.sign = reply.sign();
-   result.certificateClient = reply.certificate_client();
-   result.certificateIssuer = reply.certificate_issuer();
-   result.ocspResponse = reply.ocsp_response();
+   result.data = BinaryData::fromString(reply.signature_data());
+   result.sign = BinaryData::fromString(reply.sign());
+   result.certificateClient = BinaryData::fromString(reply.certificate_client());
+   result.certificateIssuer = BinaryData::fromString(reply.certificate_issuer());
+   result.ocspResponse = BinaryData::fromString(reply.ocsp_response());
 
    emit signSuccess(result);
 }
