@@ -313,7 +313,8 @@ void AutheIDClient::getDeviceKey(RequestType requestType, const std::string &ema
    request.set_ra_pub_key(authKeys_.second.data(), authKeys_.second.size());
    request.set_timestamp_created(timestamp);
 
-   request.set_title(action.toStdString() + "\nWallet ID:" + walletId);
+   request.set_title(action.toStdString());
+   request.set_description("Wallet ID:" + walletId);
    request.set_email(email_);
    request.mutable_device_key()->set_use_new_devices(newDevice);
 
