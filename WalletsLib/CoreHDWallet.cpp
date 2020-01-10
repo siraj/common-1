@@ -594,13 +594,7 @@ bool hd::Wallet::changePassword(const bs::wallet::PasswordMetaData &oldPD
          return newPass;
       };
 
-      walletPtr_->changeControlPassphrase(newPassCb, lbdControlPassphrase_);
-
-      lbdControlPassphrase_ = [newPass = pd.password]
-         (const std::set<BinaryData>&) -> SecureBinaryData
-      {
-         return newPass;
-      };
+      walletPtr_->changePrivateKeyPassphrase(newPassCb);
 
       *itPwdMeta = pd.metaData;
       writeToDB();
