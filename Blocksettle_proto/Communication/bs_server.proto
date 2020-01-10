@@ -633,6 +633,7 @@ enum CelerType
    CelerPiggyBankDisconnected = 9;
    CelerDataConnected         = 10;
    CelerDataDisconnected      = 11;
+   CelerSetUserProperties     = 12;
    CelerSaveTrade             = 14;
    CelerSaveCcTrade           = 15;
    CelerCCRegisteredRequest   = 16;
@@ -681,6 +682,18 @@ message CelerResultResponse
    int32 status = 1;
 }
 
+message CelerSetUserPropertiesRequest
+{
+   string email = 1;
+   string email_hash = 2;
+   repeated Property properties = 3;
+
+   message Property {
+      string name = 1;
+      bool   enabled = 2;
+   }
+}
+
 message CelerMessage
 {
    CelerType type = 1;
@@ -688,6 +701,7 @@ message CelerMessage
       string saved_trade = 2;
       CelerRegisteredCCDefinitions cc_definitions = 3;
       CelerCreateUserRequest create_user = 4;
+      CelerSetUserPropertiesRequest user_properties = 5;
       CelerResultResponse response = 9;
       string opaque_data = 10;	// for Celer-encoded messages
    }
