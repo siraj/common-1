@@ -888,12 +888,12 @@ message TradeHistMessage
 {
    TradeHistType type = 1;
    oneof data {
-      string fx_trade = 2;
-      string xbt_trade = 3;
-      string cc_trade = 4;
+      bytes fx_trade = 2;
+      bytes xbt_trade = 3;
+      bytes cc_trade = 4;
       TradeDataResponseMessage response = 5;
       TradeHistRequest hist_request = 6;
-      string last_trade = 7;
+      bytes last_trade = 7;
       TradeHistBuySellResponse buy_sell_trades = 8;
       TradeHistSnapshotResponse trades_snapshot = 9;
       TradeHistPricesResponse prices = 10;
