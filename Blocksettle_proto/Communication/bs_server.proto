@@ -698,12 +698,12 @@ message CelerMessage
 {
    CelerType type = 1;
    oneof data {
-      string saved_trade = 2;
+      bytes saved_trade = 2;
       CelerRegisteredCCDefinitions cc_definitions = 3;
       CelerCreateUserRequest create_user = 4;
       CelerSetUserPropertiesRequest user_properties = 5;
       CelerResultResponse response = 9;
-      string opaque_data = 10;	// for Celer-encoded messages
+      bytes opaque_data = 10;	// for Celer-encoded messages
    }
    int64 sequence_num = 15;
 }
