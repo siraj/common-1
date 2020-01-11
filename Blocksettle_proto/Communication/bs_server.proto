@@ -634,6 +634,7 @@ enum CelerType
    CelerDataConnected         = 10;
    CelerDataDisconnected      = 11;
    CelerSetUserProperties     = 12;
+   CelerUpdateBalance         = 13;
    CelerSaveTrade             = 14;
    CelerSaveCcTrade           = 15;
    CelerCCRegisteredRequest   = 16;
@@ -694,6 +695,13 @@ message CelerSetUserPropertiesRequest
    }
 }
 
+message CelerUpdateBalanceRequest
+{
+   string entity_name = 1;
+   string currency = 2;
+   double balance = 3;
+}
+
 message CelerMessage
 {
    CelerType type = 1;
@@ -702,6 +710,7 @@ message CelerMessage
       CelerRegisteredCCDefinitions cc_definitions = 3;
       CelerCreateUserRequest create_user = 4;
       CelerSetUserPropertiesRequest user_properties = 5;
+      CelerUpdateBalanceRequest user_balance = 6;
       CelerResultResponse response = 9;
       bytes opaque_data = 10;	// for Celer-encoded messages
    }
