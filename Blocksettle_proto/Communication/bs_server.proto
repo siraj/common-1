@@ -169,19 +169,20 @@ enum ArmoryMessageType
 {
    ArmoryUnknownType   = 0;
    ArmoryStateChanged  = 1;
-   ArmoryWalletReady   = 2;
-   ArmoryWalletLoaded  = 3;
-   ArmoryWalletReload  = 4;
-   ArmoryGetWalletUTXOs= 5;
-   ArmoryNewBlock      = 6;
-   ArmoryPushTX        = 7;
-   ArmoryFeePerByte    = 8;
-   ArmoryStartSettlement = 9;
-   ArmoryStopSettlement  = 10;
-   ArmoryGetSpentness = 11;
-   ArmoryGetTxByHash  = 12;
-   ArmoryValidateAuthAddr = 13;
-   ArmoryGetBSAddresses = 14;
+   ArmoryReconnect     = 2;
+   ArmoryWalletReady   = 3;
+   ArmoryWalletLoaded  = 4;
+   ArmoryWalletReload  = 5;
+   ArmoryGetWalletUTXOs= 6;
+   ArmoryNewBlock      = 7;
+   ArmoryPushTX        = 8;
+   ArmoryFeePerByte    = 9;
+   ArmoryStartSettlement = 10;
+   ArmoryStopSettlement  = 11;
+   ArmoryGetSpentness = 12;
+   ArmoryGetTxByHash  = 13;
+   ArmoryValidateAuthAddr = 14;
+   ArmoryGetBSAddresses = 15;
 }
 
 enum ArmoryStateData
