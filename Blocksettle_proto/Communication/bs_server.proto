@@ -626,6 +626,7 @@ enum CelerType
    CelerUnknownType           = 0;
    CelerTradeHistConnected    = 1;
    CelerClientConnected       = 2;
+   CelerReconnect             = 3;
    CelerTradeHistDisconnected = 4;
    CelerClientDisconnected    = 5;
    CelerMerchantConnected     = 6;
