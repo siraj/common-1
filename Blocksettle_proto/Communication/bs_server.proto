@@ -864,7 +864,7 @@ message TradeHistBuySellResponse
 
 message TradeHistSnapshotResponse
 {
-   repeated string trades = 1;
+   repeated bytes trades = 1;
 }
 
 message TradeHistPricesResponse
