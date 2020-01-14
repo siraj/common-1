@@ -161,7 +161,7 @@ ApplicationSettings::ApplicationSettings(const QString &appName
       { Filter_MD_RFQ_Portfolio, SettingDef(QLatin1String("Filter/MD/RFQ_Portfolio")) },
       { Filter_MD_QN,            SettingDef(QLatin1String("Filter/MD/QN")) },
       { Filter_MD_QN_cnt,        SettingDef(QLatin1String("Filter/MD/QN/counters")) },
-      { ChangeLog_Base_Url,      SettingDef(QString(), QLatin1String("https://pubb.blocksettle.com/Changelog/changelog.json"))},
+      { ChangeLog_Base_Url,      SettingDef(QString(), QLatin1String("https://cogent-symbol-153209.appspot.com/api/terminal/check"))},
       { Binaries_Dl_Url,         SettingDef(QString(), QLatin1String("https://pubb.blocksettle.com/downloads/terminal"))},
       { ResetPassword_Url,       SettingDef(QString(), QLatin1String("https://pubb.blocksettle.com/pub-forgot-password"))},
       { GetAccount_Url,          SettingDef(QString(), QLatin1String("http://www.blocksettle.com")) },
