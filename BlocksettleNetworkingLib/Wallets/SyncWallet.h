@@ -105,6 +105,7 @@ namespace bs {
 
          virtual void setArmory(const std::shared_ptr<ArmoryConnection> &);
          virtual void setUserId(const BinaryData &) {}
+         void setTrackLiveAddresses(bool flag) { trackLiveAddresses_ = flag; }
 
          bool operator ==(const Wallet &w) const { return (w.walletId() == walletId()); }
          bool operator !=(const Wallet &w) const { return (w.walletId() != walletId()); }
@@ -285,6 +286,7 @@ namespace bs {
       protected:
          bool firstInit_ = false;
          bool skipPostOnline_ = false;
+         bool trackLiveAddresses_ = true;
          std::atomic<Registered> isRegistered_{Registered::Offline};
 
          struct BalanceData {
