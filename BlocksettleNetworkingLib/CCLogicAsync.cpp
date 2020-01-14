@@ -313,7 +313,7 @@ void ColoredCoinTrackerAsync::processTxBatch(
       return;
    }
    //grab listed tx
-   if (!connPtr_->getTXsByHash(hashes, txLbd)) {
+   if (!connPtr_->getTXsByHash(hashes, txLbd, false)) {
       if (cb) {
          cb(false);
       }
@@ -385,7 +385,7 @@ void ColoredCoinTrackerAsync::processZcBatch(
          cb(true);
       }
    };
-   if (!connPtr_->getTXsByHash(hashes, cbTxBatch)) {
+   if (!connPtr_->getTXsByHash(hashes, cbTxBatch, false)) {
       if (cb) {
          cb(false);
       }
@@ -431,7 +431,7 @@ void ColoredCoinTrackerAsync::processRevocationBatch(
          cb(true);
       }
    };
-   if (!connPtr_->getTXsByHash(hashes, txLbd)) {
+   if (!connPtr_->getTXsByHash(hashes, txLbd, false)) {
       if (cb) {
          cb(false);
       }
@@ -781,7 +781,7 @@ void ColoredCoinTrackerAsync::purgeZc(const ResultCb &cb)
          cbZcBatch(true);
       }
    };
-   if (!connPtr_->getTXsByHash(txHashes, getTxBatchLbd)) {
+   if (!connPtr_->getTXsByHash(txHashes, getTxBatchLbd, false)) {
       if (cb) {
          cb(false);
       }

@@ -199,8 +199,11 @@ public:
 
    using BinaryDataCb = std::function<void(const BinaryData&)>;
 
-   virtual bool getTxByHash(const BinaryData &hash, const TxCb&);
-   virtual bool getTXsByHash(const std::set<BinaryData> &hashes, const TXsCb &);
+   // Is allowCachedResult is set then result could be retrieved from cache.
+   // Please note that Tx::outpointIdVec_ would NOT be initialized if loaded from cache.
+   virtual bool getTxByHash(const BinaryData &hash, const TxCb&, bool allowCachedResult = true);
+   virtual bool getTXsByHash(const std::set<BinaryData> &hashes, const TXsCb &, bool allowCachedResult = true);
+
    virtual bool getRawHeaderForTxHash(const BinaryData& inHash, const BinaryDataCb &);
    virtual bool getHeaderByHeight(const unsigned int inHeight, const BinaryDataCb &);
 
