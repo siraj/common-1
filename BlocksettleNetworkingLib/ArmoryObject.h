@@ -32,8 +32,8 @@ public:
 
    bool getWalletsLedgerDelegate(const LedgerDelegateCb &) override;
 
-   bool getTxByHash(const BinaryData &hash, const TxCb &) override;
-   bool getTXsByHash(const std::set<BinaryData> &hashes, const TXsCb &) override;
+   bool getTxByHash(const BinaryData &hash, const TxCb &, bool allowCachedResult = true) override;
+   bool getTXsByHash(const std::set<BinaryData> &hashes, const TXsCb &, bool allowCachedResult = true) override;
    bool getRawHeaderForTxHash(const BinaryData& inHash, const BinaryDataCb &) override;
    bool getHeaderByHeight(const unsigned int inHeight, const BinaryDataCb &) override;
 

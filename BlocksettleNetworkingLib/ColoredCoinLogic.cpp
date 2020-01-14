@@ -332,7 +332,7 @@ std::vector<Tx> ColoredCoinTracker::grabTxBatch(
          txProm->set_value(sortedBatch);
       }
    };
-   if (!connPtr_->getTXsByHash(hashes, txLbd)) {
+   if (!connPtr_->getTXsByHash(hashes, txLbd, false)) {
       throw ColoredCoinException("invalid DB state/connection");
    }
    return txFut.get();
@@ -626,7 +626,7 @@ void ColoredCoinTracker::processRevocationBatch(
          txProm->set_value(batch);
       }
    };
-   if (!connPtr_->getTXsByHash(hashes, txLbd)) {
+   if (!connPtr_->getTXsByHash(hashes, txLbd, false)) {
       throw ColoredCoinException("invalid DB state/connection");
    }
    const auto &txBatch = txFut.get();
@@ -1005,7 +1005,7 @@ void ColoredCoinTracker::purgeZc()
    if (txHashes.size() == 0)
       return;
 
-   if (!connPtr_->getTXsByHash(txHashes, getTxBatchLbd)) {
+   if (!connPtr_->getTXsByHash(txHashes, getTxBatchLbd, false)) {
       throw ColoredCoinException("invalid DB state/connection");
    }
    const auto &txBatch = fut.get();
