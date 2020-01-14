@@ -388,9 +388,12 @@ enum GenoaType
    GenoaCancelXBTReservation = 13;
    GenoaReserveCashXBT     = 14;
    GenoaUpdateXbtCashReserve = 15;
-   GenoaExecuteFxTrade     = 16;
+   GenoaCompleteXbtCashTransfer = 16;
+   GenoaExecuteFxTrade     = 19;
    GenoaFindOrdersForUser  = 20;
    GenoaUserTradingStatus  = 21;
+   GenoaTradeXbtUpdate     = 22;
+   GenoaTradeCcUpdate      = 23;
 }
 
 message GenoaConnectedBroadcast
@@ -547,6 +550,16 @@ message GenoaUpdateXbtReserveRequest
    }
 }
 
+message GenoaXbtCompleteTransferResponse
+{
+   bool   settled = 1;
+   bool   complete = 2;
+   string error_text = 3;
+   CustomerAccountData changed_account = 4;
+   string currency = 5;
+   double new_balance = 6;
+}
+
 message GenoaFxTradeResponse
 {
    int64  sequence_num = 1;
@@ -565,6 +578,12 @@ message GenoaFxTradeResponse
          double balance = 2;
       }
    }
+}
+
+message GenoaTradeXbtUpdateRequest
+{
+   string settlement_id = 1;
+   string status = 2;
 }
 
 message GenoaMessage
@@ -587,6 +606,8 @@ message GenoaMessage
       bool success_response = 15;
       TradeDataMessage     fx_trade_request = 16;
       GenoaFxTradeResponse fx_trade_response = 17;
+      GenoaTradeXbtUpdateRequest xbt_trade_update = 18;
+      GenoaXbtCompleteTransferResponse xbt_transfer_complete = 19;
    }
 }
 
