@@ -60,6 +60,7 @@ public:
    bool SetBSAddressList(const std::unordered_set<std::string>& addressList);
 
    bool addAddress(const bs::Address &address);
+   bool delAddress(const bs::Address &address);
    void startAddressVerification();
 
    std::pair<bs::Address, UTXO> getRevokeData(const bs::Address &authAddr);
