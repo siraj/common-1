@@ -604,7 +604,7 @@ void Wallet::onZeroConfReceived(const std::vector<bs::TXEntry> &entries)
    }
    updateBalances([this, handle = validityFlag_.handle(), logger=logger_]() mutable {    // TxNs are not updated for ZCs
       ValidityGuard lock(handle);
-      if (!handle.isValid()) {
+      if (!trackLiveAddresses_ || !handle.isValid()) {
          return;
       }
       trackChainAddressUse([this, handle, logger](bs::sync::SyncState st) mutable {

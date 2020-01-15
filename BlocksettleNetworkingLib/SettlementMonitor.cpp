@@ -6,7 +6,7 @@
 #include "TradesVerification.h"
 #include "Wallets/SyncWallet.h"
 
-std::string PayinStateToString(const bs::SettlementMonitor::PayinState& state)
+std::string bs::SettlementMonitor::PayinStateToString(const PayinState &state)
 {
    static const std::string stateUnknown = "Unknown";
    static const std::string stateAllOk = "AllOk";
@@ -27,7 +27,7 @@ std::string PayinStateToString(const bs::SettlementMonitor::PayinState& state)
    }
 }
 
-std::string PayoutStateToString(const bs::SettlementMonitor::PayoutState& state)
+std::string bs::SettlementMonitor::PayoutStateToString(const PayoutState& state)
 {
    static const std::string stateNotDetected = "NotDetected";
    static const std::string stateSpent = "Spent";

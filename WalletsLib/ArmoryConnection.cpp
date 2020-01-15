@@ -1170,7 +1170,8 @@ void ArmoryCallback::run(BdmNotification bdmNotif)
       break;
 
    case BDMAction_ZC:
-      logger_->debug("[ArmoryCallback::run] BDMAction_ZC");
+      logger_->debug("[ArmoryCallback::run] BDMAction_ZC: {} entries"
+         , bdmNotif.ledgers_.size());
       connection_->onZCsReceived(bdmNotif.ledgers_);
       break;
 
