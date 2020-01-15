@@ -117,6 +117,12 @@ bool AddressVerificator::addAddress(const bs::Address &address)
    return true;
 }
 
+bool AddressVerificator::delAddress(const bs::Address &address)
+{
+   std::lock_guard<std::mutex> lock(userAddressesMutex_);
+   return (userAddresses_.erase(address) == 1);
+}
+
 void AddressVerificator::startAddressVerification()
 {
    if (bsAddressList_.empty()) {

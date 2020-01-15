@@ -1,0 +1,1055 @@
+syntax = "proto3";
+
+package Blocksettle.Server;
+
+import "pb_cli.proto";
+import "trade_history.proto";
+
+
+enum PrivBridgeType
+{
+   PrivBridgeUnknownType  = 0;
+   PrivBridgeStart        = 1;
+   PrivBridgeReconnect    = 2;
+   PrivBridgeCreateUser   = 3;
+}
+
+message PrivBridgeCreateUserRequest
+{
+   string email = 1;
+   string full_name = 2;
+}
+
+message PrivBridgeResponse
+{
+   int32  result_code = 1;
+   string error_text = 2;
+}
+
+message PrivateBridgeMessage
+{
+   PrivBridgeType type = 1;
+   oneof data {
+      PrivBridgeCreateUserRequest create_user = 2;
+      PrivBridgeResponse response = 10;
+   }
+}
+
+
+enum StorageMessageType
+{
+   StorageUnknownType = 0;
+   StorageGet         = 1;
+   StoragePut         = 2;
+   StorageDelete      = 3;
+   StorageDataAvail   = 4;
+}
+
+enum StorageType
+{
+   StorageUnknown   = 0;
+   StorageAccounts  = 1;
+   StorageAddresses = 2;
+   StorageRequests  = 3;
+}
+
+message StorageAccountUserRequest
+{
+   int64  entity_id = 1;
+   string entity = 2;
+   string email = 3;
+}
+
+message StorageAccountsData
+{
+   repeated CustomerAccountData data = 1;
+}
+
+message StorageAccountsBalanceUpdate
+{
+   string entity_name = 1;
+   string currency = 2;
+   double balance = 3;
+}
+
+enum StorageAccountDomain
+{
+   StorageAccountUnknown = 0;
+   StorageAccountUser    = 1;
+   StorageAccountUsers   = 2;
+   StorageAccountBalance = 3;
+}
+
+message StorageAccountMessage
+{
+   StorageAccountDomain domain = 1;
+   oneof data {
+      StorageAccountUserRequest   user_request = 2;
+      CustomerAccountData account_data = 3;
+      StorageAccountsData accounts = 4;
+      bytes balance_snapshot = 5;
+      StorageAccountsBalanceUpdate balance_update = 6;
+   }
+}
+
+message StorageAddressUserMessage
+{
+   string email = 1;
+   bytes  user_id = 2;
+   string full_name = 3;
+}
+
+message StorageAddressAuthRequest
+{
+   string address = 1;
+}
+
+message StorageAddressAuthResponse
+{
+   string address = 1;
+   string username = 2;
+   int32  status = 3;
+}
+
+enum StorageAddressDomain
+{
+   StorageAddressUnknown = 0;
+   StorageAddressUser = 1;
+   StorageAddressAuth = 2;
+}
+
+message StorageAddressMessage
+{
+  StorageAddressDomain domain = 1;
+   oneof data {
+      StorageAddressUserMessage user = 2;
+      StorageAddressAuthRequest  auth_request = 3;
+      StorageAddressAuthResponse auth_response = 4;
+   }
+}
+
+message StorageRequestsCCSeed
+{
+   string email = 1;
+   string cc = 2;
+   double quantity = 3;
+}
+
+message StorageRequestsCCGenAddr
+{
+   string cc = 1;
+   uint32 amount = 2;
+   uint32 lot_size = 3;
+   string reference = 4;
+}
+
+message StorageRequestsMessage
+{
+   oneof data {
+      string auth_address = 2;
+      StorageRequestsCCSeed cc_seed = 3;
+      StorageRequestsCCGenAddr cc_ga = 4;
+      string cc_token = 5;
+   }
+}
+
+message StorageMessage
+{
+   StorageMessageType type = 1;
+   StorageType domain = 2;
+   oneof data {
+      StorageAddressMessage  address  = 3;
+      StorageAccountMessage  account  = 4;
+      StorageRequestsMessage requests = 5;
+   }
+}
+
+
+enum ArmoryMessageType
+{
+   ArmoryUnknownType   = 0;
+   ArmoryStateChanged  = 1;
+   ArmoryReconnect     = 2;
+   ArmoryWalletReady   = 3;
+   ArmoryWalletLoaded  = 4;
+   ArmoryWalletReload  = 5;
+   ArmoryGetWalletUTXOs= 6;
+   ArmoryNewBlock      = 7;
+   ArmoryPushTX        = 8;
+   ArmoryFeePerByte    = 9;
+   ArmoryStartSettlement = 10;
+   ArmoryStopSettlement  = 11;
+   ArmoryGetSpentness = 12;
+   ArmoryGetTxByHash  = 13;
+   ArmoryValidateAuthAddr = 14;
+   ArmoryGetBSAddresses = 15;
+}
+
+enum ArmoryStateData
+{
+   ArmoryStateOffline = 0;
+   ArmoryStateConnecting = 1;
+   ArmoryStateCancelled = 2;
+   ArmoryStateConnected = 3;
+   ArmoryStateScanning = 4;
+   ArmoryStateError = 5;
+   ArmoryStateClosing = 6;
+   ArmoryStateReady = 7;
+}
+
+message ArmoryStateBroadcast
+{
+   ArmoryStateData state = 1;
+   uint32 top_block = 2;
+}
+
+message ArmoryNewBlockBroadcast
+{
+   uint32 top_block = 1;
+   uint32 branch_height = 2;
+}
+
+message ArmoryPushTxRequest
+{
+   bytes  tx = 1;
+   bytes  tx_hash = 2;
+}
+
+enum ArmoryPushTxResult
+{
+   ArmoryPushTxSuccess = 0;
+   ArmoryPushTxInvalidated = 1;
+   ArmoryPushTxMempoolConflict = 2;
+   ArmoryPushTxMempoolFull = 3;
+   ArmoryPushTxBroadcastTimeout = 4;
+   ArmoryPushTxOtherError = 5;
+}
+
+message ArmoryPushTxResponse
+{
+   bytes tx_hash = 1;
+   ArmoryPushTxResult result = 2;
+   string error_message = 3;
+}
+
+message ArmoryFeeRequest
+{
+   uint32 block_count = 1;
+}
+
+message ArmoryFeeResponse
+{
+   uint32 block_count = 1;
+   float  fee_per_byte = 2;
+}
+
+message ArmoryStartSettlementRequest
+{
+   string settlement_id = 1;
+   repeated string settlement_address = 2;
+}
+
+message ArmoryStartSettlementResponse
+{
+   string settlement_id = 1;
+   bool success = 2;
+}
+
+message ArmoryStopSettlementRequest
+{
+   string settlement_id = 1;
+}
+
+message ArmorySpentnessRequest
+{
+   message OutPoints {
+      bytes tx_hash = 1;
+      repeated uint32 out_indices = 2;
+   }
+   repeated OutPoints outpoints = 1;
+}
+
+message ArmorySpentnessResponse
+{
+   message Spentness {
+      message SpentnessData {
+         uint32 out_index = 1;
+         bytes tx_hash = 2;
+         uint32 height = 3;
+      }
+      bytes utxo_hash = 1;
+      repeated SpentnessData spentness = 2;
+   }
+   repeated Spentness inputs = 1;
+   string error_text = 2;
+}
+
+message ArmoryGetTxRequest
+{
+   repeated bytes tx_hash = 1;
+}
+
+message ArmoryGetTxResponse
+{
+   repeated bytes tx = 1;
+   string error_text = 2;
+}
+
+message ArmoryValidateAuthRequest
+{
+   repeated string addresses = 1;
+}
+
+message ArmoryValidateAuthResponse
+{
+   message ValidateAuthResult {
+      string address = 1;
+      int32  result = 3;
+   }
+   repeated ValidateAuthResult results = 1;
+}
+
+message ArmoryBSAddressesResponse
+{
+   string auth_addresses_signed = 1;
+   string cc_addresses_signed = 2;
+}
+
+message ArmoryMessage
+{
+   ArmoryMessageType type = 1;
+   oneof data {
+      ArmoryStateBroadcast state = 2;
+      Blocksettle.Communication.pbcli.LoadUTXOResponse utxos = 3;
+      ArmoryNewBlockBroadcast new_block = 4;
+      ArmoryPushTxRequest  push_tx_request = 5;
+      ArmoryPushTxResponse push_tx_response = 6;
+      ArmoryFeeRequest  fee_request = 7;
+      ArmoryFeeResponse fee_response = 8;
+      ArmoryStartSettlementRequest  settlement_request = 9;
+      ArmoryStartSettlementResponse settlement_response = 10;
+      ArmoryStopSettlementRequest   settl_stop_request = 11;
+      ArmorySpentnessRequest  spentness_request = 12;
+      ArmorySpentnessResponse spentness_response = 13;
+      ArmoryGetTxRequest  tx_request = 14;
+      ArmoryGetTxResponse tx_response = 15;
+      ArmoryValidateAuthRequest  auth_request = 16;
+      ArmoryValidateAuthResponse auth_response = 17;
+      ArmoryBSAddressesResponse bs_addresses = 18;
+   }
+}
+
+
+message CCDefinitionsData
+{
+   repeated string cc = 1;
+}
+
+message CCGenesisAddressData
+{
+   message GenAddrData {
+      string cc = 1;
+      string ga = 2;
+   }
+   repeated GenAddrData gen_addresses = 1;
+}
+
+enum CcTrackMessageType
+{
+   CcTrackUnknownType   = 0;
+   CcTrackOnline        = 1;
+   CcTrackCCDefinitions = 2;
+   CcTrackGenAddresses  = 3;
+}
+
+message CcTrackMessage
+{
+   CcTrackMessageType type = 1;
+   oneof data {
+      CCDefinitionsData cc_definitions = 2;
+      CCGenesisAddressData ga_data = 3;
+   }
+}
+
+
+enum GenoaType
+{
+   GenoaUnknownType        = 0;
+   GenoaReconnect          = 1;
+   GenoaHeartbeat          = 2;
+   GenoaClientConnected    = 3;
+   GenoaClientDisconnected = 4;
+   GenoaServerConnected    = 5;
+   GenoaServerDisconnected = 6;
+   GenoaLoadAllAccounts    = 9;
+   GenoaGetXBTReservations = 10;
+   GenoaGetCCReservations  = 11;
+   GenoaCancelCCReservation = 12;
+   GenoaCancelXBTReservation = 13;
+   GenoaReserveCashXBT     = 14;
+   GenoaUpdateXbtCashReserve = 15;
+   GenoaCompleteXbtCashTransfer = 16;
+   GenoaExecuteFxTrade     = 19;
+   GenoaFindOrdersForUser  = 20;
+   GenoaUserTradingStatus  = 21;
+   GenoaTradeXbtUpdate     = 22;
+   GenoaTradeCcUpdate      = 23;
+}
+
+message GenoaConnectedBroadcast
+{
+   bool success = 1;
+   string genoa_version = 2;
+   string blocksettle_version = 3;
+   string unify_version = 4;
+   string landfall_version = 5;
+}
+
+message GenoaDisconnectedBroadcast
+{
+   int32 error = 1;
+}
+
+message GenoaXBTReservation
+{
+   int32  subsystem = 1;
+   string requester_trd_account = 2;
+   int64  requester_entity_id = 3;
+   string dealer_trd_account = 4;
+   int64  dealer_entity_id = 5;
+   string settlement_id = 6;
+   string cl_ord_id = 7;
+   double xbt_amount = 8;
+   double ccy_amount = 9;
+   string currency = 10;
+   bool   requester_sells = 11;
+   string requester_pub_key = 12;
+   string dealer_pub_key = 13;
+   bytes  unsigned_payin = 14;
+   bytes  signed_payin = 15;
+   bytes  signed_payout = 16;
+   uint64 created_timestamp = 17;
+   string last_status = 18;
+}
+
+message GenoaCCReservation
+{
+   string trade_id = 1;
+   int64  requester_entity_id = 2;
+   int64  dealer_entity_id = 3;
+   string product = 4;
+   double amount = 5;
+   double price = 6;
+   bool   requester_buys = 7;
+   string requester_tx_data = 8;
+   string requester_recv_address = 9;
+   string dealer_tx_data = 10;
+   string dealer_recv_address = 11;
+   uint64 created_timestamp = 12;
+}
+
+message GenoaXBTReservationsResponse
+{
+   bool   success = 1;
+   string error_text = 2;
+   repeated GenoaXBTReservation reservations = 3;
+}
+
+message GenoaCCReservationResponse
+{
+   bool   success = 1;
+   string error_text = 2;
+   repeated GenoaCCReservation reservations = 3;
+}
+
+message GenoaAccountInfoData
+{
+   string email = 1;
+   string entity_name = 2;
+   int64  entity_id = 3;
+   string account_name = 4;
+   string account_type = 5;
+   int64  account_id = 6;
+   repeated BalanceData balances = 7;
+
+   message BalanceData {
+      string currency = 1;
+      int64  currency_id = 2;
+      double balance = 3;
+   }
+}
+
+message GenoaAccountInfoMessage
+{
+   repeated GenoaAccountInfoData data = 1;
+   string error_text = 2;
+}
+
+message GenoaCancelCCReservationRequest
+{
+   string reservation_id = 1;
+}
+
+message GenoaCancelCCReservationResponse
+{
+   bool   success = 1;
+   string error_text = 2;
+}
+
+message GenoaUserRequest
+{
+   string email = 1;
+}
+
+message GenoaOrderData
+{
+   int32  subsystem = 1;
+   double price = 2;
+   string contra_product = 3;
+   double quantity = 4;
+   double contra_quantity = 5;
+   string product = 6;
+   int32  trade_status = 7;
+   uint64 timestamp = 8;
+   string status = 9;
+}
+
+message GenoaFindOrdersResponse
+{
+   bool   loaded = 1;
+   string error_text = 2;
+   repeated GenoaOrderData orders = 3;
+}
+
+message GenoaTradingStatusResponse
+{
+   bool   success = 1;
+   string error_text = 2;
+   string email = 3;
+   int32  user_type = 4;
+}
+
+message GenoaReserveXbtResponse
+{
+   string settlement_id = 1;
+   bool   success = 2;
+   int32  error_code = 3;
+   string currency = 4;
+   double new_balance = 5;
+   CustomerAccountData changed_account = 6;
+}
+
+message GenoaUpdateXbtReserveRequest
+{
+   string reserve_id = 1;
+   repeated KeyValue values = 2;
+
+   message KeyValue {
+      string key = 1;
+      string value = 2;
+   }
+}
+
+message GenoaXbtCompleteTransferResponse
+{
+   bool   settled = 1;
+   bool   complete = 2;
+   string error_text = 3;
+   CustomerAccountData changed_account = 4;
+   string currency = 5;
+   double new_balance = 6;
+}
+
+message GenoaFxTradeResponse
+{
+   int64  sequence_num = 1;
+   string cl_ord_id = 2;
+   string currency_pair = 3;
+   bool   matched = 4;
+   string error_text = 5;
+   repeated AccountBalances account_balances = 6;
+   
+   message AccountBalances {
+      string entity_name = 1;
+      repeated Balance balances = 2;
+
+      message Balance {
+         string currency = 1;
+         double balance = 2;
+      }
+   }
+}
+
+message GenoaTradeXbtUpdateRequest
+{
+   string settlement_id = 1;
+   string status = 2;
+}
+
+message GenoaMessage
+{
+   GenoaType type = 1;
+   oneof data {
+      GenoaConnectedBroadcast    connected = 2;
+      GenoaDisconnectedBroadcast disconnected = 3;
+      GenoaXBTReservationsResponse xbt_reservations = 4;
+      GenoaCCReservationResponse  cc_reservations = 5;
+      GenoaAccountInfoMessage accounts = 6;
+      GenoaCancelCCReservationRequest  cancel_cc_res_request = 7;
+      GenoaCancelCCReservationResponse cancel_cc_res_response = 8;
+      GenoaUserRequest  user_request = 9;
+      GenoaFindOrdersResponse find_orders_response = 10;
+      GenoaTradingStatusResponse trd_status_response = 11;
+      TradeDataXbtMessage     xbt_reserve_request = 12;
+      GenoaReserveXbtResponse xbt_reserve_response = 13;
+      GenoaUpdateXbtReserveRequest xbt_update_res_request = 14;
+      bool success_response = 15;
+      TradeDataMessage     fx_trade_request = 16;
+      GenoaFxTradeResponse fx_trade_response = 17;
+      GenoaTradeXbtUpdateRequest xbt_trade_update = 18;
+      GenoaXbtCompleteTransferResponse xbt_transfer_complete = 19;
+   }
+}
+
+
+enum MktDataType
+{
+   MktDataUnknownType  = 0;
+   MktDataReconnect    = 1;
+   MktDataConnected    = 2;
+   MktDataDisconnected = 3;
+   MktDataUpdate       = 4;
+}
+
+message MktDataUpdateMessage
+{
+   message MktDataField
+   {
+      int32  type = 1;
+      double value = 2;
+   }
+   int32  asset = 1;
+   string security = 2;
+   repeated MktDataField fields = 3;
+}
+
+message MktDataMessage
+{
+   MktDataType type = 1;
+   oneof data {
+      MktDataUpdateMessage update = 2;
+   }
+}
+
+
+enum CelerType
+{
+   CelerUnknownType           = 0;
+   CelerTradeHistConnected    = 1;
+   CelerClientConnected       = 2;
+   CelerReconnect             = 3;
+   CelerTradeHistDisconnected = 4;
+   CelerClientDisconnected    = 5;
+   CelerMerchantConnected     = 6;
+   CelerMerchantDisconnected  = 7;
+   CelerPiggyBankConnected    = 8;
+   CelerPiggyBankDisconnected = 9;
+   CelerDataConnected         = 10;
+   CelerDataDisconnected      = 11;
+   CelerSetUserProperties     = 12;
+   CelerUpdateBalance         = 13;
+   CelerSaveTrade             = 14;
+   CelerSaveCcTrade           = 15;
+   CelerCCRegisteredRequest   = 16;
+   CelerNewCCCreated          = 17;
+   CelerCreateUser            = 18;
+   CelerSubscribeMerchant     = 19;
+   CelerVerifyXBTQuote        = 20;
+   CelerVerifyXBTQuoteRequest = 21;
+   CelerReserveCashForXBTRequest = 22;
+   CelerXBTTradeRequestType   = 23;
+   CelerFxTradeRequestType    = 24;
+   CelerVerifyCCQuote         = 25;
+   CelerVerifyCCQuoteRequest  = 26;
+   CelerVerifyCCAcceptedQuote = 27;
+   CelerCCTradeRequest        = 28;
+}
+
+message CelerSavedTrade
+{
+   string product = 1;
+   double price = 2;
+   oneof qty {
+      double amount = 3;
+      uint64 quantity = 4;
+   }
+   bool   is_sell = 5;
+   string trade_id = 6;
+   uint64 timestamp = 7;
+}
+
+message CelerRegisteredCCDefinitions
+{
+   repeated string cc = 1;
+}
+
+message CelerCreateUserRequest
+{
+   string login = 1;
+   string email = 2;
+   string user_id = 3;
+   string password = 4;
+}
+
+message CelerResultResponse
+{
+   int32 status = 1;
+}
+
+message CelerSetUserPropertiesRequest
+{
+   string email = 1;
+   string email_hash = 2;
+   repeated Property properties = 3;
+
+   message Property {
+      string name = 1;
+      bool   enabled = 2;
+   }
+}
+
+message CelerUpdateBalanceRequest
+{
+   string entity_name = 1;
+   string currency = 2;
+   double balance = 3;
+}
+
+message CelerMessage
+{
+   CelerType type = 1;
+   oneof data {
+      bytes saved_trade = 2;
+      CelerRegisteredCCDefinitions cc_definitions = 3;
+      CelerCreateUserRequest create_user = 4;
+      CelerSetUserPropertiesRequest user_properties = 5;
+      CelerUpdateBalanceRequest user_balance = 6;
+      CelerResultResponse response = 9;
+      bytes opaque_data = 10;	// for Celer-encoded messages
+   }
+   int64 sequence_num = 15;
+}
+
+
+enum TradeHistType
+{
+   TradeHistUnknownType  = 0;
+   TradeHistSaveFxTrade  = 1;
+   TradeHistSaveXbtTrade = 2;
+   TradeHistSaveCcTrade  = 3;
+   TradeHistSaveTradeResult = 4;
+   TradeHistRequestLastTrade = 5;
+   TradeHistRequestLastBuySellTrade = 6;
+   TradeHistRequestSnapshot = 7;
+   TradeHistRequestCcPrices = 8;
+   TradeHistRequestEOD      = 9;
+   TradeHistRequestEODSnapshot = 10;
+}
+
+message TradeDataMessage
+{
+   string product = 1;
+   int64  sequence_num = 2;
+   string cl_ord_id = 3;
+   string sell_entity = 4;
+   string buy_entity = 5;
+   string sell_trade_account = 6;
+   string buy_trade_account = 7;
+   double sell_amount = 8;
+   double buy_amount = 9;
+   string sell_currency = 10;
+   string buy_currency = 11;
+   string asset_currency = 12;
+   string num_currency = 13;
+   uint32 trade_timestamp = 14;
+}
+
+message AddressPreimageData
+{
+   string address = 1;
+   bytes  pi_data = 2;
+}
+
+message BalanceData
+{
+   string currency = 1;
+   double balance = 2;
+}
+
+message CustomerAccountData
+{
+   string email = 1;
+   string email_hashed = 2;
+   string entity_name = 3;
+   int64  entity_id = 4;
+   string settlement_account = 5;
+   int64  settlement_acc_id = 6;
+   string trading_account = 7;
+   int64  tradding_acc_id = 8;
+   repeated BalanceData balances = 9;
+}
+
+message TradeDataXbtMessage
+{
+   int32  subsystem = 1;
+   string settlement_id = 2;
+   string cl_order_id = 3;
+   bool   requestor_sells = 4;
+   string requestor_pub_key = 5;
+   string dealer_pub_key = 6;
+   CustomerAccountData requestor = 7;
+   CustomerAccountData dealer = 8;
+   double xbt_amount = 9;
+   double ccy_amount = 10;
+   double price = 11;
+   string product = 12;
+   string currency = 13;
+   bytes  unsigned_payin = 14;
+   bytes  signed_payin = 15;
+   bytes  signed_payout = 16;
+   bytes  payin_hash = 17;
+   uint64 total_payin_fee = 18;
+   uint64 timestamp = 19;
+   string settlement_address = 20;
+   int32  avg_score = 21;
+   int32  min_score = 22;
+   string scorechain_url = 23;
+   bool   loaded_from_genoa = 24;
+   string last_status = 25;
+   repeated AddressPreimageData preimage_data = 26;
+}
+
+message TradeInfoCcData
+{
+   string cl_ord_id = 1;
+   CustomerAccountData requester = 2;
+   CustomerAccountData dealer = 3;
+   bool   requester_buys = 4;
+   string currency = 5;
+   double quantity = 6;
+   double price = 7;
+   string requester_tx_data = 8;
+   string requester_recpt_address = 9;
+   string dealer_tx_data = 10;
+   string dealer_recpt_address = 11;
+   int32  validation_score = 12;
+   string scorechain_url = 13;
+   uint64 timestamp = 14;
+}
+
+message OutPointData
+{
+   bytes  hash = 1;
+   uint32 index = 2;
+}
+
+message TradeDataCcMessage
+{
+   TradeInfoCcData cc_trade_info = 1;
+   string       sell_address = 2;
+   string       buy_address = 3;
+   bytes        tx = 4;
+   string       tx_id = 5;
+   repeated OutPointData outpoints = 6;
+   OutPointData return_outpoint = 7;
+   uint64       zc_timestamp = 8;
+}
+
+message TradeDataResponseMessage
+{
+   bool success = 1;
+}
+
+message TradeHistRequest
+{
+   int32  trade_type = 1;
+   string product = 2;
+   uint64 from_timestamp = 3;
+   uint64 to_timestamp = 4;
+}
+
+message TradeHistBuySellResponse
+{
+   string buy_trade = 1;
+   string sell_trade = 2;
+}
+
+message TradeHistSnapshotResponse
+{
+   repeated bytes trades = 1;
+}
+
+message TradeHistPricesResponse
+{
+   bool   price_set = 1;
+   double bid_price = 2;
+   double offer_price = 3;
+}
+
+message TradeHistEODSnapshotResponse
+{
+    message EODSnapshot
+    {
+       Communication.TradeHistory.DateContainer date = 1;
+       string eod = 2;
+    }
+    repeated EODSnapshot snapshot = 1;
+    Communication.TradeHistory.DateContainer req_date = 2;
+}
+
+message TradeHistMessage
+{
+   TradeHistType type = 1;
+   oneof data {
+      bytes fx_trade = 2;
+      bytes xbt_trade = 3;
+      bytes cc_trade = 4;
+      TradeDataResponseMessage response = 5;
+      TradeHistRequest hist_request = 6;
+      bytes last_trade = 7;
+      TradeHistBuySellResponse buy_sell_trades = 8;
+      TradeHistSnapshotResponse trades_snapshot = 9;
+      TradeHistPricesResponse prices = 10;
+      Communication.TradeHistory.DateContainer eod_request = 11;
+      bytes eod_data = 12;
+      TradeHistEODSnapshotResponse eod_snapshot = 13;
+   }
+}
+
+
+enum SettlementTxType
+{
+   SettlementTxUnknownType = 0;
+   SettlementTxRegistered  = 1;
+   SettlementTxCCRegistered  = 2;
+   SettlementTxUnsignedPayinTimeout = 3;
+   SettlementTxSignedPayinTimeout = 4;
+   SettlementTxPayoutTimeout = 5;
+   SettlementTxCcMatchTimeout = 6;
+   SettlementTxCcBroadcastTimeout = 7;
+}
+
+message SettlementTxMessage
+{
+   SettlementTxType type = 1;
+   oneof data {
+      string trade_id = 2;
+   }
+}
+
+
+enum TerminalMessageType
+{
+   TerminalUnknownType = 0;
+   TerminalSendBlotterUpdate = 1;
+   TerminalUnsignedPayinRequest = 2;
+   TerminalSignedPayinRequest = 3;
+   TerminalSignedPayoutRequest = 4;
+}
+
+message TerminalUnsignedPayin
+{
+   message PreimageData {
+      string address = 1;
+      bytes data = 2;
+   }
+
+   string settlement_id = 1;
+   repeated PreimageData preimage_data = 2;
+   bytes unsigned_payin = 3;
+}
+
+message TerminalSignedData
+{
+   string settlement_id = 1;
+   bytes data = 2;
+}
+
+message TerminalSignPayinRequest
+{
+   string settlement_id = 1;
+   bytes  unsigned_payin = 2;
+   bytes  signed_payout = 3;
+}
+
+message TerminalMessage
+{
+   TerminalMessageType type = 1;
+   string address_email = 2;
+   oneof data {
+      string settlement_id = 3;
+      TerminalUnsignedPayin unsigned_payin = 4;
+      TerminalSignPayinRequest sign_payin_request = 5;
+      TerminalSignedData signed_data = 6;
+   }
+}
+
+
+enum ProxyMessageType
+{
+   ProxyUnknownType = 0;
+   ProxyConnected    = 1;
+   ProxyDisconnected = 2;
+   ProxyLoadTrades = 3;
+}
+
+message ProxyLoadTradesMessage
+{
+   repeated TradeDataXbtMessage trades = 1;
+}
+
+message ProxyMessage
+{
+   ProxyMessageType type = 1;
+   oneof data {
+      ProxyLoadTradesMessage load_trades = 2;
+   }
+}
+
+
+enum WebClientType
+{
+   WebClientUnknownType = 0;
+   WebScorechainUtxoScore = 1;
+   WebScorechainCacheTX = 2;
+}
+
+message WebScorechainUtxoRequest
+{
+   repeated string utxos = 1;
+}
+
+message WebScorechainUtxoResponse
+{
+   bool   success = 1;
+   int32  average_score = 2;
+   int32  min_score = 3;
+   string url = 4;
+}
+
+message WebScorechainCacheTxRequest
+{
+   bytes tx_hash = 1;
+   bool  is_payin = 2;
+   int32 score = 3;
+}
+
+message WebClientMessage
+{
+   WebClientType type = 1;
+   oneof data {
+      WebScorechainUtxoRequest  sc_utxo_request = 2;
+      WebScorechainUtxoResponse sc_utxo_response = 3;
+      WebScorechainCacheTxRequest sc_cache_tx = 4;
+   }
+}
