@@ -841,14 +841,19 @@ size_t AuthAddressManager::FromVerifiedIndex(size_t index) const
 
 void AuthAddressManager::SetBSAddressList(const std::unordered_set<std::string>& bsAddressList)
 {
-   FastLock locker(lockList_);
-   bsAddressList_ = bsAddressList;
+   {
+      FastLock locker(lockList_);
+      bsAddressList_ = bsAddressList;
 
-   if (!bsAddressList.empty()) {
-      if (addressVerificator_) {
-         addressVerificator_->SetBSAddressList(bsAddressList);
+      if (!bsAddressList.empty()) {
+         if (addressVerificator_) {
+            addressVerificator_->SetBSAddressList(bsAddressList);
+         }
       }
    }
+
+   // Emit signal without holding lock
+   emit gotBsAddressList();
 }
 
 void AuthAddressManager::onStateChanged(ArmoryState)
