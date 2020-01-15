@@ -147,18 +147,20 @@ bool ArmoryObject::getWalletsLedgerDelegate(const LedgerDelegateCb &cb)
    return ArmoryConnection::getWalletsLedgerDelegate(cbWrap);
 }
 
-bool ArmoryObject::getTxByHash(const BinaryData &hash, const TxCb &cb)
+bool ArmoryObject::getTxByHash(const BinaryData &hash, const TxCb &cb, bool allowCachedResult)
 {
-   const auto tx = getFromCache(hash);
-   if (tx.isInitialized()) {
-      if (needInvokeCb()) {
-         QMetaObject::invokeMethod(this, [cb, tx] {
+   if (allowCachedResult) {
+      const auto tx = getFromCache(hash);
+      if (tx.isInitialized()) {
+         if (needInvokeCb()) {
+            QMetaObject::invokeMethod(this, [cb, tx] {
+               cb(tx);
+            });
+         } else {
             cb(tx);
-         });
-      } else {
-         cb(tx);
+         }
+         return true;
       }
-      return true;
    }
    const auto &cbWrap = [this, cb, hash](Tx tx) {
       putToCacheIfNeeded(tx);
@@ -175,19 +177,25 @@ bool ArmoryObject::getTxByHash(const BinaryData &hash, const TxCb &cb)
    return ArmoryConnection::getTxByHash(hash, cbWrap);
 }
 
-bool ArmoryObject::getTXsByHash(const std::set<BinaryData> &hashes, const TXsCb &cb)
+bool ArmoryObject::getTXsByHash(const std::set<BinaryData> &hashes, const TXsCb &cb, bool allowCachedResult)
 {
    auto result = std::make_shared<std::vector<Tx>>();
+
    std::set<BinaryData> missedHashes;
-   for (const auto &hash : hashes) {
-      const auto tx = getFromCache(hash);
-      if (tx.isInitialized()) {
-         result->push_back(tx);
+   if (allowCachedResult) {
+      for (const auto &hash : hashes) {
+         const auto tx = getFromCache(hash);
+         if (tx.isInitialized()) {
+            result->push_back(tx);
+         }
+         else {
+            missedHashes.insert(hash);
+         }
       }
-      else {
-         missedHashes.insert(hash);
-      }
+   } else {
+      missedHashes = hashes;
    }
+
    if (missedHashes.empty()) {
       if (needInvokeCb()) {
          QMetaObject::invokeMethod(this, [cb, result] {

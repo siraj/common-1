@@ -848,7 +848,8 @@ void ArmoryConnection::callGetTxCallbacks(const BinaryData &hash, const Tx &tx)
    }
 }
 
-bool ArmoryConnection::getTxByHash(const BinaryData &hash, const TxCb &cb)
+// allowCachedResult is ignored here
+bool ArmoryConnection::getTxByHash(const BinaryData &hash, const TxCb &cb, bool /*allowCachedResult*/)
 {
    if (!bdv_ || (state_ != ArmoryState::Ready)) {
       logger_->error("[ArmoryConnection::getTxByHash] invalid state: {}", (int)state_.load());
@@ -872,7 +873,8 @@ bool ArmoryConnection::getTxByHash(const BinaryData &hash, const TxCb &cb)
    return true;
 }
 
-bool ArmoryConnection::getTXsByHash(const std::set<BinaryData> &hashes, const TXsCb &cb)
+// allowCachedResult is ignored here
+bool ArmoryConnection::getTXsByHash(const std::set<BinaryData> &hashes, const TXsCb &cb, bool /*allowCachedResult*/)
 {
    if (!bdv_ || (state_ != ArmoryState::Ready)) {
       logger_->error("[ArmoryConnection::getTXsByHash] invalid state: {}", (int)state_.load());
