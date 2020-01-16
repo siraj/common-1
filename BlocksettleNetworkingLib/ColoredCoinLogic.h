@@ -116,6 +116,9 @@ public:
 
    //<prefixed scrAddr, height of revoke tx>
    std::map<BinaryData, unsigned> revokedAddresses_;
+
+   //<txHash, txOutId>
+   std::map<BinaryData, std::set<unsigned>> txHistory_;
 };
 
 ////
@@ -361,6 +364,9 @@ public:
       const BinaryData&) const;
 
    bool isTxHashValid(const BinaryData &, uint32_t txOutIndex = UINT32_MAX) const;
+
+   // Determine whether the TX was valid CC at any point in time (including current ZC)
+   bool isTxHashValidHistory(const BinaryData &, uint32_t txOutIndex = UINT32_MAX) const;
 
    //in: set of prefixed addresses
    uint64_t getUnconfirmedCcValueForAddresses(const std::set<BinaryData>&) const;
