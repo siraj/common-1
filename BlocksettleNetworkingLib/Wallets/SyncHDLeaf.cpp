@@ -1071,8 +1071,7 @@ bool hd::CCLeaf::isTxValid(const BinaryData &txHash) const
    if (!tracker_) {
       return true;
    }
-//   return tracker_->isTxHashValid(txHash);
-   return true;   // Disabled [temporarily] the tracker's TX detection, as it doesn't work properly
+   return tracker_->isTxHashValidHistory(txHash);
 }
 
 BTCNumericTypes::balance_type hd::CCLeaf::getTxBalance(int64_t val) const

@@ -86,6 +86,26 @@ Parsing CC tx:
    this shouldnt be tolerated
 ***/
 
+namespace  {
+
+   bool opExists(const std::map<BinaryData, std::map<unsigned, std::shared_ptr<CcOutpoint>>> &utxoSet
+      , const BinaryData &txHash, uint32_t txOutIndex)
+   {
+      auto hashIter = utxoSet.find(txHash);
+      if (hashIter == utxoSet.end()) {
+         return false;
+      }
+      if (txOutIndex == UINT32_MAX) {
+         return true;
+      }
+      auto idIter = hashIter->second.find(txOutIndex);
+      if (idIter == hashIter->second.end()) {
+         return false;
+      }
+      return true;
+   };
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 void CcOutpoint::setTxHash(const BinaryData& hash)
 {
@@ -1132,28 +1152,11 @@ std::vector<std::shared_ptr<CcOutpoint>> ColoredCoinTracker::getSpendableOutpoin
 
 bool ColoredCoinTracker::isTxHashValid(const BinaryData &txHash, uint32_t txOutIndex) const
 {
-   auto getOP = [txHash, txOutIndex]
-      (const std::map<BinaryData, std::map<unsigned, std::shared_ptr<CcOutpoint>>> &utxoSet) -> bool
-   {
-      auto hashIter = utxoSet.find(txHash);
-      if (hashIter == utxoSet.end()) {
-         return false;
-      }
-      if (txOutIndex == UINT32_MAX) {
-         return true;
-      }
-      auto idIter = hashIter->second.find(txOutIndex);
-      if (idIter == hashIter->second.end()) {
-         return false;
-      }
-      return true;
-   };
-
    const auto ssPtr = snapshot();
    if (!ssPtr) {
       return false;
    }
-   bool result = getOP(ssPtr->utxoSet_);
+   bool result = opExists(ssPtr->utxoSet_, txHash, txOutIndex);
    if (result) {
       return true;
    }
@@ -1162,7 +1165,33 @@ bool ColoredCoinTracker::isTxHashValid(const BinaryData &txHash, uint32_t txOutI
    if (!zcPtr) {
       return  false;
    }
-   result = getOP(zcPtr->utxoSet_);
+   result = opExists(zcPtr->utxoSet_, txHash, txOutIndex);
+   return result;
+}
+
+bool ColoredCoinTracker::isTxHashValidHistory(const BinaryData &txHash, uint32_t txOutIndex) const
+{
+   const auto ssPtr = snapshot();
+   if (!ssPtr) {
+      return false;
+   }
+
+   auto hashIter = ssPtr->txHistory_.find(txHash);
+   if (hashIter != ssPtr->txHistory_.end()) {
+      if (txOutIndex == UINT32_MAX) {
+         return true;
+      }
+      auto idIter = hashIter->second.find(txOutIndex);
+      if (idIter != hashIter->second.end()) {
+         return true;
+      }
+   }
+
+   const auto zcPtr = zcSnapshot();
+   if (!zcPtr) {
+      return  false;
+   }
+   bool result = opExists(zcPtr->utxoSet_, txHash, txOutIndex);
    return result;
 }
 
@@ -1223,6 +1252,8 @@ void ColoredCoinTracker::addUtxo(
       }
       hashPtr = opPtr->getTxHash();
    }
+
+   ssPtr->txHistory_[txHash].insert(txOutIndex);
 
    //create output ptr
    auto opPtr = std::make_shared<CcOutpoint>(value, txOutIndex);

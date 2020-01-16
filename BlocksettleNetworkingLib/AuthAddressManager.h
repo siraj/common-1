@@ -145,6 +145,7 @@ signals:
    void AuthAddrSubmitSuccess(const QString &address);
    void AuthAddressSubmitCancelled(const QString &address);
    void AuthRevokeTxSent();
+   void gotBsAddressList();
 
    void AuthAddressConfirmationRequired(float validationAmount);
    void signFailed(AutheIDClient::ErrorType error);

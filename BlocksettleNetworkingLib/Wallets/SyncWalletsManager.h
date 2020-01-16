@@ -153,6 +153,8 @@ namespace bs {
                , bs::core::wallet::OutputOrderType::Recipients, bs::core::wallet::OutputOrderType::Change }
          , const BinaryData prevPart = {}, bool feeCalcUsePrevPart = true, bool useAllInputs = false);
 
+         std::shared_ptr<ColoredCoinTracker> tracker(const std::string &cc) const;
+
       signals:
          void CCLeafCreated(const std::string& ccName);
          void CCLeafCreateFailed(const std::string& ccName, bs::error::ErrorCode result);

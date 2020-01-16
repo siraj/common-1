@@ -360,16 +360,16 @@ WalletsManager::WalletPtr WalletsManager::getCCWallet(const std::string &cc)
 }
 
 bool WalletsManager::isValidCCOutpoint(const std::string &cc, const BinaryData &txHash
-   , uint32_t, uint64_t value) const
-{  // not using txOutIndex is intended now, as it won't return correct results
+   , uint32_t txOutIndex, uint64_t value) const
+{
    const auto &itTracker = trackers_.find(cc);
    if (itTracker == trackers_.end()) {
       return false;
    }
-/*   const bool result = itTracker->second->isTxHashValid(txHash);
-   if (!result) {          // FIXME: disabled temporarily until CC tracker
-      return false;        // will allow to validate any spent UTXO
-   }*/
+   const bool result = itTracker->second->isTxHashValidHistory(txHash, txOutIndex);
+   if (!result) {
+      return false;
+   }
    return ((value % ccResolver_->lotSizeFor(cc)) == 0);
 }
 
@@ -2023,4 +2023,10 @@ bs::core::wallet::TXSignRequest WalletsManager::createPartialTXRequest(uint64_t 
 
    request.prevStates.emplace_back(signer.serializeState());
    return request;
+}
+
+std::shared_ptr<ColoredCoinTracker> WalletsManager::tracker(const std::string &cc) const
+{
+   auto it = trackers_.find(cc);
+   return it != trackers_.end() ? it->second : nullptr;
 }
