@@ -2024,3 +2024,9 @@ bs::core::wallet::TXSignRequest WalletsManager::createPartialTXRequest(uint64_t 
    request.prevStates.emplace_back(signer.serializeState());
    return request;
 }
+
+std::shared_ptr<ColoredCoinTracker> WalletsManager::tracker(const std::string &cc) const
+{
+   auto it = trackers_.find(cc);
+   return it != trackers_.end() ? it->second : nullptr;
+}
