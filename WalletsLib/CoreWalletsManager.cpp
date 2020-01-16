@@ -118,6 +118,13 @@ void WalletsManager::changeControlPassword(const SecureBinaryData &oldPass, cons
    }
 }
 
+void bs::core::WalletsManager::eraseControlPassword(const SecureBinaryData &oldPass)
+{
+   for (const auto &hdWallet : hdWallets_) {
+      hdWallet.second->eraseControlPassword(oldPass);
+   }
+}
+
 void WalletsManager::backupWallet(const HDWalletPtr &wallet, const std::string &targetDir) const
 {
    if (wallet->isWatchingOnly()) {

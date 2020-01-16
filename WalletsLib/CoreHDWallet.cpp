@@ -256,6 +256,21 @@ void hd::Wallet::changeControlPassword(const SecureBinaryData &oldPass, const Se
    walletPtr_->changeControlPassphrase(newPassCb, lbdControlPassphrase_);
 }
 
+void bs::core::hd::Wallet::eraseControlPassword(const SecureBinaryData &oldPass)
+{
+   auto nbTries = std::make_shared<int>(0);
+   lbdControlPassphrase_ = [oldPass, nbTries]
+   (const std::set<BinaryData>&)->SecureBinaryData
+   {
+      if (++(*nbTries) > 1) {
+         return {};
+      }
+      return oldPass;
+   };
+
+   walletPtr_->eraseControlPassphrase(lbdControlPassphrase_);
+}
+
 void hd::Wallet::createStructure(unsigned lookup)
 {
    const auto groupXBT = createGroup(getXBTGroupType());
