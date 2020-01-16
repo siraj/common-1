@@ -52,6 +52,7 @@ namespace bs {
          HDWalletPtr loadWoWallet(NetworkType, const std::string &walletsPath
             , const std::string &walletFileName, const SecureBinaryData &ctrlPass = {});
          void changeControlPassword(const SecureBinaryData &oldPass, const SecureBinaryData &newPass);
+         void eraseControlPassword(const SecureBinaryData &oldPass);
          void backupWallet(const HDWalletPtr &, const std::string &targetDir) const;
 
          bool empty() const { return hdWallets_.empty(); }
