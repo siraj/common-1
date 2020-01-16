@@ -174,14 +174,9 @@ bool QuoteProvider::onQuoteResponse(const std::string& data)
             price = response.bidpx();
          }
 
-         const bool own = IsOwnPrice(response.quoterequestid(), price);
+         const bool own = response.has_quotedbysessionkey() && !response.quotedbysessionkey().empty();
 
          emit bestQuotePrice(QString::fromStdString(response.quoterequestid()), price, own);
-
-         // it is tradeable. so will be deleted from dealing tab. need to remove saved price
-         if (response.quotingtype() == com::celertech::marketmerchant::api::enums::quotingtype::TRADEABLE) {
-            RemoveQuotePrice(response.quoterequestid());
-         }
       }
    }
    else {
@@ -572,8 +567,6 @@ bool QuoteProvider::onQuoteCancelled(const std::string& data)
    emit quoteCancelled(QString::fromStdString(response.quoterequestid())
       , response.quotecanceltype() == com::celertech::marketmerchant::api::enums::quotecanceltype::CANCEL_ALL_QUOTES
       /*&& (response.quotecancelreason() == "QUOTE_CANCEL_BY_USER")*/);
-
-   RemoveQuotePrice(response.quoterequestid());
    return true;
 }
 
@@ -606,9 +599,6 @@ void QuoteProvider::SubmitQuoteNotif(const bs::network::QuoteNotification &qn)
       logger_->error("[QuoteProvider::SubmitQuoteNotif] failed to execute CelerSubmitQuoteNotifSequence");
    } else {
       logger_->debug("[QuoteProvider::SubmitQuoteNotif] QuoteNotification on {} submitted", qn.quoteRequestId);
-      // bidPx is always same as offerPx
-      // see QuoteNotification::QuoteNotification()
-      SaveQuotePrice(qn.quoteRequestId, qn.bidPx);
 
       if (qn.assetType == bs::network::Asset::SpotXBT) {
          saveSubmittedXBTQuoteNotification(qn);
@@ -624,8 +614,6 @@ void QuoteProvider::CancelQuoteNotif(const QString &reqId, const QString &reqSes
       logger_->error("[QuoteProvider::CancelQuoteNotif] failed to execute CelerCancelQuoteNotifSequence");
    } else {
       logger_->debug("[QuoteProvider::CancelQuoteNotif] CancelQuoteNotification on {} submitted", reqId.toStdString());
-
-      RemoveQuotePrice(reqId.toStdString());
    }
 }
 
@@ -849,32 +837,4 @@ std::string QuoteProvider::getQuoteRequestCcy(const std::string& id) const
    }
 
    return ccy;
-}
-
-void QuoteProvider::SaveQuotePrice(const std::string& rfqId, double price)
-{
-   FastLock locker{quotedPricesLock_};
-   auto it = quotedPrices_.find(rfqId);
-   if (it == quotedPrices_.end()) {
-      quotedPrices_.emplace_hint(it, rfqId, price);
-   } else {
-      it->second = price;
-   }
-}
-
-bool QuoteProvider::IsOwnPrice(const std::string& rfqId, double receivedPrice) const
-{
-   FastLock locker{quotedPricesLock_};
-   auto it = quotedPrices_.find(rfqId);
-   if (it != quotedPrices_.end()) {
-      return it->second == receivedPrice;
-   }
-
-   return false;
-}
-
-void QuoteProvider::RemoveQuotePrice(const std::string& rfqId)
-{
-   FastLock locker{quotedPricesLock_};
-   quotedPrices_.erase(rfqId);
 }

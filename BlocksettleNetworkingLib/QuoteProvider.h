@@ -111,10 +111,6 @@ private:
 
    std::string getQuoteRequestCcy(const std::string& id) const;
 
-   void SaveQuotePrice(const std::string& rfqId, double price);
-   bool IsOwnPrice(const std::string& rfqId, double receivedPrice) const;
-   void RemoveQuotePrice(const std::string& rfqId);
-
 private:
    std::shared_ptr<spdlog::logger>  logger_;
    std::shared_ptr<AssetManager>    assetManager_;
@@ -123,9 +119,6 @@ private:
 
    std::unordered_map<std::string, std::string> quoteIdMap_;
    std::unordered_map<std::string, std::vector<std::string>>   quoteIds_;
-
-   mutable std::atomic_flag               quotedPricesLock_ = ATOMIC_FLAG_INIT;
-   std::unordered_map<std::string,double> quotedPrices_;
 
    // key - quoteRequestId
    using quoteNotificationsCollection = std::unordered_map<std::string, bs::network::QuoteNotification>;
