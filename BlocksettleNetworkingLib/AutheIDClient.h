@@ -167,8 +167,8 @@ public:
 
    // If timestamp is set (unix time in seconds) then auth eid server will use correct timeout.
    // timestamp must be valid value!
-   void getDeviceKey(RequestType requestType, const std::string &email, const std::string &walletId
-      , const std::vector<std::string> &knownDeviceIds, int expiration = kDefaultExpiration, int timestamp = 0);
+   void getDeviceKey(RequestType requestType, const std::string &email, const std::string &walletId, const QString &authEidMessage
+      , const std::vector<std::string> &knownDeviceIds,  int expiration = kDefaultExpiration, int timestamp = 0);
 
    void sign(const SignRequest &request, bool autoRequestResult = true);
 
@@ -209,6 +209,9 @@ private:
 
    QString getAutheIDClientRequestText(RequestType requestType);
    bool isAutheIDClientNewDeviceNeeded(RequestType requestType);
+
+   std::string finalMessageChange(const QString &authEidMessage, RequestType requestType,
+      const std::vector<std::string> &knownDeviceIds);
 
 private:
    std::shared_ptr<spdlog::logger> logger_;
