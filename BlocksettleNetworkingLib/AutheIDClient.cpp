@@ -296,7 +296,8 @@ void AutheIDClient::createCreateRequest(const std::string &payload, int expirati
 }
 
 void AutheIDClient::getDeviceKey(RequestType requestType, const std::string &email
-   , const std::string &walletId, const std::vector<std::string> &knownDeviceIds, int expiration, int timestamp)
+   , const std::string &walletId, const QString &authEidMessage
+   , const std::vector<std::string> &knownDeviceIds, int expiration, int timestamp)
 {
    cancel();
 
@@ -314,7 +315,7 @@ void AutheIDClient::getDeviceKey(RequestType requestType, const std::string &ema
    request.set_timestamp_created(timestamp);
 
    request.set_title(action.toStdString());
-   request.set_description("Wallet ID:" + walletId);
+   request.set_description(finalMessageChange(authEidMessage, requestType, knownDeviceIds));
    request.set_email(email_);
    request.mutable_device_key()->set_use_new_devices(newDevice);
 
@@ -621,6 +622,32 @@ bool AutheIDClient::isAutheIDClientNewDeviceNeeded(RequestType requestType)
    default:
       return false;
    }
+}
+
+std::string AutheIDClient::finalMessageChange(const QString &authEidMessage, RequestType requestType,
+   const std::vector<std::string> &knownDeviceIds)
+{
+   auto addRow = [](std::string &&key, const std::string &value, bool isLastInRow = false) -> std::string {
+      std::string res = std::move(key);
+      res += ": ";
+      res += key;
+
+      if (!isLastInRow)
+         res += '\n';
+
+      return res;
+   };
+
+   std::string result = authEidMessage.toStdString();
+   switch (requestType)
+   {
+   case ActivateWalletOldDevice:
+   case ActivateWalletNewDevice:
+   case DeactivateWalletDevice:
+      return addRow("Device", knownDeviceIds[0]) + authEidMessage.toStdString();
+   default:
+      return authEidMessage.toStdString();
+   }   
 }
 
 void AutheIDClient::processSignatureReply(const autheid::rp::GetResultResponse_SignatureResult &reply)
