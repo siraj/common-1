@@ -109,6 +109,11 @@ public:
       std::string ccProduct;
    };
 
+   struct DescCc
+   {
+      std::string ccProduct;
+   };
+
    BsClient(const std::shared_ptr<spdlog::logger>& logger, const BsClientParams &params
       , QObject *parent = nullptr);
    ~BsClient() override;
@@ -139,7 +144,7 @@ public:
    static std::string requestDescAuthAddr(const bs::Address &address);
    // NOTE: CC address text details are not enforced on PB right now!
    static std::string requestTitleCcAddr();
-   static std::string requestDescCcAddr(const bs::Address &address, const std::string &token);
+   static std::string requestDescCcAddr(const DescCc &descCC);
 
 public slots:
    void sendUnsignedPayin(const std::string& settlementId, const bs::network::UnsignedPayinData& unsignedPayinData);

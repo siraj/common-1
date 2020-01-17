@@ -239,20 +239,19 @@ std::string BsClient::requestTitleAuthAddr()
 // static
 std::string BsClient::requestDescAuthAddr(const bs::Address &address)
 {
-   return fmt::format("{}", address.display());
+   return fmt::format("Authentication Address: {}", address.display());
 }
 
 // static
 std::string BsClient::requestTitleCcAddr()
 {
-   return "Private Market Token";
+   return "Equity Token issuance";
 }
 
 // static
-std::string BsClient::requestDescCcAddr(const bs::Address &address, const std::string &token)
+std::string BsClient::requestDescCcAddr(const DescCc &descCC)
 {
-   // We don't show address details here yet
-   return token;
+   return fmt::format("Product: {}", descCC.ccProduct);
 }
 
 void BsClient::OnDataReceived(const std::string &data)
