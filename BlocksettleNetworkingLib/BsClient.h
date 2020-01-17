@@ -106,7 +106,7 @@ public:
       SignStartedCb startedCb;
       SignedCb signedCb;
       SignFailedCb failedCb;
-      std::string srcCcToken;
+      std::string ccProduct;
    };
 
    BsClient(const std::shared_ptr<spdlog::logger>& logger, const BsClientParams &params

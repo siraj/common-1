@@ -174,7 +174,7 @@ void BsClient::signAddress(const SignAddressReq &req)
    d->set_type(int(req.type));
    d->set_address(req.address.display());
    d->set_invisible_data(req.invisibleData.toBinStr());
-   d->set_src_cc_token(req.srcCcToken);
+   d->set_cc_product(req.ccProduct);
 
    auto processCb = [this, req](const Response &response) {
       if (!response.has_start_sign_address()) {
