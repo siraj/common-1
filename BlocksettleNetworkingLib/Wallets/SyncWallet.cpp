@@ -484,7 +484,7 @@ void Wallet::setArmory(const std::shared_ptr<ArmoryConnection> &armory)
    }
 
    if (!utxoAdapter_) {
-      utxoAdapter_ = std::make_shared<UtxoFilterAdapter>(walletId());
+      utxoAdapter_ = std::make_shared<UtxoFilterAdapter>();
       if (!UtxoReservation::addAdapter(utxoAdapter_)) {
          utxoAdapter_ = nullptr;
       }

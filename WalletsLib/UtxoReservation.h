@@ -41,23 +41,18 @@ namespace bs {
          friend class UtxoReservation;
       public:
          virtual ~Adapter() noexcept = default;
-         bool reserve(const std::string &walletId, const std::string &reserveId
+         void reserve(const std::string &reserveId
                       , const std::vector<UTXO> &);
-         std::string unreserve(const std::string &reserveId);
+         void unreserve(const std::string &reserveId);
          std::vector<UTXO> get(const std::string &reserveId) const;
-         bool filter(const std::string &walletId
-                     , std::vector<UTXO> &utxos) const;
+         void filter(std::vector<UTXO> &utxos) const;
       private:
          void setParent(UtxoReservation *parent) { parent_ = parent; }
-         virtual void reserved(const std::string &walletID
-                               , const std::vector<UTXO> &resUTXOs) {}
-         virtual void unreserved(const std::string &walletID
-                                 , const std::string &reserveID) {}
+         virtual void reserved(const std::vector<UTXO> &resUTXOs) {}
+         virtual void unreserved(const std::string &reserveID) {}
       protected:
          UtxoReservation * parent_ = nullptr;
       };
-
-      explicit UtxoReservation();
 
       // Create the singleton. Use only once!
       // Destroying disabled as it's broken, see BST-2362 for details
@@ -70,34 +65,42 @@ namespace bs {
 
       // Reserve/Unreserve UTXOs. Used as needed. User supplies the wallet ID,
       // a reservation ID, and the UTXOs to reserve.
-      void reserve(const std::string &walletId, const std::string &reserveId
-                   , const std::vector<UTXO> &utxos);
-      std::string unreserve(const std::string &reserveId);  // returns walletId
+      void reserve(const std::string &reserveId, const std::vector<UTXO> &utxos);
+      bool unreserve(const std::string &reserveId);
 
       // Get the UTXOs based on the reservation ID.
       std::vector<UTXO> get(const std::string &reserveId) const;
 
       // Pass in a vector of UTXOs. If any of the UTXOs are in the wallet ID
       // being queried, remove the UTXOs from the vector.
-      bool filter(const std::string &walletId, std::vector<UTXO> &utxos) const;
+      void filter(std::vector<UTXO> &utxos) const;
 
       static UtxoReservation *instance();
+
+      explicit UtxoReservation(const std::shared_ptr<spdlog::logger> &logger);
 
    private:
       using UTXOs = std::vector<UTXO>;
       using IdList = std::unordered_set<std::string>;
 
-      mutable std::atomic_flag                     flag_ = ATOMIC_FLAG_INIT;
+      struct UtxoHasher {
+         std::size_t operator()(const UTXO &utxo) const {
+            return std::hash<std::string>()(utxo.getTxHash().toBinStr());
+         }
+      };
+
+      mutable std::mutex mutex_;
+
       // Reservation ID, UTXO vector.
-      std::unordered_map<std::string, UTXOs>       byReserveId_;
-      // Reservation ID, WalletID
-      std::unordered_map<std::string, std::string> walletByReserveId_;
-      // Wallet ID, unordered set of Reservation IDs
-      std::unordered_map<std::string, IdList>      resIdByWalletId_;
+      std::unordered_map<std::string, UTXOs> byReserveId_;
+
       // Reservation ID, time of reservation
-      std::unordered_map<std::string, std::chrono::time_point<std::chrono::system_clock>> reserveTime_;
+      std::unordered_map<std::string, std::chrono::steady_clock::time_point> reserveTime_;
+
+      std::unordered_set<UTXO, UtxoHasher> reserved_;
+
       // Active adapters.
-      std::vector<std::shared_ptr<Adapter>>        adapters_;
+      std::vector<std::shared_ptr<Adapter>> adapters_;
 
       std::shared_ptr<spdlog::logger> logger_;
    };

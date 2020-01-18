@@ -77,9 +77,6 @@ namespace bs {
          // If set, automatic UTXO selection filters reserverd inputs.
          // Fixed inputs are not filtered.
          bs::UtxoReservation *utxoReservation{};
-
-         // walletId used for UTXO filtering
-         std::string utxoReservationWalletId;
       };
 
       struct PayoutArgs : public Args

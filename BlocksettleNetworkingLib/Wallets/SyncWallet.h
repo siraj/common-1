@@ -261,8 +261,7 @@ namespace bs {
          class UtxoFilterAdapter : public bs::UtxoReservation::Adapter
          {
          public:
-            UtxoFilterAdapter(const std::string &walletId) : walletId_(walletId) {}
-            void filter(std::vector<UTXO> &utxos) { parent_->filter(walletId_, utxos); }
+            void filter(std::vector<UTXO> &utxos) { parent_->filter(utxos); }
          private:
             const std::string walletId_;
          };
