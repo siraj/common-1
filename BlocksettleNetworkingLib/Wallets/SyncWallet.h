@@ -258,15 +258,6 @@ namespace bs {
          std::map<bs::Address, std::string>  addrComments_;
          std::map<BinaryData, std::string>   txComments_;
 
-         class UtxoFilterAdapter : public bs::UtxoReservation::Adapter
-         {
-         public:
-            void filter(std::vector<UTXO> &utxos) { parent_->filter(utxos); }
-         private:
-            const std::string walletId_;
-         };
-         std::shared_ptr<UtxoFilterAdapter>  utxoAdapter_;
-
          std::unique_ptr<WalletACT>   act_;
          WalletCallbackTarget       * wct_ = nullptr;
 

@@ -33,35 +33,9 @@ namespace bs {
    class UtxoReservation
    {
    public:
-      // Adapters can be used directly or derived and altered as needed.
-      // Adapters make of reservation IDs (any unique string), wallet IDs (which
-      // can have multiple associated reservation IDs), and a set of reserved
-      // UTXOs.
-      class Adapter {
-         friend class UtxoReservation;
-      public:
-         virtual ~Adapter() noexcept = default;
-         void reserve(const std::string &reserveId
-                      , const std::vector<UTXO> &);
-         void unreserve(const std::string &reserveId);
-         std::vector<UTXO> get(const std::string &reserveId) const;
-         void filter(std::vector<UTXO> &utxos) const;
-      private:
-         void setParent(UtxoReservation *parent) { parent_ = parent; }
-         virtual void reserved(const std::vector<UTXO> &resUTXOs) {}
-         virtual void unreserved(const std::string &reserveID) {}
-      protected:
-         UtxoReservation * parent_ = nullptr;
-      };
-
       // Create the singleton. Use only once!
       // Destroying disabled as it's broken, see BST-2362 for details
       static void init(const std::shared_ptr<spdlog::logger> &logger);
-
-      // Add and remove individual adapters. Typically added/deleted only once
-      // per class that uses an adapter.
-      static bool addAdapter(const std::shared_ptr<Adapter> &a);
-      static bool delAdapter(const std::shared_ptr<Adapter> &a);
 
       // Reserve/Unreserve UTXOs. Used as needed. User supplies the wallet ID,
       // a reservation ID, and the UTXOs to reserve.
@@ -98,9 +72,6 @@ namespace bs {
       std::unordered_map<std::string, std::chrono::steady_clock::time_point> reserveTime_;
 
       std::unordered_set<UTXO, UtxoHasher> reserved_;
-
-      // Active adapters.
-      std::vector<std::shared_ptr<Adapter>> adapters_;
 
       std::shared_ptr<spdlog::logger> logger_;
    };
