@@ -70,8 +70,8 @@ public:
    ////
    bool operator<(const CcOutpoint& rhs) const
    {
-      if (txHash_ != rhs.txHash_)
-         return txHash_ < rhs.txHash_;
+      if (*txHash_ != *rhs.txHash_)
+         return *txHash_ < *rhs.txHash_;
 
       return index_ < rhs.index_;
    }
