@@ -57,12 +57,6 @@ namespace bs {
       using UTXOs = std::vector<UTXO>;
       using IdList = std::unordered_set<std::string>;
 
-      struct UtxoHasher {
-         std::size_t operator()(const UTXO &utxo) const {
-            return std::hash<std::string>()(utxo.getTxHash().toBinStr());
-         }
-      };
-
       mutable std::mutex mutex_;
 
       // Reservation ID, UTXO vector.
@@ -71,7 +65,7 @@ namespace bs {
       // Reservation ID, time of reservation
       std::unordered_map<std::string, std::chrono::steady_clock::time_point> reserveTime_;
 
-      std::unordered_set<UTXO, UtxoHasher> reserved_;
+      std::set<UTXO> reserved_;
 
       std::shared_ptr<spdlog::logger> logger_;
    };
