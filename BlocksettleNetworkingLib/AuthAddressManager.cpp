@@ -755,12 +755,14 @@ void AuthAddressManager::SetState(const bs::Address &addr, AddressVerificationSt
    }
 
    if ((state == AddressVerificationState::Verified) && (prevState == AddressVerificationState::PendingVerification)) {
-      emit AddrStateChanged(QString::fromStdString(addr.display()), tr("Verified"));
+      emit AddrVerifiedOrRevoked(QString::fromStdString(addr.display()), tr("Verified"));
    }
    else if (((state == AddressVerificationState::Revoked) || (state == AddressVerificationState::RevokedByBS))
       && (prevState == AddressVerificationState::Verified)) {
-      emit AddrStateChanged(QString::fromStdString(addr.display()), tr("Revoked"));
+      emit AddrVerifiedOrRevoked(QString::fromStdString(addr.display()), tr("Revoked"));
    }
+
+   emit AddrStateChanged();
 }
 
 bool AuthAddressManager::BroadcastTransaction(const BinaryData& transactionData)
@@ -807,7 +809,7 @@ std::vector<bs::Address> AuthAddressManager::GetVerifiedAddressList() const
    return list;
 }
 
-bool AuthAddressManager::IsAtLeastOneAwaitingVerification() const
+bool AuthAddressManager::isAtLeastOneAwaitingVerification() const
 {
    {
       FastLock locker(lockList_);
@@ -821,6 +823,20 @@ bool AuthAddressManager::IsAtLeastOneAwaitingVerification() const
       }
    }
    return false;
+}
+
+bool AuthAddressManager::isAllLoadded() const
+{
+   {
+      FastLock locker(lockList_);
+      for (const auto &address : addresses_) {
+         auto addrState = GetState(address);
+         if (addrState == AddressVerificationState::InProgress) {
+            return false;
+         }
+      }
+   }
+   return true;
 }
 
 size_t AuthAddressManager::FromVerifiedIndex(size_t index) const

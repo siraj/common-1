@@ -139,7 +139,7 @@ void CCFileManager::ProcessGenAddressesResponse(const std::string& response, con
    resolver_->saveToFile(ccFilePath_.toStdString(), response, sig);
 }
 
-bool CCFileManager::SubmitAddressToPuB(const bs::Address &address, uint32_t seed, const std::string &srcToken)
+bool CCFileManager::SubmitAddressToPuB(const bs::Address &address, uint32_t seed, const std::string &ccProduct)
 {
    if (!celerClient_) {
       logger_->error("[CCFileManager::SubmitAddressToPuB] not connected");
@@ -169,7 +169,7 @@ bool CCFileManager::SubmitAddressToPuB(const bs::Address &address, uint32_t seed
    req.type = BsClient::SignAddressReq::CcAddr;
    req.address = address;
    req.invisibleData = requestDataHash;
-   req.srcCcToken = srcToken;
+   req.ccProduct = ccProduct;
 
    req.signedCb = [this, address, requestData](const AutheIDClient::SignResult &result) {
       // No need to check result.data (AutheIDClient will check that invisible data is the same)

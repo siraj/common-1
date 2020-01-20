@@ -174,7 +174,7 @@ void BsClient::signAddress(const SignAddressReq &req)
    d->set_type(int(req.type));
    d->set_address(req.address.display());
    d->set_invisible_data(req.invisibleData.toBinStr());
-   d->set_src_cc_token(req.srcCcToken);
+   d->set_cc_product(req.ccProduct);
 
    auto processCb = [this, req](const Response &response) {
       if (!response.has_start_sign_address()) {
@@ -239,20 +239,19 @@ std::string BsClient::requestTitleAuthAddr()
 // static
 std::string BsClient::requestDescAuthAddr(const bs::Address &address)
 {
-   return fmt::format("{}", address.display());
+   return fmt::format("Authentication Address: {}", address.display());
 }
 
 // static
 std::string BsClient::requestTitleCcAddr()
 {
-   return "Private Market Token";
+   return "Equity Token issuance";
 }
 
 // static
-std::string BsClient::requestDescCcAddr(const bs::Address &address, const std::string &token)
+std::string BsClient::requestDescCcAddr(const DescCc &descCC)
 {
-   // We don't show address details here yet
-   return token;
+   return fmt::format("Product: {}", descCC.ccProduct);
 }
 
 void BsClient::OnDataReceived(const std::string &data)

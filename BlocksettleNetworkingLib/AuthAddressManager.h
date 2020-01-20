@@ -117,7 +117,8 @@ public:
    virtual void OnDisconnectedFromCeler();
 
    virtual std::vector<bs::Address> GetVerifiedAddressList() const;
-   bool IsAtLeastOneAwaitingVerification() const;
+   bool isAtLeastOneAwaitingVerification() const;
+   bool isAllLoadded() const;
    size_t FromVerifiedIndex(size_t index) const;
    const std::unordered_set<std::string> &GetBSAddresses() const;
 
@@ -134,7 +135,8 @@ private slots:
 signals:
    void AddressListUpdated();
    void VerifiedAddressListUpdated();
-   void AddrStateChanged(const QString &addr, const QString &state);
+   void AddrVerifiedOrRevoked(const QString &addr, const QString &state);
+   void AddrStateChanged();
    void AuthWalletChanged();
    void AuthWalletCreated(const QString &walletId);
    void ConnectionComplete();
