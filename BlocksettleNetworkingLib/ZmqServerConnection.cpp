@@ -481,31 +481,59 @@ void ZmqServerConnection::setThreadName(const std::string &name)
 
 bool ZmqServerConnection::ConfigDataSocket(const ZmqContext::sock_ptr &dataSocket)
 {
-   int immediate = immediate_ ? 1 : 0;
+   const int immediate = immediate_ ? 1 : 0;
    if (zmq_setsockopt(dataSocket.get(), ZMQ_IMMEDIATE, &immediate, sizeof(immediate)) != 0) {
-      logger_->error("[{}] {} failed to set immediate flag: {}", __func__
+      logger_->error("[ZmqServerConnection::ConfigDataSocket] {} failed to set immediate flag: {}"
          , connectionName_, zmq_strerror(zmq_errno()));
       return false;
    }
 
    if (!identity_.empty()) {
       if (zmq_setsockopt(dataSocket.get(), ZMQ_IDENTITY, identity_.c_str(), identity_.size()) != 0) {
-         logger_->error("[{}] {} failed to set server identity {}", __func__
+         logger_->error("[ZmqServerConnection::ConfigDataSocket] {} failed to set server identity {}"
             , connectionName_, zmq_strerror(zmq_errno()));
          return false;
       }
    }
 
    if (zmq_setsockopt(dataSocket.get(), ZMQ_SNDTIMEO, &sendTimeoutInMs_, sizeof(sendTimeoutInMs_)) != 0) {
-      logger_->error("[{}] {} failed to set send timeout {}", __func__
+      logger_->error("[ZmqServerConnection::ConfigDataSocket] {} failed to set send timeout {}"
          , connectionName_, zmq_strerror(zmq_errno()));
       return false;
    }
 
-   int lingerPeriod = 0;
+   constexpr int lingerPeriod = 0;
    if (zmq_setsockopt(dataSocket.get(), ZMQ_LINGER, &lingerPeriod, sizeof(lingerPeriod)) != 0) {
-      logger_->error("[{}] {} failed to set linger interval {}: {}", __func__
+      logger_->error("[ZmqServerConnection::ConfigDataSocket] {} failed to set linger interval {}: {}"
          , connectionName_, lingerPeriod, zmq_strerror(zmq_errno()));
+      return false;
+   }
+
+   constexpr int enableKeepalive = 1; // boolean enable
+   if (zmq_setsockopt(dataSocket.get(), ZMQ_TCP_KEEPALIVE, &enableKeepalive, sizeof(enableKeepalive)) != 0) {
+      logger_->error("[ZmqServerConnection::ConfigDataSocket] {} failed to set ZMQ_TCP_KEEPALIVE {}: {}"
+         , connectionName_, enableKeepalive, zmq_strerror(zmq_errno()));
+      return false;
+   }
+
+   constexpr int keepaliveCount = 20; // 20 probes
+   if (zmq_setsockopt(dataSocket.get(), ZMQ_TCP_KEEPALIVE_CNT, &keepaliveCount, sizeof(keepaliveCount)) != 0) {
+      logger_->error("[ZmqServerConnection::ConfigDataSocket] {} failed to set ZMQ_TCP_KEEPALIVE_CNT {}: {}"
+         , connectionName_, keepaliveCount, zmq_strerror(zmq_errno()));
+      return false;
+   }
+
+   constexpr int keepaliveIdleTimeout = 600; // seconds
+   if (zmq_setsockopt(dataSocket.get(), ZMQ_TCP_KEEPALIVE_IDLE, &keepaliveIdleTimeout, sizeof(keepaliveIdleTimeout)) != 0) {
+      logger_->error("[ZmqServerConnection::ConfigDataSocket] {} failed to set ZMQ_TCP_KEEPALIVE_IDLE {}: {}"
+         , connectionName_, keepaliveIdleTimeout, zmq_strerror(zmq_errno()));
+      return false;
+   }
+
+   constexpr int keepaliveInterval = 60; //seconds
+   if (zmq_setsockopt(dataSocket.get(), ZMQ_TCP_KEEPALIVE_INTVL, &keepaliveInterval, sizeof(keepaliveInterval)) != 0) {
+      logger_->error("[ZmqServerConnection::ConfigDataSocket] {} failed to set ZMQ_TCP_KEEPALIVE_INTVL {}: {}"
+         , connectionName_, keepaliveInterval, zmq_strerror(zmq_errno()));
       return false;
    }
 
