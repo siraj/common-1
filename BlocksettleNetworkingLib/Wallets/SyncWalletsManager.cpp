@@ -1735,7 +1735,7 @@ bool WalletsManager::createAuthLeaf(const std::function<void()> &cb)
    bs::sync::PasswordDialogData dialogData;
    dialogData.setValue(PasswordDialogData::DialogType
       , ui::getPasswordInputDialogName(ui::PasswordInputDialogType::RequestPasswordForAuthLeaf));
-   dialogData.setValue(PasswordDialogData::Title, tr("Create Auth Leaf"));
+   dialogData.setValue(PasswordDialogData::Title, tr("Create Authentication Address Leaf"));
    dialogData.setValue(PasswordDialogData::Product, QString::fromStdString(userId_.toHexStr()));
 
    const auto &createAuthLeafCb = [this, cb, primaryWallet, authPath]
