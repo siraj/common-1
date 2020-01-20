@@ -262,7 +262,7 @@ void bs::tradeutils::createPayin(bs::tradeutils::PayinArgs args, bs::tradeutils:
                   }
                   if (args.utxoReservation) {
                      // Ignore filter return value as it fails if there were no reservations before
-                     args.utxoReservation->filter(args.utxoReservationWalletId, utxos);
+                     args.utxoReservation->filter(utxos);
                   }
                   inputsCb(utxos, false);
                };

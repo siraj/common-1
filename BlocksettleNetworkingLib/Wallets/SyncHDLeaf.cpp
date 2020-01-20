@@ -960,8 +960,8 @@ bool hd::CCLeaf::getSpendableTxOutList(const ArmoryConnection::UTXOsCb &cb, uint
             filteredUTXOs.emplace_back(std::move(utxo));
          }
       }
-      if (utxoAdapter_) {
-         utxoAdapter_->filter(filteredUTXOs);
+      if (UtxoReservation::instance()) {
+         UtxoReservation::instance()->filter(filteredUTXOs);
       }
       if (cb) {
          cb(bs::selectUtxoForAmount(std::move(filteredUTXOs), val));

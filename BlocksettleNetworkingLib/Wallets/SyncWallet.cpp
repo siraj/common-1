@@ -42,7 +42,6 @@ Wallet::~Wallet()
       balanceData_->cbBalances.clear();
       balanceData_->cbTxNs.clear();
    }
-   UtxoReservation::delAdapter(utxoAdapter_);
 }
 
 const std::string& Wallet::walletIdInt(void) const
@@ -292,8 +291,8 @@ bool Wallet::getSpendableTxOutList(const ArmoryConnection::UTXOsCb &cb, uint64_t
          return;
       }
       std::vector<UTXO> txOutListCopy = txOutList;
-      if (utxoAdapter_) {
-         utxoAdapter_->filter(txOutListCopy);
+      if (UtxoReservation::instance()) {
+         UtxoReservation::instance()->filter(txOutListCopy);
       }
       cb(bs::selectUtxoForAmount(std::move(txOutListCopy), val));
    };
@@ -480,13 +479,6 @@ void Wallet::setArmory(const std::shared_ptr<ArmoryConnection> &armory)
       if (act_ == nullptr) {
          act_ = make_unique<WalletACT>(this);
          act_->init(armory_.get());
-      }
-   }
-
-   if (!utxoAdapter_) {
-      utxoAdapter_ = std::make_shared<UtxoFilterAdapter>(walletId());
-      if (!UtxoReservation::addAdapter(utxoAdapter_)) {
-         utxoAdapter_ = nullptr;
       }
    }
 }
