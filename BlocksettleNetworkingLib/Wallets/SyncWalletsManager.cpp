@@ -1175,9 +1175,9 @@ bool WalletsManager::isWatchingOnly(const std::string &walletId) const
 void WalletsManager::goOnline()
 {
    for (const auto &cc : ccResolver_->securities()) {
-      const auto tracker = std::make_shared<ColoredCoinTracker>(ccResolver_->lotSizeFor(cc)
-         , armoryPtr_);
-      tracker->addOriginAddress(ccResolver_->genesisAddrFor(cc));
+      auto trackerSnapshots = std::make_unique<ColoredCoinTracker>(ccResolver_->lotSizeFor(cc), armoryPtr_);
+      trackerSnapshots->addOriginAddress(ccResolver_->genesisAddrFor(cc));
+      const auto tracker = std::make_shared<ColoredCoinTrackerClient>(std::move(trackerSnapshots));
       trackers_[cc] = tracker;
       logger_->debug("[{}] added CC tracker for {}", __func__, cc);
    }
@@ -2025,7 +2025,7 @@ bs::core::wallet::TXSignRequest WalletsManager::createPartialTXRequest(uint64_t 
    return request;
 }
 
-std::shared_ptr<ColoredCoinTracker> WalletsManager::tracker(const std::string &cc) const
+std::shared_ptr<ColoredCoinTrackerClient> WalletsManager::tracker(const std::string &cc) const
 {
    auto it = trackers_.find(cc);
    return it != trackers_.end() ? it->second : nullptr;

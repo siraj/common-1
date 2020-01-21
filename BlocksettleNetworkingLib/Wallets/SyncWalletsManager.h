@@ -34,7 +34,7 @@ namespace spdlog {
    class logger;
 }
 class ApplicationSettings;
-class ColoredCoinTracker;
+class ColoredCoinTrackerClient;
 class WalletSignerContainer;
 
 namespace bs {
@@ -153,7 +153,7 @@ namespace bs {
                , bs::core::wallet::OutputOrderType::Recipients, bs::core::wallet::OutputOrderType::Change }
          , const BinaryData prevPart = {}, bool feeCalcUsePrevPart = true, bool useAllInputs = false);
 
-         std::shared_ptr<ColoredCoinTracker> tracker(const std::string &cc) const;
+         std::shared_ptr<ColoredCoinTrackerClient> tracker(const std::string &cc) const;
 
       signals:
          void CCLeafCreated(const std::string& ccName);
@@ -286,7 +286,7 @@ namespace bs {
          };
          std::shared_ptr<CCResolver>   ccResolver_;
 
-         std::map<std::string, std::shared_ptr<ColoredCoinTracker>>  trackers_;
+         std::map<std::string, std::shared_ptr<ColoredCoinTrackerClient>>  trackers_;
 
          std::unordered_map<std::string, std::pair<Transaction::Direction, std::vector<bs::Address>>> txDirections_;
          mutable std::atomic_flag      txDirLock_ = ATOMIC_FLAG_INIT;

@@ -908,7 +908,7 @@ void hd::CCLeaf::setCCDataResolver(const std::shared_ptr<CCDataResolver> &resolv
    lotSize_ = ccResolver_->lotSizeFor(suffix_);
 }
 
-void hd::CCLeaf::setCCTracker(const std::shared_ptr<ColoredCoinTracker> &tracker)
+void hd::CCLeaf::setCCTracker(const std::shared_ptr<ColoredCoinTrackerClient> &tracker)
 {
    assert(tracker != nullptr);
    tracker_ = tracker;

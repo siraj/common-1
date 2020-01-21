@@ -25,7 +25,7 @@
 namespace spdlog {
    class logger;
 }
-class ColoredCoinTracker;
+class ColoredCoinTrackerClient;
 
 namespace bs {
    class TxAddressChecker;
@@ -227,7 +227,7 @@ namespace bs {
             std::string shortName() const override { return suffix_; }
 
             void setCCDataResolver(const std::shared_ptr<CCDataResolver> &);
-            void setCCTracker(const std::shared_ptr<ColoredCoinTracker> &);
+            void setCCTracker(const std::shared_ptr<ColoredCoinTrackerClient> &);
             void setPath(const bs::hd::Path &) override;
 
             bool getSpendableTxOutList(const ArmoryConnection::UTXOsCb &, uint64_t val) override;
@@ -259,7 +259,7 @@ namespace bs {
             };
 
             std::shared_ptr<CCDataResolver>     ccResolver_;
-            std::shared_ptr<ColoredCoinTracker> tracker_;
+            std::shared_ptr<ColoredCoinTrackerClient> tracker_;
             uint64_t lotSize_{ 0 };
          };
 
