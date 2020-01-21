@@ -116,6 +116,10 @@ public:
    // Terminal should not prompt if there is encrypted wallets with unknown master password.
    void setNoWallets(bool noWallets);
 
+   // Used to sent command to listener to force update wallets
+   // once they are ready
+   void syncWallet();
+
 protected:
    bool isAutoSignActive(const std::string &walletId) const;
 
@@ -198,6 +202,7 @@ private:
 
    void sendUpdateStatuses(std::string clientId = {});
 
+   void sendSyncWallets(std::string clientId = {});
 private:
    std::shared_ptr<spdlog::logger>     logger_;
    ServerConnection                    *connection_{};
