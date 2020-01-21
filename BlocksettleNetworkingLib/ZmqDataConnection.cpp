@@ -207,11 +207,41 @@ bool ZmqDataConnection::ConfigureDataSocket(const ZmqContext::sock_ptr& socket)
    int result = zmq_setsockopt(socket.get(), ZMQ_LINGER, &lingerPeriod, sizeof(lingerPeriod));
    if (result != 0) {
       if (logger_) {
-         logger_->error("[{}] {} failed to set linger interval: {}", __func__
+         logger_->error("[ZmqDataConnection::ConfigureDataSocket] {} failed to set linger interval: {}"
             , connectionName_, zmq_strerror(zmq_errno()));
       }
       return false;
    }
+
+
+   constexpr int enableKeepalive = 1; // boolean enable
+   if (zmq_setsockopt(socket.get(), ZMQ_TCP_KEEPALIVE, &enableKeepalive, sizeof(enableKeepalive)) != 0) {
+      logger_->error("[ZmqDataConnection::ConfigureDataSocket] {} failed to set ZMQ_TCP_KEEPALIVE {}: {}"
+         , connectionName_, enableKeepalive, zmq_strerror(zmq_errno()));
+      return false;
+   }
+
+   constexpr int keepaliveCount = 20; // 20 probes
+   if (zmq_setsockopt(socket.get(), ZMQ_TCP_KEEPALIVE_CNT, &keepaliveCount, sizeof(keepaliveCount)) != 0) {
+      logger_->error("[ZmqDataConnection::ConfigureDataSocket] {} failed to set ZMQ_TCP_KEEPALIVE_CNT {}: {}"
+         , connectionName_, keepaliveCount, zmq_strerror(zmq_errno()));
+      return false;
+   }
+
+   constexpr int keepaliveIdleTimeout = 600; // seconds
+   if (zmq_setsockopt(socket.get(), ZMQ_TCP_KEEPALIVE_IDLE, &keepaliveIdleTimeout, sizeof(keepaliveIdleTimeout)) != 0) {
+      logger_->error("[ZmqDataConnection::ConfigureDataSocket] {} failed to set ZMQ_TCP_KEEPALIVE_IDLE {}: {}"
+         , connectionName_, keepaliveIdleTimeout, zmq_strerror(zmq_errno()));
+      return false;
+   }
+
+   constexpr int keepaliveInterval = 60; //seconds
+   if (zmq_setsockopt(socket.get(), ZMQ_TCP_KEEPALIVE_INTVL, &keepaliveInterval, sizeof(keepaliveInterval)) != 0) {
+      logger_->error("[ZmqDataConnection::ConfigureDataSocket] {} failed to set ZMQ_TCP_KEEPALIVE_INTVL {}: {}"
+         , connectionName_, keepaliveInterval, zmq_strerror(zmq_errno()));
+      return false;
+   }
+
    return true;
 }
 
