@@ -1508,14 +1508,13 @@ uint64_t ColoredCoinTracker::getConfirmedCcValueForAddresses(
 }
 
 ////
-bool ColoredCoinTracker::getCCUtxoForAddresses(
-   const std::set<BinaryData>& scrAddrSet, bool withZc,
-   const std::function<void(std::vector<UTXO>, std::exception_ptr)>& cb) const
+ColoredCoinTracker::OutpointMap ColoredCoinTracker::getCCUtxoForAddresses(
+   const std::set<BinaryData>& scrAddrSet, bool withZc) const
 {
    auto ssPtr = snapshot();
    auto zcPtr = zcSnapshot();
 
-   std::map<BinaryData, std::set<unsigned>> outpointMap;
+   OutpointMap outpointMap;
    for (auto& scrAddr : scrAddrSet)
    {
       //getSpendableOutpointsForAddress reverses the zc flag
@@ -1533,7 +1532,7 @@ bool ColoredCoinTracker::getCCUtxoForAddresses(
       }
    }
 
-   return connPtr_->getOutputsForOutpoints(outpointMap, withZc, cb);
+   return outpointMap;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

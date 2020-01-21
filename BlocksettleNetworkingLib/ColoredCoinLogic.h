@@ -331,9 +331,11 @@ protected:
    void reorg(bool hard);
 
 public:
+   using OutpointMap = std::map<BinaryData, std::set<unsigned>>;
+
    ColoredCoinTracker(uint64_t coinsPerShare,
       std::shared_ptr<ArmoryConnection> connPtr) :
-      coinsPerShare_(coinsPerShare), connPtr_(connPtr)
+      connPtr_(connPtr), coinsPerShare_(coinsPerShare)
    {
       ready_.store(false, std::memory_order_relaxed);
 
@@ -372,8 +374,7 @@ public:
    uint64_t getUnconfirmedCcValueForAddresses(const std::set<BinaryData>&) const;
    uint64_t getConfirmedCcValueForAddresses(const std::set<BinaryData>&) const;
 
-   bool getCCUtxoForAddresses(const std::set<BinaryData>&, bool,
-      const std::function<void(std::vector<UTXO>, std::exception_ptr)>&) const;
+   OutpointMap getCCUtxoForAddresses(const std::set<BinaryData>&, bool withZc) const;
 };
 
 #endif

@@ -978,7 +978,9 @@ bool hd::CCLeaf::getSpendableTxOutList(const ArmoryConnection::UTXOsCb &cb, uint
       return false;
    }
 
-   return tracker_->getCCUtxoForAddresses(addrSet, false, cbWrap);
+   auto outpointMap = tracker_->getCCUtxoForAddresses(addrSet, false);
+
+   return armory_->getOutputsForOutpoints(outpointMap, false, cbWrap);
 }
 
 void hd::CCLeaf::CCWalletACT::onStateChanged(ArmoryState state)
@@ -1015,7 +1017,9 @@ bool hd::CCLeaf::getSpendableZCList(const ArmoryConnection::UTXOsCb &cb) const
       return false;
    }
 
-   return tracker_->getCCUtxoForAddresses(addrSet, true, cbWrap);
+   auto outpointMap = tracker_->getCCUtxoForAddresses(addrSet, true);
+
+   return armory_->getOutputsForOutpoints(outpointMap, true, cbWrap);
 }
 
 std::set<BinaryData> hd::CCLeaf::collectAddresses() const
