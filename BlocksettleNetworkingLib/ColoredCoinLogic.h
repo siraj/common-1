@@ -102,23 +102,26 @@ struct BinaryDataCompare
    }
 };
    
-typedef std::set<std::shared_ptr<CcOutpoint>, CcOutpointCompare> OpPtrSet;
+using OpPtrSet = std::set<std::shared_ptr<CcOutpoint>, CcOutpointCompare>;
+using CcUtxoSet = std::map<BinaryData, std::map<unsigned, std::shared_ptr<CcOutpoint>>>;
+using ScrAddrCcSet = std::map<BinaryData, OpPtrSet>;
+using OutPointsSet = std::map<BinaryData, std::set<unsigned>>;
 
 ////
 struct ColoredCoinSnapshot
 {
 public:
    //<txHash, <txOutId, outpoint>>
-   std::map<BinaryData, std::map<unsigned, std::shared_ptr<CcOutpoint>>> utxoSet_;
+   CcUtxoSet utxoSet_;
 
    //<prefixed scrAddr, <outpoints>>
-   std::map<BinaryData, OpPtrSet> scrAddrCcSet_;
+   ScrAddrCcSet scrAddrCcSet_;
 
    //<prefixed scrAddr, height of revoke tx>
    std::map<BinaryData, unsigned> revokedAddresses_;
 
    //<txHash, txOutId>
-   std::map<BinaryData, std::set<unsigned>> txHistory_;
+   OutPointsSet txHistory_;
 };
 
 ////
@@ -126,13 +129,13 @@ struct ColoredCoinZCSnapshot
 {
 public:
    //<txHash, <txOutId, outpoint>>
-   std::map<BinaryData, std::map<unsigned, std::shared_ptr<CcOutpoint>>> utxoSet_;
+   CcUtxoSet utxoSet_;
 
    //<prefixed scrAddr, <outpoints>>
-   std::map<BinaryData, OpPtrSet> scrAddrCcSet_;
+   ScrAddrCcSet scrAddrCcSet_;
 
    //<hash, <txOutIds>>
-   std::map<BinaryData, std::set<unsigned>> spentOutputs_;
+   OutPointsSet spentOutputs_;
 };
 
 ////
@@ -218,10 +221,10 @@ class ColoredCoinTrackerInterface
 public:
    virtual ~ColoredCoinTrackerInterface() = default;
 
-   virtual bool goOnline() = 0;
-
    virtual void addOriginAddress(const bs::Address&) = 0;
    virtual void addRevocationAddress(const bs::Address&) = 0;
+
+   virtual bool goOnline() = 0;
 
    virtual std::shared_ptr<ColoredCoinSnapshot> snapshot() const = 0;
    virtual std::shared_ptr<ColoredCoinZCSnapshot> zcSnapshot() const = 0;
@@ -236,7 +239,7 @@ class ColoredCoinTracker : public ColoredCoinTrackerInterface
    */
    
    friend class ColoredCoinACT;
-   
+
 private:
    std::set<BinaryData> originAddresses_;
    std::set<BinaryData> revocationAddresses_;
@@ -252,7 +255,7 @@ private:
    unsigned processedHeight_ = 0;
    unsigned processedZcIndex_ = 0;
    
-   uint64_t coinsPerShare_;
+   const uint64_t coinsPerShare_;
 
    ////
    std::atomic<bool> ready_;
@@ -328,6 +331,9 @@ protected:
    std::set<BinaryData> update(void);
    std::set<BinaryData> zcUpdate(void);
    void reorg(bool hard);
+
+   virtual void snapshotUpdated() {}
+   virtual void zcSnapshotUpdated() {}
 
 public:
    using OutpointMap = std::map<BinaryData, std::set<unsigned>>;

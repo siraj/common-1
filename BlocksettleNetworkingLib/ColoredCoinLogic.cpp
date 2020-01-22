@@ -88,7 +88,7 @@ Parsing CC tx:
 
 namespace  {
 
-   bool opExists(const std::map<BinaryData, std::map<unsigned, std::shared_ptr<CcOutpoint>>> &utxoSet
+   bool opExists(const CcUtxoSet &utxoSet
       , const BinaryData &txHash, uint32_t txOutIndex)
    {
       auto hashIter = utxoSet.find(txHash);
@@ -875,6 +875,7 @@ std::set<BinaryData> ColoredCoinTracker::update()
 
    //swap new snapshot in
    std::atomic_store_explicit(&snapshot_, ssPtr, std::memory_order_release);
+   snapshotUpdated();
 
    //purge zc container
    purgeZc();
@@ -1006,6 +1007,7 @@ std::set<BinaryData> ColoredCoinTracker::zcUpdate()
 
    //swap the new snapshot in
    std::atomic_store_explicit(&zcSnapshot_, ssPtr, std::memory_order_release);
+   zcSnapshotUpdated();
 
    //register new addresses
    return toReg;
@@ -1079,6 +1081,7 @@ void ColoredCoinTracker::purgeZc()
 
    //swap the new snapshot in
    std::atomic_store_explicit(&zcSnapshot_, zcPtr, std::memory_order_release);
+   zcSnapshotUpdated();
 }
 
 ////
@@ -1369,6 +1372,9 @@ void ColoredCoinTracker::reorg(bool hard)
 
    startHeight_ = 0;
    zcCutOff_ = 0;
+
+   snapshotUpdated();
+   zcSnapshotUpdated();
 }
 
 ////
@@ -1377,7 +1383,6 @@ bool ColoredCoinTracker::goOnline()
    if (ready_.load(std::memory_order_relaxed) || !walletObj_) {
       return false;
    }
-   //TODO: load from snapshot
 
    //use default ACT if none is set
    if (actPtr_ == nullptr) {
