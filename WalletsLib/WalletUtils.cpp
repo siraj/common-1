@@ -21,7 +21,7 @@ std::vector<UTXO> bs::selectUtxoForAmount(std::vector<UTXO> inputs, uint64_t amo
       return inputs;
    }
 
-   std::map<int64_t, UTXO> inputsSorted;
+   std::multimap<int64_t, UTXO> inputsSorted;
    for (auto &utxo : inputs) {
       auto value = static_cast<int64_t>(utxo.getValue());
       inputsSorted.emplace(value, std::move(utxo));
