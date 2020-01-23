@@ -36,13 +36,19 @@ bool DispatchQueue::done() const
    return quit_ && q_.empty();
 }
 
-void DispatchQueue::tryProcess()
+void DispatchQueue::tryProcess(std::chrono::milliseconds timeout)
 {
    std::unique_lock<std::mutex> lock(lock_);
 
-   cv_.wait(lock, [this] {
-      return (!q_.empty() || quit_);
-   });
+   if (timeout.count() < 0) {
+      cv_.wait(lock, [this] {
+         return (!q_.empty() || quit_);
+      });
+   } else {
+      cv_.wait_for(lock, timeout, [this] {
+         return (!q_.empty() || quit_);
+      });
+   }
 
    if (q_.empty()) {
       return;
