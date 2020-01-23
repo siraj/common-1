@@ -137,6 +137,7 @@ public:
       ChartCandleCount,
       LastAqDir,
       proxyServerPubKey,
+      ccServerPubKey,
       _last
    };
 
