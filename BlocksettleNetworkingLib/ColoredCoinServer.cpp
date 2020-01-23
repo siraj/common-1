@@ -210,7 +210,11 @@ CcTrackerClient::CcTrackerClient(const std::shared_ptr<spdlog::logger> &logger)
 {
    dispatchThread_ = std::thread([this]{
       while (!dispatchQueue_.done()) {
-         dispatchQueue_.tryProcess();
+         dispatchQueue_.tryProcess(std::chrono::seconds(10));
+
+         if (state_ == State::Restarting && std::chrono::steady_clock::now() > nextRestart_) {
+            reconnect();
+         }
       }
    });
 }
@@ -236,11 +240,11 @@ std::unique_ptr<ColoredCoinTrackerInterface> CcTrackerClient::createClient(uint6
 void CcTrackerClient::openConnection(const std::string &host, const std::string &port, ZmqBipNewKeyCb newKeyCb)
 {
    dispatchQueue_.dispatch([this, host, port, newKeyCb = std::move(newKeyCb)] {
-      ZmqBIP15XDataConnectionParams params;
-      params.ephemeralPeers = true;
-      connection_ = std::make_unique<ZmqBIP15XDataConnection>(logger_, params);
-      connection_->setCBs(std::move(newKeyCb));
-      connection_->openConnection(host, port, this);
+      assert(state_ == State::Offline);
+      host_ = host;
+      port_ = port;
+      newKeyCb_ = std::move(newKeyCb);
+      reconnect();
    });
 }
 
@@ -273,17 +277,39 @@ void CcTrackerClient::OnDataReceived(const std::string &data)
 void CcTrackerClient::OnConnected()
 {
    dispatchQueue_.dispatch([this] {
-      connected_ = true;
+      setState(State::Connected);
       registerClients();
    });
 }
 
 void CcTrackerClient::OnDisconnected()
 {
+   SPDLOG_LOGGER_ERROR(logger_, "disconnected from CC server");
+   scheduleRestart();
 }
 
 void CcTrackerClient::OnError(DataConnectionListener::DataConnectionError errorCode)
 {
+   SPDLOG_LOGGER_ERROR(logger_, "connection to CC server failed");
+   scheduleRestart();
+}
+
+std::string CcTrackerClient::stateName(CcTrackerClient::State state)
+{
+   switch (state) {
+      case State::Offline:       return "Offline";
+      case State::Connecting:    return "Connecting";
+      case State::Connected:     return "Connected";
+      case State::Restarting:    return "Restarting";
+   }
+   assert(false);
+   return "Unknown";
+}
+
+void CcTrackerClient::setState(CcTrackerClient::State state)
+{
+   state_ = state;
+   SPDLOG_LOGGER_DEBUG(logger_, "switch state to {}", stateName(state));
 }
 
 void CcTrackerClient::addClient(CcTrackerImpl *client)
@@ -292,7 +318,7 @@ void CcTrackerClient::addClient(CcTrackerImpl *client)
       clients_.insert(client);
       clientsById_[client->id_] = client;
 
-      if (connected_) {
+      if (state_ == State::Connected) {
          registerClient(client);
       }
    });
@@ -309,7 +335,7 @@ void CcTrackerClient::removeClient(CcTrackerImpl *client)
 
 void CcTrackerClient::registerClient(CcTrackerImpl *client)
 {
-   assert(!client->registered_ && connected_);
+   assert(!client->registered_ && state_ == State::Connected);
    client->registered_ = true;
 
    bs::tracker_server::Request request;
@@ -344,6 +370,32 @@ void CcTrackerClient::registerClients()
          registerClient(client);
       }
    }
+}
+
+void CcTrackerClient::scheduleRestart()
+{
+   dispatchQueue_.dispatch([this] {
+      SPDLOG_LOGGER_DEBUG(logger_, "schedule restart in next 30 seconds...");
+      nextRestart_ = std::chrono::steady_clock::now() + std::chrono::seconds(30);
+
+      if (state_ != State::Restarting) {
+         setState(State::Restarting);
+         for (const auto &item : clients_) {
+            item->registered_ = false;
+         }
+      }
+   });
+}
+
+void CcTrackerClient::reconnect()
+{
+   SPDLOG_LOGGER_DEBUG(logger_, "reconnect...");
+   setState(State::Connecting);
+   ZmqBIP15XDataConnectionParams params;
+   params.ephemeralPeers = true;
+   connection_ = std::make_unique<ZmqBIP15XDataConnection>(logger_, params);
+   connection_->setCBs(newKeyCb_);
+   connection_->openConnection(host_, port_, this);
 }
 
 void CcTrackerClient::processUpdateCcSnapshot(const bs::tracker_server::Response_UpdateCcSnapshot &response)

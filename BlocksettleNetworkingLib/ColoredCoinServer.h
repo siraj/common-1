@@ -61,27 +61,43 @@ public:
 private:
    friend class CcTrackerImpl;
 
+   enum class State
+   {
+      Offline,
+      Connecting,
+      Connected,
+      Restarting,
+   };
+
+   static std::string stateName(State state);
+   void setState(State state);
+
    void addClient(CcTrackerImpl *client);
    void removeClient(CcTrackerImpl *client);
 
    void registerClient(CcTrackerImpl *client);
    void registerClients();
+   void scheduleRestart();
+   void reconnect();
 
    void processUpdateCcSnapshot(const bs::tracker_server::Response_UpdateCcSnapshot &response);
    void processUpdateCcZcSnapshot(const bs::tracker_server::Response_UpdateCcZcSnapshot &response);
 
    std::shared_ptr<spdlog::logger> logger_;
+   std::unique_ptr<ZmqBIP15XDataConnection> connection_;
 
    std::set<CcTrackerImpl*> clients_;
    std::map<int, CcTrackerImpl*> clientsById_;
 
-   std::unique_ptr<ZmqBIP15XDataConnection> connection_;
-
-   std::atomic_int nextId_{};
-
    DispatchQueue dispatchQueue_;
    std::thread dispatchThread_;
-   bool connected_{};
+   std::atomic_int nextId_{};
+
+   std::string host_;
+   std::string port_;
+   ZmqBipNewKeyCb newKeyCb_;
+   State state_{State::Offline};
+   std::chrono::steady_clock::time_point nextRestart_{};
 
 };
 
