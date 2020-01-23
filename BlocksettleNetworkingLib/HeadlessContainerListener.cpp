@@ -1699,6 +1699,18 @@ void HeadlessContainerListener::sendUpdateStatuses(std::string clientId)
    sendData(packet.SerializeAsString(), clientId);
 }
 
+void HeadlessContainerListener::sendSyncWallets(std::string clientId /*= {}*/)
+{
+   headless::UpdateStatus evt;
+   evt.set_status(headless::UpdateStatus_WalletsStatus_ReadyToSync);
+
+   headless::RequestPacket packet;
+   packet.set_type(headless::UpdateStatusType);
+   packet.set_data(evt.SerializeAsString());
+
+   sendData(packet.SerializeAsString(), clientId);
+}
+
 void HeadlessContainerListener::onXbtSpent(int64_t value, bool autoSign)
 {
    if (autoSign) {
@@ -2154,6 +2166,11 @@ void HeadlessContainerListener::setNoWallets(bool noWallets)
       noWallets_ = noWallets;
       sendUpdateStatuses();
    }
+}
+
+void HeadlessContainerListener::syncWallet()
+{
+   sendSyncWallets();
 }
 
 bool PasswordRequest::operator <(const PasswordRequest &other) const
