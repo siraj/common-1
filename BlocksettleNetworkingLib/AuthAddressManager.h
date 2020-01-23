@@ -131,6 +131,7 @@ private slots:
    void onTXSigned(unsigned int id, BinaryData signedTX, bs::error::ErrorCode result, const std::string &errorReason);
 
    void onWalletCreated();
+   void onWalletsReady();
 
 signals:
    void AddressListUpdated();
