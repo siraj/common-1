@@ -513,6 +513,9 @@ message UpdateStatus
 
       // Need to show create wallet prompt
       NoWallets = 1;
+	  
+      // Wallets ready to sync
+      ReadyToSync = 2;
    }
 
    WalletsStatus status = 1;

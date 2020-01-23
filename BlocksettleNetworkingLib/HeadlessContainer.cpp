@@ -985,6 +985,9 @@ void HeadlessContainer::ProcessUpdateStatus(const std::string &data)
    if (evt.status() == headless::UpdateStatus_WalletsStatus_NoWallets) {
       emit needNewWalletPrompt();
    }
+   else if (evt.status() == headless::UpdateStatus_WalletsStatus_ReadyToSync) {
+      emit walletsReadyToSync();
+   }
 }
 
 void HeadlessContainer::ProcessSettlWalletCreate(unsigned int id, const std::string &data)

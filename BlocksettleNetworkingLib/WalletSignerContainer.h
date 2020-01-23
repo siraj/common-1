@@ -68,6 +68,7 @@ signals:
    void walletsListUpdated();
    void walletsStorageDecrypted();
    void needNewWalletPrompt();
+   void walletsReadyToSync();
 };
 
 #endif // __WALLET_SIGNER_CONTAINER_H__
