@@ -97,7 +97,7 @@ public:
          throw std::logic_error("goOnline was already called");
       }
       isOnline_ = true;
-      parent_->registerClient(this);
+      parent_->addClient(this);
       return true;
    }
 
@@ -273,34 +273,8 @@ void CcTrackerClient::OnDataReceived(const std::string &data)
 void CcTrackerClient::OnConnected()
 {
    dispatchQueue_.dispatch([this] {
-      for (auto &client : clients_) {
-         bs::tracker_server::Request request;
-
-         auto d = request.mutable_register_cc();
-         d->set_id(client->id_);
-
-         d->mutable_tracker_key()->set_coins_per_share(client->coinsPerShare_);
-         std::set<std::string> originAddresses;
-         for (const auto &addr : client->originAddresses_) {
-            originAddresses.insert(addr.display());
-         }
-         std::set<std::string> revocationAddresses;
-         for (const auto &addr : client->revocationAddresses_) {
-            revocationAddresses.insert(addr.display());
-         }
-         for (const auto &addr : originAddresses) {
-            d->mutable_tracker_key()->add_origin_addresses(addr);
-         }
-         for (const auto &addr : revocationAddresses) {
-            d->mutable_tracker_key()->add_revoked_addresses(addr);
-         }
-
-         if (!isValidTrackerKey(d->tracker_key())) {
-            throw std::logic_error("invalid tracker key");
-         }
-
-         connection_->send(request.SerializeAsString());
-      }
+      connected_ = true;
+      registerClients();
    });
 }
 
@@ -312,20 +286,64 @@ void CcTrackerClient::OnError(DataConnectionListener::DataConnectionError errorC
 {
 }
 
-void CcTrackerClient::registerClient(CcTrackerImpl *client)
+void CcTrackerClient::addClient(CcTrackerImpl *client)
 {
    dispatchQueue_.dispatch([this, client] {
       clients_.insert(client);
       clientsById_[client->id_] = client;
+
+      if (connected_) {
+         registerClient(client);
+      }
    });
 }
 
 void CcTrackerClient::removeClient(CcTrackerImpl *client)
 {
-   dispatchQueue_.dispatch([this, client] {
-      clientsById_.erase(client->id_);
+   dispatchQueue_.dispatch([this, client, id = client->id_] {
+      // Do not dereference client here as it's already dead!
+      clientsById_.erase(id);
       clients_.erase(client);
    });
+}
+
+void CcTrackerClient::registerClient(CcTrackerImpl *client)
+{
+   assert(!client->registered_ && connected_);
+   client->registered_ = true;
+
+   bs::tracker_server::Request request;
+   auto d = request.mutable_register_cc();
+
+   d->set_id(client->id_);
+   d->mutable_tracker_key()->set_coins_per_share(client->coinsPerShare_);
+   std::set<std::string> originAddresses;
+   for (const auto &addr : client->originAddresses_) {
+      originAddresses.insert(addr.display());
+   }
+   std::set<std::string> revocationAddresses;
+   for (const auto &addr : client->revocationAddresses_) {
+      revocationAddresses.insert(addr.display());
+   }
+   for (const auto &addr : originAddresses) {
+      d->mutable_tracker_key()->add_origin_addresses(addr);
+   }
+   for (const auto &addr : revocationAddresses) {
+      d->mutable_tracker_key()->add_revoked_addresses(addr);
+   }
+
+   assert(isValidTrackerKey(d->tracker_key()));
+
+   connection_->send(request.SerializeAsString());
+}
+
+void CcTrackerClient::registerClients()
+{
+   for (const auto &client : clients_) {
+      if (!client->registered_) {
+         registerClient(client);
+      }
+   }
 }
 
 void CcTrackerClient::processUpdateCcSnapshot(const bs::tracker_server::Response_UpdateCcSnapshot &response)

@@ -36,6 +36,7 @@ namespace spdlog {
 class ApplicationSettings;
 class ColoredCoinTrackerClient;
 class WalletSignerContainer;
+class CcTrackerClient;
 
 namespace bs {
    namespace hd {
@@ -59,8 +60,9 @@ namespace bs {
          using HDWalletPtr = std::shared_ptr<hd::Wallet>;
          using GroupPtr = std::shared_ptr<hd::Group>;
 
+         // trackerClient is optional, if not set armory connection is used
          WalletsManager(const std::shared_ptr<spdlog::logger> &, const std::shared_ptr<ApplicationSettings>& appSettings
-            , const std::shared_ptr<ArmoryConnection> &);
+            , const std::shared_ptr<ArmoryConnection> &, const std::shared_ptr<CcTrackerClient> &trackerClient = nullptr);
          ~WalletsManager() noexcept override;
 
          WalletsManager(const WalletsManager&) = delete;
@@ -307,6 +309,9 @@ namespace bs {
          std::thread                maintThread_;
          std::condition_variable    maintCV_;
          std::mutex                 maintMutex_;
+
+         std::shared_ptr<CcTrackerClient> trackerClient_;
+
          ValidityFlag   validityFlag_;
       };
 

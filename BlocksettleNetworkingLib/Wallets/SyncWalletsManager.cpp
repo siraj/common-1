@@ -14,6 +14,7 @@
 #include "CheckRecipSigner.h"
 #include "CoinSelection.h"
 #include "ColoredCoinLogic.h"
+#include "ColoredCoinServer.h"
 #include "FastLock.h"
 #include "PublicResolver.h"
 #include "SyncHDWallet.h"
@@ -38,11 +39,13 @@ bool isCCNameCorrect(const std::string& ccName)
 
 WalletsManager::WalletsManager(const std::shared_ptr<spdlog::logger>& logger
    , const std::shared_ptr<ApplicationSettings>& appSettings
-   , const std::shared_ptr<ArmoryConnection> &armory)
+   , const std::shared_ptr<ArmoryConnection> &armory
+   , const std::shared_ptr<CcTrackerClient> &trackerClient)
    : QObject(nullptr)
    , logger_(logger)
    , appSettings_(appSettings)
    , armoryPtr_(armory)
+   , trackerClient_(trackerClient)
 {
    init(armory.get());
 
@@ -1175,7 +1178,12 @@ bool WalletsManager::isWatchingOnly(const std::string &walletId) const
 void WalletsManager::goOnline()
 {
    for (const auto &cc : ccResolver_->securities()) {
-      auto trackerSnapshots = std::make_unique<ColoredCoinTracker>(ccResolver_->lotSizeFor(cc), armoryPtr_);
+      std::unique_ptr<ColoredCoinTrackerInterface> trackerSnapshots;
+      if (trackerClient_) {
+         trackerSnapshots = trackerClient_->createClient(ccResolver_->lotSizeFor(cc));
+      } else {
+         trackerSnapshots = std::make_unique<ColoredCoinTracker>(ccResolver_->lotSizeFor(cc), armoryPtr_);
+      }
       trackerSnapshots->addOriginAddress(ccResolver_->genesisAddrFor(cc));
       const auto tracker = std::make_shared<ColoredCoinTrackerClient>(std::move(trackerSnapshots));
       trackers_[cc] = tracker;

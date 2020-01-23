@@ -61,8 +61,11 @@ public:
 private:
    friend class CcTrackerImpl;
 
-   void registerClient(CcTrackerImpl *client);
+   void addClient(CcTrackerImpl *client);
    void removeClient(CcTrackerImpl *client);
+
+   void registerClient(CcTrackerImpl *client);
+   void registerClients();
 
    void processUpdateCcSnapshot(const bs::tracker_server::Response_UpdateCcSnapshot &response);
    void processUpdateCcZcSnapshot(const bs::tracker_server::Response_UpdateCcZcSnapshot &response);
@@ -78,6 +81,7 @@ private:
 
    DispatchQueue dispatchQueue_;
    std::thread dispatchThread_;
+   bool connected_{};
 
 };
 
