@@ -123,6 +123,8 @@ private:
    DispatchQueue dispatchQueue_;
    std::thread dispatchThread_;
 
+   uint64_t startedTrackerCount_{};
+
 };
 
 #endif

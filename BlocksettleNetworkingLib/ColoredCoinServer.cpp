@@ -140,14 +140,26 @@ public:
       }
    };
 
-   CcTrackerSrvImpl(CcTrackerServer *parent, uint64_t coinsPerShare, std::shared_ptr<ArmoryConnection> connPtr)
+   CcTrackerSrvImpl(CcTrackerServer *parent
+      , uint64_t coinsPerShare
+      , std::shared_ptr<ArmoryConnection> connPtr
+      , uint64_t index)
       : ColoredCoinTracker(coinsPerShare, connPtr)
       , parent_(parent)
+      , index_(index)
    {
+      SPDLOG_LOGGER_DEBUG(parent_->logger_, "starting new tracker ({}), coinsPerShare: {}", index_, coinsPerShare);
+   }
+
+   ~CcTrackerSrvImpl() override
+   {
+      SPDLOG_LOGGER_DEBUG(parent_->logger_, "stopping new tracker ({})", index_);
    }
 
    void snapshotUpdated() override
    {
+      SPDLOG_LOGGER_DEBUG(parent_->logger_, "snapshots updated, {}", index_);
+
       parent_->dispatchQueue_.dispatch([this] {
          auto s = snapshot();
          ccSnapshot_ = serializeColoredCoinSnapshot(s);
@@ -159,6 +171,8 @@ public:
 
    virtual void zcSnapshotUpdated() override
    {
+      SPDLOG_LOGGER_DEBUG(parent_->logger_, "zc snapshots updated, {}", index_);
+
       parent_->dispatchQueue_.dispatch([this] {
          auto s = zcSnapshot();
          ccZcSnapshot_ = serializeColoredCoinZcSnapshot(s);
@@ -186,10 +200,9 @@ public:
 
    std::string ccSnapshot_;
    std::string ccZcSnapshot_;
-
    std::set<Client> clients_;
-
    CcTrackerServer *parent_{};
+   const uint64_t index_;
 };
 
 CcTrackerClient::CcTrackerClient(const std::shared_ptr<spdlog::logger> &logger)
@@ -249,7 +262,7 @@ void CcTrackerClient::OnDataReceived(const std::string &data)
             processUpdateCcZcSnapshot(response.update_cc_zc_snapshot());
             return;
          case bs::tracker_server::Response::DATA_NOT_SET:
-            SPDLOG_LOGGER_ERROR(logger_, "git invalid empty response from server");
+            SPDLOG_LOGGER_ERROR(logger_, "got invalid empty response from server");
             return;
       }
 
@@ -398,7 +411,6 @@ void CcTrackerServer::OnDataFromClient(const std::string &clientId, const std::s
 void CcTrackerServer::OnClientConnected(const std::string &clientId)
 {
    SPDLOG_LOGGER_INFO(logger_, "new client connected: {}", bs::toHex(clientId));
-
    dispatchQueue_.dispatch([this, clientId] {
       auto &client = connectedClients_[clientId];
       client.clientId = clientId;
@@ -408,9 +420,18 @@ void CcTrackerServer::OnClientConnected(const std::string &clientId)
 void CcTrackerServer::OnClientDisconnected(const std::string &clientId)
 {
    SPDLOG_LOGGER_INFO(logger_, "client disconnected: {}", bs::toHex(clientId));
-
    dispatchQueue_.dispatch([this, clientId] {
-      connectedClients_.erase(clientId);
+      auto it = connectedClients_.find(clientId);
+      assert(it != connectedClients_.end());
+
+      auto &client = it->second;
+      for (const auto &item : client.trackers) {
+         auto c = CcTrackerSrvImpl::Client{client.clientId, item.first};
+         size_t count = item.second->clients_.erase(c);
+         assert(count == 1);
+      }
+
+      connectedClients_.erase(it);
    });
 }
 
@@ -434,22 +455,38 @@ void CcTrackerServer::processRegisterCc(CcTrackerServer::ClientData &client, con
    auto c = CcTrackerSrvImpl::Client{client.clientId, request.id()};
 
    if (!trackerPtr) {
-      trackerPtr = std::make_shared<CcTrackerSrvImpl>(this, request.tracker_key().coins_per_share(), armory_);
+      startedTrackerCount_ += 1;
+      auto startedTrackerIndex = startedTrackerCount_;
 
+      trackerPtr = std::make_shared<CcTrackerSrvImpl>(this, request.tracker_key().coins_per_share(), armory_, startedTrackerIndex);
+      SPDLOG_LOGGER_INFO(logger_, "create new tracker {}...", trackerPtr->index_);
       for (const auto &addr : request.tracker_key().origin_addresses()) {
+         SPDLOG_LOGGER_INFO(logger_, "add origin address {}", addr);
          trackerPtr->addOriginAddress(bs::Address::fromAddressString(addr));
       }
       for (const auto &addr : request.tracker_key().revoked_addresses()) {
+         SPDLOG_LOGGER_INFO(logger_, "add revoked address {}", addr);
          trackerPtr->addRevocationAddress(bs::Address::fromAddressString(addr));
       }
+      SPDLOG_LOGGER_INFO(logger_, "new tracker ({}) created", trackerPtr->index_);
 
-      bool result = trackerPtr->goOnline();
+      std::thread regThread([this, trackerPtr] {
+         SPDLOG_LOGGER_INFO(logger_, "activating new tracker ({}) in background...", trackerPtr->index_);
+         bool result = trackerPtr->goOnline();
 
-      if (!result) {
-         // FIXME: decide what to do
-         SPDLOG_LOGGER_ERROR(logger_, "goOnline failed");
-         return;
-      }
+         if (!result) {
+            // quit server for now, clients expected to reconnect to server
+            SPDLOG_LOGGER_CRITICAL(logger_, "goOnline failed for tracker {}, quit!", trackerPtr->index_);
+            std::exit(EXIT_FAILURE);
+         }
+
+         SPDLOG_LOGGER_INFO(logger_, "new tracker ({}) started successfully", trackerPtr->index_);
+      });
+      regThread.detach();
+
+      trackers_[trackerKey] = trackerPtr;
+   } else {
+      SPDLOG_LOGGER_INFO(logger_, "reuse active tracker {} for new client", trackerPtr->index_);
    }
 
    client.trackers[request.id()] = trackerPtr;
