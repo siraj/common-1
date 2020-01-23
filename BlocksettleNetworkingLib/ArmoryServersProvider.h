@@ -56,7 +56,8 @@ public:
    ArmorySettings connectedArmorySettings() const;
    void setConnectedArmorySettings(const ArmorySettings &connectedArmorySettings);
 
-   
+   // if default armory used
+   bool isDefault(int index) const;
 
 signals:
    void dataChanged();
