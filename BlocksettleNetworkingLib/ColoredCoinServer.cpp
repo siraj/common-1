@@ -284,7 +284,7 @@ void CcTrackerClient::OnConnected()
 
 void CcTrackerClient::OnDisconnected()
 {
-   SPDLOG_LOGGER_ERROR(logger_, "disconnected from CC server");
+   SPDLOG_LOGGER_DEBUG(logger_, "disconnected from CC server");
    scheduleRestart();
 }
 
