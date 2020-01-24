@@ -300,9 +300,11 @@ bs::Address AssetManager::getCCGenesisAddr(const std::string &cc) const
 
 void AssetManager::onCelerConnected()
 {
-   auto cb = [this](const std::vector<std::string>& accounts) {
+   auto cb = [this](const std::vector<std::string>& accountsList) {
+      // Remove duplicated entries if possible
+      std::set<std::string> accounts(accountsList.begin(), accountsList.end());
       if (accounts.size() == 1) {
-         assignedAccount_ = accounts[0];
+         assignedAccount_ = *accounts.begin();
          logger_->debug("[AssetManager] assigned account: {}", assignedAccount_);
 
          auto onLoaded = [this](const std::vector<CelerFindSubledgersForAccountSequence::currencyBalancePair>& currencyBalancePairs)
@@ -314,7 +316,7 @@ void AssetManager::onCelerConnected()
             emit fxBalanceLoaded();
          };
 
-         auto subledgerSeq = std::make_shared<CelerFindSubledgersForAccountSequence>(this->logger_, accounts[0], onLoaded);
+         auto subledgerSeq = std::make_shared<CelerFindSubledgersForAccountSequence>(this->logger_, assignedAccount_, onLoaded);
 
          this->celerClient_->ExecuteSequence(subledgerSeq);
       } else {
