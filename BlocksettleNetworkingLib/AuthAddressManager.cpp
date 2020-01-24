@@ -49,6 +49,7 @@ void AuthAddressManager::init(const std::shared_ptr<ApplicationSettings>& appSet
    connect(walletsManager_.get(), &bs::sync::WalletsManager::walletChanged, this, &AuthAddressManager::onWalletChanged);
    connect(walletsManager_.get(), &bs::sync::WalletsManager::AuthLeafCreated, this, &AuthAddressManager::onWalletCreated);
    connect(walletsManager_.get(), &bs::sync::WalletsManager::AuthLeafNotCreated, this, &AuthAddressManager::ConnectionComplete);
+   connect(walletsManager_.get(), &bs::sync::WalletsManager::walletsReady, this, &AuthAddressManager::onWalletsReady);
 
    // signingContainer_ might be null if user rejects remote signer key
    if (signingContainer_) {
@@ -916,6 +917,13 @@ void AuthAddressManager::onWalletCreated()
       emit AuthWalletCreated(QString::fromStdString(authLeaf->walletId()));
    } else {
       logger_->error("[AuthAddressManager::onWalletCreated] we should be able to get auth wallet at this point");
+   }
+}
+
+void AuthAddressManager::onWalletsReady()
+{
+   if (walletsManager_->getAuthWallet() && GetAddressCount() == 0) {
+      CreateNewAuthAddress();
    }
 }
 

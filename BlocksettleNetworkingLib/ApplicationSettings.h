@@ -94,6 +94,7 @@ public:
       closeToTray,
       notifyOnTX,
       defaultAuthAddr,
+      numberOfAuthAddressVisible,
       bsPublicKey,
       logDefault,
       logMessages,
