@@ -341,3 +341,8 @@ void ArmoryServersProvider::setConnectedArmorySettings(const ArmorySettings &cur
 {
    connectedArmorySettings_ = currentArmorySettings;
 }
+
+bool ArmoryServersProvider::isDefault(int index) const
+{
+   return index == 0 || index == 1;
+}

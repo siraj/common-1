@@ -88,7 +88,7 @@ Parsing CC tx:
 
 namespace  {
 
-   bool opExists(const std::map<BinaryData, std::map<unsigned, std::shared_ptr<CcOutpoint>>> &utxoSet
+   bool opExists(const CcUtxoSet &utxoSet
       , const BinaryData &txHash, uint32_t txOutIndex)
    {
       auto hashIter = utxoSet.find(txHash);
@@ -180,7 +180,7 @@ const std::shared_ptr<BinaryData> ColoredCoinTracker::getScrAddrPtr(
 uint64_t ColoredCoinTracker::getCcOutputValue(
    const std::shared_ptr<ColoredCoinSnapshot>& ssPtr
    , const std::shared_ptr<ColoredCoinZCSnapshot>& zcPtr
-   , const BinaryData& hash, unsigned txOutIndex, unsigned height) const
+   , const BinaryData& hash, unsigned txOutIndex, unsigned height)
 {
    /*
    Error returns:
@@ -249,13 +249,33 @@ uint64_t ColoredCoinTracker::getCcOutputValue(
 }
 
 ////
-uint64_t ColoredCoinTracker::getCcOutputValue(
+ColoredCoinTrackerClient::ColoredCoinTrackerClient(std::unique_ptr<ColoredCoinTrackerInterface> ccSnapshots)
+   : ccSnapshots_(std::move(ccSnapshots))
+{
+}
+
+void ColoredCoinTrackerClient::addOriginAddress(const bs::Address &addr)
+{
+   ccSnapshots_->addOriginAddress(addr);
+}
+
+void ColoredCoinTrackerClient::addRevocationAddress(const bs::Address &addr)
+{
+   ccSnapshots_->addRevocationAddress(addr);
+}
+
+bool ColoredCoinTrackerClient::goOnline()
+{
+   return ccSnapshots_->goOnline();
+}
+
+uint64_t ColoredCoinTrackerClient::getCcOutputValue(
    const BinaryData& hash, unsigned int txOutIndex
    , unsigned int height) const
 {
-   auto ssPtr = snapshot();
-   auto zcPtr = zcSnapshot();
-   return getCcOutputValue(ssPtr, zcPtr, hash, txOutIndex, height);
+   auto ssPtr = ccSnapshots_->snapshot();
+   auto zcPtr = ccSnapshots_->zcSnapshot();
+   return ColoredCoinTracker::getCcOutputValue(ssPtr, zcPtr, hash, txOutIndex, height);
 }
    
 ////
@@ -855,6 +875,7 @@ std::set<BinaryData> ColoredCoinTracker::update()
 
    //swap new snapshot in
    std::atomic_store_explicit(&snapshot_, ssPtr, std::memory_order_release);
+   snapshotUpdated();
 
    //purge zc container
    purgeZc();
@@ -986,6 +1007,7 @@ std::set<BinaryData> ColoredCoinTracker::zcUpdate()
 
    //swap the new snapshot in
    std::atomic_store_explicit(&zcSnapshot_, ssPtr, std::memory_order_release);
+   zcSnapshotUpdated();
 
    //register new addresses
    return toReg;
@@ -1059,10 +1081,11 @@ void ColoredCoinTracker::purgeZc()
 
    //swap the new snapshot in
    std::atomic_store_explicit(&zcSnapshot_, zcPtr, std::memory_order_release);
+   zcSnapshotUpdated();
 }
 
 ////
-uint64_t ColoredCoinTracker::getCcValueForAddress(const BinaryData& scrAddr) const
+uint64_t ColoredCoinTrackerClient::getCcValueForAddress(const BinaryData& scrAddr) const
 {
    /*takes prefixed scrAddr*/
 
@@ -1079,7 +1102,7 @@ std::vector<std::shared_ptr<CcOutpoint>>
 ColoredCoinTracker::getSpendableOutpointsForAddress(
    const std::shared_ptr<ColoredCoinSnapshot>& ssPtr,
    const std::shared_ptr<ColoredCoinZCSnapshot>& zcPtr,
-   const BinaryData& scrAddr, bool confirmedOnly) const
+   const BinaryData& scrAddr, bool confirmedOnly)
 {
    /*takes prefixed scrAddr*/
    std::vector<std::shared_ptr<CcOutpoint>> result;
@@ -1140,19 +1163,19 @@ ColoredCoinTracker::getSpendableOutpointsForAddress(
 }
 
 ////
-std::vector<std::shared_ptr<CcOutpoint>> ColoredCoinTracker::getSpendableOutpointsForAddress(
+std::vector<std::shared_ptr<CcOutpoint>> ColoredCoinTrackerClient::getSpendableOutpointsForAddress(
    const BinaryData& scrAddr) const
 {
    /*takes prefixed scrAddr*/
-   auto ssPtr = snapshot();
-   auto zcPtr = zcSnapshot();
+   auto ssPtr = ccSnapshots_->snapshot();
+   auto zcPtr = ccSnapshots_->zcSnapshot();
 
-   return getSpendableOutpointsForAddress(ssPtr, zcPtr, scrAddr, false);
+   return ColoredCoinTracker::getSpendableOutpointsForAddress(ssPtr, zcPtr, scrAddr, false);
 }
 
-bool ColoredCoinTracker::isTxHashValid(const BinaryData &txHash, uint32_t txOutIndex) const
+bool ColoredCoinTrackerClient::isTxHashValid(const BinaryData &txHash, uint32_t txOutIndex) const
 {
-   const auto ssPtr = snapshot();
+   const auto ssPtr = ccSnapshots_->snapshot();
    if (!ssPtr) {
       return false;
    }
@@ -1161,7 +1184,7 @@ bool ColoredCoinTracker::isTxHashValid(const BinaryData &txHash, uint32_t txOutI
       return true;
    }
 
-   const auto zcPtr = zcSnapshot();
+   const auto zcPtr = ccSnapshots_->zcSnapshot();
    if (!zcPtr) {
       return  false;
    }
@@ -1169,9 +1192,9 @@ bool ColoredCoinTracker::isTxHashValid(const BinaryData &txHash, uint32_t txOutI
    return result;
 }
 
-bool ColoredCoinTracker::isTxHashValidHistory(const BinaryData &txHash, uint32_t txOutIndex) const
+bool ColoredCoinTrackerClient::isTxHashValidHistory(const BinaryData &txHash, uint32_t txOutIndex) const
 {
-   const auto ssPtr = snapshot();
+   const auto ssPtr = ccSnapshots_->snapshot();
    if (!ssPtr) {
       return false;
    }
@@ -1187,7 +1210,7 @@ bool ColoredCoinTracker::isTxHashValidHistory(const BinaryData &txHash, uint32_t
       }
    }
 
-   const auto zcPtr = zcSnapshot();
+   const auto zcPtr = ccSnapshots_->zcSnapshot();
    if (!zcPtr) {
       return  false;
    }
@@ -1349,6 +1372,9 @@ void ColoredCoinTracker::reorg(bool hard)
 
    startHeight_ = 0;
    zcCutOff_ = 0;
+
+   snapshotUpdated();
+   zcSnapshotUpdated();
 }
 
 ////
@@ -1357,7 +1383,6 @@ bool ColoredCoinTracker::goOnline()
    if (ready_.load(std::memory_order_relaxed) || !walletObj_) {
       return false;
    }
-   //TODO: load from snapshot
 
    //use default ACT if none is set
    if (actPtr_ == nullptr) {
@@ -1460,15 +1485,15 @@ void ColoredCoinTracker::waitOnRefresh(const std::string& id)
 }
 
 ////
-uint64_t ColoredCoinTracker::getUnconfirmedCcValueForAddresses(
+uint64_t ColoredCoinTrackerClient::getUnconfirmedCcValueForAddresses(
    const std::set<BinaryData>& scrAddrSet) const
 {
    uint64_t total = 0;
-   auto zcPtr = zcSnapshot();
+   auto zcPtr = ccSnapshots_->zcSnapshot();
 
    for (auto& scrAddr : scrAddrSet)
    {
-      auto opVec = getSpendableOutpointsForAddress(nullptr, zcPtr, scrAddr, false);
+      auto opVec = ColoredCoinTracker::getSpendableOutpointsForAddress(nullptr, zcPtr, scrAddr, false);
 
       uint64_t scrAddrTotal = 0;
       for (auto op : opVec)
@@ -1481,7 +1506,7 @@ uint64_t ColoredCoinTracker::getUnconfirmedCcValueForAddresses(
 }
 
 ////
-uint64_t ColoredCoinTracker::getConfirmedCcValueForAddresses(
+uint64_t ColoredCoinTrackerClient::getConfirmedCcValueForAddresses(
    const std::set<BinaryData>& scrAddrSet) const
 {
    /*
@@ -1490,12 +1515,12 @@ uint64_t ColoredCoinTracker::getConfirmedCcValueForAddresses(
    */
 
    uint64_t total = 0;
-   auto ssPtr = snapshot();
-   auto zcPtr = zcSnapshot();
+   auto ssPtr = ccSnapshots_->snapshot();
+   auto zcPtr = ccSnapshots_->zcSnapshot();
 
    for (auto& scrAddr : scrAddrSet)
    {
-      auto opVec = getSpendableOutpointsForAddress(ssPtr, zcPtr, scrAddr, true);
+      auto opVec = ColoredCoinTracker::getSpendableOutpointsForAddress(ssPtr, zcPtr, scrAddr, true);
 
       uint64_t scrAddrTotal = 0;
       for (auto op : opVec)
@@ -1508,18 +1533,17 @@ uint64_t ColoredCoinTracker::getConfirmedCcValueForAddresses(
 }
 
 ////
-bool ColoredCoinTracker::getCCUtxoForAddresses(
-   const std::set<BinaryData>& scrAddrSet, bool withZc,
-   const std::function<void(std::vector<UTXO>, std::exception_ptr)>& cb) const
+ColoredCoinTracker::OutpointMap ColoredCoinTrackerClient::getCCUtxoForAddresses(
+   const std::set<BinaryData>& scrAddrSet, bool withZc) const
 {
-   auto ssPtr = snapshot();
-   auto zcPtr = zcSnapshot();
+   auto ssPtr = ccSnapshots_->snapshot();
+   auto zcPtr = ccSnapshots_->zcSnapshot();
 
-   std::map<BinaryData, std::set<unsigned>> outpointMap;
+   ColoredCoinTracker::OutpointMap outpointMap;
    for (auto& scrAddr : scrAddrSet)
    {
       //getSpendableOutpointsForAddress reverses the zc flag
-      auto opVec = getSpendableOutpointsForAddress(ssPtr, zcPtr, scrAddr, !withZc);
+      auto opVec = ColoredCoinTracker::getSpendableOutpointsForAddress(ssPtr, zcPtr, scrAddr, !withZc);
       for (auto& op : opVec)
       {
          auto iter = outpointMap.find(*op->getTxHash());
@@ -1533,7 +1557,7 @@ bool ColoredCoinTracker::getCCUtxoForAddresses(
       }
    }
 
-   return connPtr_->getOutputsForOutpoints(outpointMap, withZc, cb);
+   return outpointMap;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

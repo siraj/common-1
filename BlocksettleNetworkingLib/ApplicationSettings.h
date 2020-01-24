@@ -94,6 +94,7 @@ public:
       closeToTray,
       notifyOnTX,
       defaultAuthAddr,
+      numberOfAuthAddressVisible,
       bsPublicKey,
       logDefault,
       logMessages,
@@ -137,6 +138,7 @@ public:
       ChartCandleCount,
       LastAqDir,
       proxyServerPubKey,
+      ccServerPubKey,
       _last
    };
 

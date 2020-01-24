@@ -144,6 +144,7 @@ ApplicationSettings::ApplicationSettings(const QString &appName
       { closeToTray,             SettingDef(QLatin1String("CloseToTray"), false) },
       { notifyOnTX,              SettingDef(QLatin1String("ShowTxNotification"), true) },
       { defaultAuthAddr,         SettingDef(QLatin1String("DefaultAuthAddress")) },
+      { numberOfAuthAddressVisible,         SettingDef(QLatin1String("NumberOfAuthAddressVisible"), 1)},
       { bsPublicKey,             SettingDef(QString(), QLatin1String("022aa8719eadf13ba5bbced2848fb492a4118087b200fdde8ec68a2f5d105b36fa")) },
       { logDefault,              SettingDef(QLatin1String("LogFile"), QStringList() << LogFileName << QString() << QString() << QLatin1String(DefaultLogLevel)) },
       { logMessages,             SettingDef(QLatin1String("LogMsgFile"), QStringList() << LogMsgFileName << QLatin1String("message") << QLatin1String("%C/%m/%d %H:%M:%S.%e [%L]: %v") << QLatin1String(DefaultLogLevel)) },
@@ -188,6 +189,7 @@ ApplicationSettings::ApplicationSettings(const QString &appName
          << QLatin1String("02219ecd0e6a6e560d53f9958678213bc51036496223405232fe54fb42dcea18b6")) },   // testnet Armory cluster key
       { twoWaySignerAuth,        SettingDef(QLatin1String("TwoWaySignerAuth"), true) },
       { proxyServerPubKey,       SettingDef(QLatin1String("ProxyServerPubKey"), QString()) },
+      { ccServerPubKey,          SettingDef(QLatin1String("CcServerPubKey"), QString()) },
       { LastAqDir,               SettingDef(QLatin1String("LastAqDir")) },
    };
 }
