@@ -612,6 +612,53 @@ message GenoaMessage
 }
 
 
+enum GenoaServerType
+{
+   GenoaServerUnknown = 0;
+   GenoaServerNewClient = 1;
+   GenoaServerUpdBalance = 2;
+   GenoaServerUpdTrdStatus = 3;
+   GenoaServerXbtTrdStatus = 4;
+}
+
+message GenoaServerClientRequest
+{
+   string email = 1;
+   string full_name = 2;
+}
+
+message GenoaServerBalanceUpdate
+{
+   string entity_name = 1;
+   string currency = 2;
+   double balance = 3;
+}
+
+message GenoaServerTradingStatusUpdate
+{
+   int64 entity_id = 1;
+   bool  trading_enabled = 2;
+}
+
+message GenoaServerXbtTradingStatus
+{
+   int64  entity_id = 1;
+   string status = 2;
+}
+
+message GenoaServerMessage
+{
+   GenoaServerType type = 1;
+   oneof data {
+      GenoaServerClientRequest new_client = 2;
+      GenoaServerBalanceUpdate balance_update = 3;
+      GenoaServerTradingStatusUpdate trd_status = 4;
+      GenoaServerXbtTradingStatus xbt_trd_status = 5;
+      bool response = 10;
+   }
+}
+
+
 enum MktDataType
 {
    MktDataUnknownType  = 0;
@@ -673,6 +720,11 @@ enum CelerType
    CelerVerifyCCQuoteRequest  = 26;
    CelerVerifyCCAcceptedQuote = 27;
    CelerCCTradeRequest        = 28;
+   CelerWarehouseConfiguration = 29;
+   CelerSecurityDefinition    = 30;
+   CelerGetBalanceRequest     = 31;
+   CelerGetAccountsRequest    = 32;
+   CelerNewAccountAck         = 33;
 }
 
 message CelerSavedTrade
@@ -725,6 +777,12 @@ message CelerUpdateBalanceRequest
    double balance = 3;
 }
 
+message CelerSecurityDefData
+{
+   string security_id = 1;
+   bool   is_private_share = 2;
+}
+
 message CelerMessage
 {
    CelerType type = 1;
@@ -736,6 +794,7 @@ message CelerMessage
       CelerUpdateBalanceRequest user_balance = 6;
       CelerResultResponse response = 9;
       bytes opaque_data = 10;	// for Celer-encoded messages
+      CelerSecurityDefData security_def = 11;
    }
    int64 sequence_num = 15;
 }
@@ -1052,4 +1111,22 @@ message WebClientMessage
       WebScorechainUtxoResponse sc_utxo_response = 3;
       WebScorechainCacheTxRequest sc_cache_tx = 4;
    }
+}
+
+
+enum RelayUser
+{
+   UserUnknown = 0;
+   UserPrivateBridge = 1;
+   UserStorage = 2;
+   UserCCTracker = 3;
+   UserCeler = 4;
+   UserGenoa = 5;
+   UserTradeHist = 6;
+}
+
+message RelayedMessage
+{
+   RelayUser user = 1;
+   bytes data = 2;
 }
