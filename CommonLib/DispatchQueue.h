@@ -42,7 +42,8 @@ public:
    bool done() const;
 
    // Try process single function.
-   void tryProcess();
+   // Will wait indefinitely if timeout is < 0 (default).
+   void tryProcess(std::chrono::milliseconds timeout = std::chrono::milliseconds(-1));
 
    // Sets quit flag. Thread-safe.
    void quit();

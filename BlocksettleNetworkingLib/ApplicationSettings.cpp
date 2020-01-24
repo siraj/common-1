@@ -188,6 +188,7 @@ ApplicationSettings::ApplicationSettings(const QString &appName
          << QLatin1String("02219ecd0e6a6e560d53f9958678213bc51036496223405232fe54fb42dcea18b6")) },   // testnet Armory cluster key
       { twoWaySignerAuth,        SettingDef(QLatin1String("TwoWaySignerAuth"), true) },
       { proxyServerPubKey,       SettingDef(QLatin1String("ProxyServerPubKey"), QString()) },
+      { ccServerPubKey,          SettingDef(QLatin1String("CcServerPubKey"), QString()) },
       { LastAqDir,               SettingDef(QLatin1String("LastAqDir")) },
    };
 }

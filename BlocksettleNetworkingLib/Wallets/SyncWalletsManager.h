@@ -34,8 +34,9 @@ namespace spdlog {
    class logger;
 }
 class ApplicationSettings;
-class ColoredCoinTracker;
+class ColoredCoinTrackerClient;
 class WalletSignerContainer;
+class CcTrackerClient;
 
 namespace bs {
    namespace hd {
@@ -59,8 +60,9 @@ namespace bs {
          using HDWalletPtr = std::shared_ptr<hd::Wallet>;
          using GroupPtr = std::shared_ptr<hd::Group>;
 
+         // trackerClient is optional, if not set armory connection is used
          WalletsManager(const std::shared_ptr<spdlog::logger> &, const std::shared_ptr<ApplicationSettings>& appSettings
-            , const std::shared_ptr<ArmoryConnection> &);
+            , const std::shared_ptr<ArmoryConnection> &, const std::shared_ptr<CcTrackerClient> &trackerClient = nullptr);
          ~WalletsManager() noexcept override;
 
          WalletsManager(const WalletsManager&) = delete;
@@ -153,7 +155,7 @@ namespace bs {
                , bs::core::wallet::OutputOrderType::Recipients, bs::core::wallet::OutputOrderType::Change }
          , const BinaryData prevPart = {}, bool feeCalcUsePrevPart = true, bool useAllInputs = false);
 
-         std::shared_ptr<ColoredCoinTracker> tracker(const std::string &cc) const;
+         std::shared_ptr<ColoredCoinTrackerClient> tracker(const std::string &cc) const;
 
       signals:
          void CCLeafCreated(const std::string& ccName);
@@ -286,7 +288,7 @@ namespace bs {
          };
          std::shared_ptr<CCResolver>   ccResolver_;
 
-         std::map<std::string, std::shared_ptr<ColoredCoinTracker>>  trackers_;
+         std::map<std::string, std::shared_ptr<ColoredCoinTrackerClient>>  trackers_;
 
          std::unordered_map<std::string, std::pair<Transaction::Direction, std::vector<bs::Address>>> txDirections_;
          mutable std::atomic_flag      txDirLock_ = ATOMIC_FLAG_INIT;
@@ -307,6 +309,9 @@ namespace bs {
          std::thread                maintThread_;
          std::condition_variable    maintCV_;
          std::mutex                 maintMutex_;
+
+         std::shared_ptr<CcTrackerClient> trackerClient_;
+
          ValidityFlag   validityFlag_;
       };
 

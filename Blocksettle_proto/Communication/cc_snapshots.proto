@@ -1,0 +1,34 @@
+syntax = "proto3";
+
+package bs.cc_snapshots;
+
+message Outpoint
+{
+    uint64 value = 1;
+    uint32 index = 2;
+    bytes tx_hash = 3;
+    bytes scr_addr = 4;
+}
+
+message RevokedAddress
+{
+    bytes scr_addr = 1;
+    uint32 height = 2;
+}
+
+message SpentOutputs
+{
+    bytes tx_hash = 1;
+    repeated uint32 index = 2;
+}
+
+message ColoredCoinSnapshot
+{
+    repeated Outpoint outpoints = 1;
+
+    // used with ColoredCoinSnapshot only
+    repeated RevokedAddress revoked_addresses = 2;
+
+    // ColoredCoinSnapshot::txHistory_ or ColoredCoinZCSnapshot::spentOutputs_
+    repeated SpentOutputs spent_outputs = 3;
+}

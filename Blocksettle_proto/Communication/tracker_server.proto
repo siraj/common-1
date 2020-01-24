@@ -1,0 +1,49 @@
+syntax = "proto3";
+
+package bs.tracker_server;
+
+message TrackerKey
+{
+    uint64 coins_per_share = 2;
+
+    // Must be sorted
+    repeated string origin_addresses = 3;
+
+    // Must be sorted
+    repeated string revoked_addresses = 4;
+}
+
+message Request
+{
+    message RegisterCc
+    {
+        int32 id = 1;
+        TrackerKey tracker_key = 2;
+    }
+
+    oneof data
+    {
+        RegisterCc register_cc = 1;
+    }
+}
+
+message Response
+{
+    message UpdateCcSnapshot
+    {
+        int32 id = 1;
+        bytes data = 2;
+    }
+
+    message UpdateCcZcSnapshot
+    {
+        int32 id = 1;
+        bytes data = 2;
+    }
+
+    oneof data
+    {
+        UpdateCcSnapshot update_cc_snapshot = 1;
+        UpdateCcZcSnapshot update_cc_zc_snapshot = 2;
+    }
+}

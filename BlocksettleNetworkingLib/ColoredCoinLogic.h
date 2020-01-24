@@ -102,23 +102,26 @@ struct BinaryDataCompare
    }
 };
    
-typedef std::set<std::shared_ptr<CcOutpoint>, CcOutpointCompare> OpPtrSet;
+using OpPtrSet = std::set<std::shared_ptr<CcOutpoint>, CcOutpointCompare>;
+using CcUtxoSet = std::map<BinaryData, std::map<unsigned, std::shared_ptr<CcOutpoint>>>;
+using ScrAddrCcSet = std::map<BinaryData, OpPtrSet>;
+using OutPointsSet = std::map<BinaryData, std::set<unsigned>>;
 
 ////
 struct ColoredCoinSnapshot
 {
 public:
    //<txHash, <txOutId, outpoint>>
-   std::map<BinaryData, std::map<unsigned, std::shared_ptr<CcOutpoint>>> utxoSet_;
+   CcUtxoSet utxoSet_;
 
    //<prefixed scrAddr, <outpoints>>
-   std::map<BinaryData, OpPtrSet> scrAddrCcSet_;
+   ScrAddrCcSet scrAddrCcSet_;
 
    //<prefixed scrAddr, height of revoke tx>
    std::map<BinaryData, unsigned> revokedAddresses_;
 
    //<txHash, txOutId>
-   std::map<BinaryData, std::set<unsigned>> txHistory_;
+   OutPointsSet txHistory_;
 };
 
 ////
@@ -126,13 +129,13 @@ struct ColoredCoinZCSnapshot
 {
 public:
    //<txHash, <txOutId, outpoint>>
-   std::map<BinaryData, std::map<unsigned, std::shared_ptr<CcOutpoint>>> utxoSet_;
+   CcUtxoSet utxoSet_;
 
    //<prefixed scrAddr, <outpoints>>
-   std::map<BinaryData, OpPtrSet> scrAddrCcSet_;
+   ScrAddrCcSet scrAddrCcSet_;
 
    //<hash, <txOutIds>>
-   std::map<BinaryData, std::set<unsigned>> spentOutputs_;
+   OutPointsSet spentOutputs_;
 };
 
 ////
@@ -213,15 +216,30 @@ private:
    virtual void processNotification(void);
 };
 
+class ColoredCoinTrackerInterface
+{
+public:
+   virtual ~ColoredCoinTrackerInterface() = default;
+
+   virtual void addOriginAddress(const bs::Address&) = 0;
+   virtual void addRevocationAddress(const bs::Address&) = 0;
+
+   virtual bool goOnline() = 0;
+
+   virtual std::shared_ptr<ColoredCoinSnapshot> snapshot() const = 0;
+   virtual std::shared_ptr<ColoredCoinZCSnapshot> zcSnapshot() const = 0;
+
+};
+
 ////
-class ColoredCoinTracker
+class ColoredCoinTracker : public ColoredCoinTrackerInterface
 {
    /*
    This class tracks the UTXO set for a single colored coin.
    */
    
    friend class ColoredCoinACT;
-   
+
 private:
    std::set<BinaryData> originAddresses_;
    std::set<BinaryData> revocationAddresses_;
@@ -237,7 +255,7 @@ private:
    unsigned processedHeight_ = 0;
    unsigned processedZcIndex_ = 0;
    
-   uint64_t coinsPerShare_;
+   const uint64_t coinsPerShare_;
 
    ////
    std::atomic<bool> ready_;
@@ -298,24 +316,8 @@ private:
       std::map<BinaryData, OpPtrSet>&,
       const std::shared_ptr<CcOutpoint>&);
 
-   ////   
-   uint64_t getCcOutputValue(
-      const std::shared_ptr<ColoredCoinSnapshot> &
-      , const std::shared_ptr<ColoredCoinZCSnapshot>&
-      , const BinaryData&, unsigned, unsigned) const;
-
-   ////
-   std::vector<std::shared_ptr<CcOutpoint>> getSpendableOutpointsForAddress(
-      const std::shared_ptr<ColoredCoinSnapshot>&,
-      const std::shared_ptr<ColoredCoinZCSnapshot>&,
-      const BinaryData&, bool) const;
-
    std::set<BinaryData> collectOriginAddresses() const;
    std::set<BinaryData> collectRevokeAddresses() const;
-
-   ////
-   std::shared_ptr<ColoredCoinSnapshot> snapshot(void) const;
-   std::shared_ptr<ColoredCoinZCSnapshot> zcSnapshot(void) const;
 
    ////
    void waitOnRefresh(const std::string&);
@@ -330,10 +332,15 @@ protected:
    std::set<BinaryData> zcUpdate(void);
    void reorg(bool hard);
 
+   virtual void snapshotUpdated() {}
+   virtual void zcSnapshotUpdated() {}
+
 public:
+   using OutpointMap = std::map<BinaryData, std::set<unsigned>>;
+
    ColoredCoinTracker(uint64_t coinsPerShare,
       std::shared_ptr<ArmoryConnection> connPtr) :
-      coinsPerShare_(coinsPerShare), connPtr_(connPtr)
+      connPtr_(connPtr), coinsPerShare_(coinsPerShare)
    {
       ready_.store(false, std::memory_order_relaxed);
 
@@ -341,17 +348,47 @@ public:
       walletObj_ = connPtr_->instantiateWallet(wltIdSbd.toHexStr());
    }
 
-   ~ColoredCoinTracker(void)
+   ~ColoredCoinTracker(void) override
    {
       shutdown();
    }
 
    ////
+   std::shared_ptr<ColoredCoinSnapshot> snapshot(void) const override;
+   std::shared_ptr<ColoredCoinZCSnapshot> zcSnapshot(void) const override;
+
+   ////
+   static uint64_t getCcOutputValue(
+      const std::shared_ptr<ColoredCoinSnapshot> &
+      , const std::shared_ptr<ColoredCoinZCSnapshot>&
+      , const BinaryData&, unsigned, unsigned);
+
+   ////
+   static std::vector<std::shared_ptr<CcOutpoint>> getSpendableOutpointsForAddress(
+      const std::shared_ptr<ColoredCoinSnapshot>&,
+      const std::shared_ptr<ColoredCoinZCSnapshot>&,
+      const BinaryData&, bool);
+
+   ////
+   void addOriginAddress(const bs::Address&) override;
+   void addRevocationAddress(const bs::Address&) override;
+
+   ////
+   bool goOnline(void) override;
+};
+
+class ColoredCoinTrackerClient
+{
+protected:
+   std::unique_ptr<ColoredCoinTrackerInterface> ccSnapshots_;
+
+public:
+   ColoredCoinTrackerClient(std::unique_ptr<ColoredCoinTrackerInterface> ccSnapshots);
+
    void addOriginAddress(const bs::Address&);
    void addRevocationAddress(const bs::Address&);
 
-   ////
-   bool goOnline(void);
+   bool goOnline();
 
    uint64_t getCcOutputValue(const BinaryData &txHash
       , unsigned int txOutIndex, unsigned int height) const;
@@ -372,8 +409,8 @@ public:
    uint64_t getUnconfirmedCcValueForAddresses(const std::set<BinaryData>&) const;
    uint64_t getConfirmedCcValueForAddresses(const std::set<BinaryData>&) const;
 
-   bool getCCUtxoForAddresses(const std::set<BinaryData>&, bool,
-      const std::function<void(std::vector<UTXO>, std::exception_ptr)>&) const;
+   ColoredCoinTracker::OutpointMap getCCUtxoForAddresses(const std::set<BinaryData>&, bool withZc) const;
+
 };
 
 #endif
