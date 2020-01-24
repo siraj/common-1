@@ -1059,7 +1059,8 @@ enum ProxyMessageType
    ProxyUnknownType = 0;
    ProxyConnected    = 1;
    ProxyDisconnected = 2;
-   ProxyLoadTrades = 3;
+   ProxyReconnect    = 3;
+   ProxyLoadTrades   = 4;
 }
 
 message ProxyLoadTradesMessage
