@@ -1180,7 +1180,7 @@ void WalletsManager::goOnline()
    for (const auto &cc : ccResolver_->securities()) {
       std::unique_ptr<ColoredCoinTrackerInterface> trackerSnapshots;
       if (trackerClient_) {
-         trackerSnapshots = trackerClient_->createClient(ccResolver_->lotSizeFor(cc));
+         trackerSnapshots = CcTrackerClient::createClient(trackerClient_, ccResolver_->lotSizeFor(cc));
       } else {
          trackerSnapshots = std::make_unique<ColoredCoinTracker>(ccResolver_->lotSizeFor(cc), armoryPtr_);
       }
