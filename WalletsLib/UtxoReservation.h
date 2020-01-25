@@ -49,6 +49,9 @@ namespace bs {
       // being queried, remove the UTXOs from the vector.
       void filter(std::vector<UTXO> &utxos) const;
 
+      // Check that all reservations have been cleared
+      void shutdownCheck();
+
       static UtxoReservation *instance();
 
       explicit UtxoReservation(const std::shared_ptr<spdlog::logger> &logger);
