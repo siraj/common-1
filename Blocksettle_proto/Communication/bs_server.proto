@@ -1019,6 +1019,7 @@ enum TerminalMessageType
    TerminalOtcSealPayin = 12;
    TerminalOtcTxProcess = 13;
    TerminalOtcCancel    = 14;
+   TerminalOtcUpdate    = 15;
 }
 
 message PreimageData {
@@ -1058,10 +1059,18 @@ message TerminalOtcVerifyRequest
    bytes  payin_tx_hash = 3;
    bytes  seller_auth_pubkey = 4;
    bytes  buyer_auth_pubkey = 5;
-   double price = 6;
+   int64  price = 6;
    int64  amount = 7;
    bytes  unsigned_payin = 8;   
    repeated PreimageData preimage_data = 9;
+}
+
+message TerminalOtcUpdateMessage
+{
+   string settlement_id = 1;
+   int32  state = 2;
+   string error_text = 3;
+   uint64 timestamp = 4;
 }
 
 message TerminalMessage
@@ -1075,6 +1084,7 @@ message TerminalMessage
       TerminalSignedData signed_data = 6;
       TerminalOtcStartRequest  otc_start = 10;
       TerminalOtcVerifyRequest otc_verify = 11;
+      TerminalOtcUpdateMessage otc_update = 12;
    }
 }
 
