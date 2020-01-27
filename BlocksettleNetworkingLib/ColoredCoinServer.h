@@ -49,7 +49,8 @@ public:
 
    ~CcTrackerClient() override;
 
-   std::unique_ptr<ColoredCoinTrackerInterface> createClient(uint64_t coinsPerShare);
+   static std::unique_ptr<ColoredCoinTrackerInterface> createClient(
+      const std::shared_ptr<CcTrackerClient> &parent, uint64_t coinsPerShare);
 
    void openConnection(const std::string &host, const std::string &port, ZmqBipNewKeyCb newKeyCb);
 
