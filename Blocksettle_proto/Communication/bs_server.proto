@@ -1073,6 +1073,12 @@ message TerminalOtcUpdateMessage
    uint64 timestamp = 4;
 }
 
+message TerminalOtcTxMessage
+{
+   string settlement_id = 1;
+   bytes  signed_tx = 2;
+}
+
 message TerminalMessage
 {
    TerminalMessageType type = 1;
@@ -1085,6 +1091,7 @@ message TerminalMessage
       TerminalOtcStartRequest  otc_start = 10;
       TerminalOtcVerifyRequest otc_verify = 11;
       TerminalOtcUpdateMessage otc_update = 12;
+      TerminalOtcTxMessage     otc_tx = 13;
    }
 }
 
