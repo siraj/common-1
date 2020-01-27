@@ -356,6 +356,7 @@ WalletsManager::HDWalletPtr WalletsManager::createWallet(
                   for (const auto &authAddr : authLeaf->getPooledAddressList()) {
                      try {
                         newWallet->createSettlementLeaf(authAddr);
+                        authLeaf->getNewExtAddress();
                      }
                      catch (const std::exception &e) {
                         logger_->error("[{}] failed to create settlement leaf for {}: {}"
