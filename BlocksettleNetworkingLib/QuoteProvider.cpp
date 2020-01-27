@@ -769,10 +769,10 @@ void QuoteProvider::eraseSubmittedXBTQuoteNotification(const std::string& settle
    }
 
    if (erased) {
-      logger_->debug("[QuoteProvider::eraseSubmittedXBTQuoteNotification] erased quote notification for {}. Current count {}"
+      SPDLOG_LOGGER_DEBUG(logger_, "erased quote notification for {}. Current count {}"
          , settlementId, count);
    } else {
-      logger_->error("[QuoteProvider::eraseSubmittedXBTQuoteNotification] no quote notification for {}. Current count {}"
+      SPDLOG_LOGGER_DEBUG(logger_, "no quote notification for {}. Current count {}"
          , settlementId, count);
    }
 }

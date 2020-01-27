@@ -31,6 +31,16 @@ void bs::UtxoReservation::init(const std::shared_ptr<spdlog::logger> &logger)
    utxoResInstance_ = std::shared_ptr<bs::UtxoReservation>(new bs::UtxoReservation(logger));
 }
 
+void UtxoReservation::shutdownCheck()
+{
+   std::lock_guard<std::mutex> lock(mutex_);
+   for (const auto &reserveIdItem : byReserveId_) {
+      auto reserveTime = std::chrono::steady_clock::now() - reserveTime_[reserveIdItem.first];
+      SPDLOG_LOGGER_ERROR(logger_, "UTXO reservation was not cleared: {}, reserved {} seconds ago"
+         , reserveIdItem.first, reserveTime / std::chrono::seconds(1));
+   }
+}
+
 // Reserve a set of UTXOs for a wallet and reservation ID. Reserve across all
 // active adapters.
 void bs::UtxoReservation::reserve(const std::string &reserveId
@@ -71,7 +81,6 @@ bool bs::UtxoReservation::unreserve(const std::string &reserveId)
    }
 
    byReserveId_.erase(it);
-
    reserveTime_.erase(reserveId);
 
    return true;

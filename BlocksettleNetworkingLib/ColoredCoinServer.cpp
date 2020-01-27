@@ -72,7 +72,10 @@ class CcTrackerImpl : public ColoredCoinTrackerInterface
 public:
    ~CcTrackerImpl() override
    {
-      parent_->removeClient(this);
+      auto parent = parent_.lock();
+      if (parent) {
+         parent->removeClient(this);
+      }
    }
 
    void addOriginAddress(const bs::Address &addr) override
@@ -93,11 +96,13 @@ public:
 
    bool goOnline() override
    {
+      auto parent = parent_.lock();
+      assert(parent);
       if (isOnline_.load()) {
          throw std::logic_error("goOnline was already called");
       }
       isOnline_ = true;
-      parent_->addClient(this);
+      parent->addClient(this);
       return true;
    }
 
@@ -111,7 +116,7 @@ public:
       return std::atomic_load_explicit(&zcSnapshot_, std::memory_order_acquire);
    }
 
-   CcTrackerClient *parent_{};
+   std::weak_ptr<CcTrackerClient> parent_;
    uint64_t coinsPerShare_;
    std::atomic_bool isOnline_{false};
    std::vector<bs::Address> originAddresses_;
@@ -225,12 +230,13 @@ CcTrackerClient::~CcTrackerClient()
    dispatchThread_.join();
 }
 
-std::unique_ptr<ColoredCoinTrackerInterface> CcTrackerClient::createClient(uint64_t coinsPerShare)
+std::unique_ptr<ColoredCoinTrackerInterface> CcTrackerClient::createClient(
+   const std::shared_ptr<CcTrackerClient> &parent, uint64_t coinsPerShare)
 {
-   auto id = ++nextId_;
+   auto id = ++parent->nextId_;
 
    auto client = std::make_unique<CcTrackerImpl>();
-   client->parent_ = this;
+   client->parent_ = std::weak_ptr<CcTrackerClient>(parent);
    client->coinsPerShare_ = coinsPerShare;
    client->id_ = id;
 
