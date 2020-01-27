@@ -1014,15 +1014,20 @@ enum TerminalMessageType
    TerminalUnsignedPayinRequest = 2;
    TerminalSignedPayinRequest = 3;
    TerminalSignedPayoutRequest = 4;
+   TerminalOtcStart     = 10;
+   TerminalOtcVerify    = 11;
+   TerminalOtcSealPayin = 12;
+   TerminalOtcTxProcess = 13;
+   TerminalOtcCancel    = 14;
+}
+
+message PreimageData {
+   string address = 1;
+   bytes data = 2;
 }
 
 message TerminalUnsignedPayin
 {
-   message PreimageData {
-      string address = 1;
-      bytes data = 2;
-   }
-
    string settlement_id = 1;
    repeated PreimageData preimage_data = 2;
    bytes unsigned_payin = 3;
@@ -1041,6 +1046,24 @@ message TerminalSignPayinRequest
    bytes  signed_payout = 3;
 }
 
+message TerminalOtcStartRequest
+{
+   int32 request_id = 1;
+}
+
+message TerminalOtcVerifyRequest
+{
+   bool   is_sell = 1;
+   string settlement_id = 2;
+   bytes  payin_tx_hash = 3;
+   bytes  seller_auth_pubkey = 4;
+   bytes  buyer_auth_pubkey = 5;
+   double price = 6;
+   int64  amount = 7;
+   bytes  unsigned_payin = 8;   
+   repeated PreimageData preimage_data = 9;
+}
+
 message TerminalMessage
 {
    TerminalMessageType type = 1;
@@ -1050,6 +1073,8 @@ message TerminalMessage
       TerminalUnsignedPayin unsigned_payin = 4;
       TerminalSignPayinRequest sign_payin_request = 5;
       TerminalSignedData signed_data = 6;
+      TerminalOtcStartRequest  otc_start = 10;
+      TerminalOtcVerifyRequest otc_verify = 11;
    }
 }
 
@@ -1061,6 +1086,8 @@ enum ProxyMessageType
    ProxyDisconnected = 2;
    ProxyReconnect    = 3;
    ProxyLoadTrades   = 4;
+   ProxyBlotterUpdates = 5;
+   ProxyOnlineUsers  = 6;
 }
 
 message ProxyLoadTradesMessage
@@ -1068,11 +1095,20 @@ message ProxyLoadTradesMessage
    repeated TradeDataXbtMessage trades = 1;
 }
 
+message ProxyOnlineUsersMessage
+{
+   int32 chat_users = 1;
+   int32 market_users = 2;
+   int32 trading_users = 3;
+   int32 dealing_users = 4;
+}
+
 message ProxyMessage
 {
    ProxyMessageType type = 1;
    oneof data {
-      ProxyLoadTradesMessage load_trades = 2;
+      ProxyLoadTradesMessage  load_trades = 2;
+      ProxyOnlineUsersMessage online_users = 3;
    }
 }
 
