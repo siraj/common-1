@@ -1220,8 +1220,9 @@ message ExportRequestFiles
 
 message ExportRequestFilesResponse
 {
-   bool     export_result = 1;
+   bool     export_result  = 1;
    int32    requests_count = 2;
+   string   export_path    = 3;
 }
 
 message RequestCompletedUpdate
@@ -1231,12 +1232,13 @@ message RequestCompletedUpdate
 
 message RequestStorageMessage
 {
-   RequestStorageMessageType type = 1;
+   RequestStorageMessageType  type = 1;
+   bytes                      associated_data = 2;
    oneof data {
-      SaveNewRequest             request           = 2;
-      ExportRequestFiles         export_request    = 3;
-      ExportRequestFilesResponse export_response   = 4;
-      RequestCompletedUpdate     completed_request = 5;
+      SaveNewRequest             request           = 3;
+      ExportRequestFiles         export_request    = 4;
+      ExportRequestFilesResponse export_response   = 5;
+      RequestCompletedUpdate     completed_request = 6;
    }
 }
 
