@@ -568,7 +568,7 @@ message GenoaFxTradeResponse
    bool   matched = 4;
    string error_text = 5;
    repeated AccountBalances account_balances = 6;
-   
+
    message AccountBalances {
       string entity_name = 1;
       repeated Balance balances = 2;
@@ -1167,7 +1167,6 @@ message WebClientMessage
    }
 }
 
-
 enum RelayUser
 {
    UserUnknown = 0;
@@ -1183,4 +1182,69 @@ message RelayedMessage
 {
    RelayUser user = 1;
    bytes data = 2;
+}
+
+// RequestsProcessing messages
+
+enum RequestStorageMessageType
+{
+   SaveNewRequestFileType     = 0;
+
+   ExportRequestsType         = 1;
+   ExportRequestsResponseType = 2;
+
+   RequestCompletedType       = 3;
+}
+
+enum RequestFileType
+{
+   SubmitAuthAddressRequestFileType       = 0;
+   RevokeAuthAddressRequestFileType       = 1;
+   GenerateCCSeedRequestFileType          = 2;
+   CCInitialDistributionRequestFileType   = 3;
+   FundCCGenAddressRequestFileType        = 4;
+
+   RequestFileTypeSize                    = 5;
+}
+
+message SaveNewRequest
+{
+   RequestFileType   type           = 1;
+   bytes             data           = 2;
+}
+
+message ExportRequestFiles
+{
+   string export_path = 1;
+}
+
+message ExportRequestFilesResponse
+{
+   bool     export_result  = 1;
+   int32    requests_count = 2;
+   string   export_path    = 3;
+}
+
+message RequestCompletedUpdate
+{
+   string request_id = 1;
+}
+
+message RequestStorageMessage
+{
+   RequestStorageMessageType  type = 1;
+   bytes                      associated_data = 2;
+   oneof data {
+      SaveNewRequest             request           = 3;
+      ExportRequestFiles         export_request    = 4;
+      ExportRequestFilesResponse export_response   = 5;
+      RequestCompletedUpdate     completed_request = 6;
+   }
+}
+
+// RequestsStatistics messages
+message PendingRequestsUpdate
+{
+   RequestFileType   request_type   = 1;
+   int32             counter        = 2;
 }
