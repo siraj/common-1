@@ -1139,7 +1139,7 @@ enum WebClientType
 
 message WebScorechainUtxoRequest
 {
-   repeated string utxos = 1;
+   repeated string tx_id = 1;
 }
 
 message WebScorechainUtxoResponse
