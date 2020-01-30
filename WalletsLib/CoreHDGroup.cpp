@@ -407,7 +407,7 @@ void hd::AuthGroup::initLeaf(std::shared_ptr<hd::Leaf> &leaf
 
    //address lookup
    if (lookup == UINT32_MAX) {
-      lookup = 5;
+      lookup = 10;
    }
    accTypePtr->setAddressLookup(lookup);
 
