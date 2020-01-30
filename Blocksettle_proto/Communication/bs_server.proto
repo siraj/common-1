@@ -48,48 +48,8 @@ enum StorageMessageType
 enum StorageType
 {
    StorageUnknown   = 0;
-   StorageAccounts  = 1;
    StorageAddresses = 2;
    StorageRequests  = 3;
-}
-
-message StorageAccountUserRequest
-{
-   int64  entity_id = 1;
-   string entity = 2;
-   string email = 3;
-}
-
-message StorageAccountsData
-{
-   repeated CustomerAccountData data = 1;
-}
-
-message StorageAccountsBalanceUpdate
-{
-   string entity_name = 1;
-   string currency = 2;
-   double balance = 3;
-}
-
-enum StorageAccountDomain
-{
-   StorageAccountUnknown = 0;
-   StorageAccountUser    = 1;
-   StorageAccountUsers   = 2;
-   StorageAccountBalance = 3;
-}
-
-message StorageAccountMessage
-{
-   StorageAccountDomain domain = 1;
-   oneof data {
-      StorageAccountUserRequest   user_request = 2;
-      CustomerAccountData account_data = 3;
-      StorageAccountsData accounts = 4;
-      bytes balance_snapshot = 5;
-      StorageAccountsBalanceUpdate balance_update = 6;
-   }
 }
 
 message StorageAddressUserMessage
@@ -159,7 +119,6 @@ message StorageMessage
    StorageType domain = 2;
    oneof data {
       StorageAddressMessage  address  = 3;
-      StorageAccountMessage  account  = 4;
       StorageRequestsMessage requests = 5;
    }
 }
@@ -381,7 +340,8 @@ enum GenoaType
    GenoaClientDisconnected = 4;
    GenoaServerConnected    = 5;
    GenoaServerDisconnected = 6;
-   GenoaLoadAllAccounts    = 9;
+   GenoaAccountsAvailable  = 7;
+   GenoaAccounts           = 8;
    GenoaGetXBTReservations = 10;
    GenoaGetCCReservations  = 11;
    GenoaCancelCCReservation = 12;
@@ -460,29 +420,6 @@ message GenoaCCReservationResponse
    bool   success = 1;
    string error_text = 2;
    repeated GenoaCCReservation reservations = 3;
-}
-
-message GenoaAccountInfoData
-{
-   string email = 1;
-   string entity_name = 2;
-   int64  entity_id = 3;
-   string account_name = 4;
-   string account_type = 5;
-   int64  account_id = 6;
-   repeated BalanceData balances = 7;
-
-   message BalanceData {
-      string currency = 1;
-      int64  currency_id = 2;
-      double balance = 3;
-   }
-}
-
-message GenoaAccountInfoMessage
-{
-   repeated GenoaAccountInfoData data = 1;
-   string error_text = 2;
 }
 
 message GenoaCancelCCReservationRequest
@@ -586,6 +523,52 @@ message GenoaTradeXbtUpdateRequest
    string status = 2;
 }
 
+message GenoaAccountUserRequest
+{
+   int64  entity_id = 1;
+   string entity = 2;
+   string email = 3;
+}
+
+message GenoaAccountsData
+{
+   repeated CustomerAccountData data = 1;
+   repeated CurrencyMap currency_map = 2;
+   string error_text = 3;
+
+   message CurrencyMap {
+      string currency = 1;
+      int64  currency_id = 2;
+   }
+}
+
+message GenoaAccountsBalanceUpdate
+{
+   string entity_name = 1;
+   string currency = 2;
+   double balance = 3;
+}
+
+enum GenoaAccountRequestType
+{
+   GenoaAccountUnknown = 0;
+   GenoaAccountUser    = 1;
+   GenoaAccountUsers   = 2;
+   GenoaAccountBalance = 3;
+}
+
+message GenoaAccountMessage
+{
+   GenoaAccountRequestType type = 1;
+   oneof data {
+      GenoaAccountUserRequest   user_request = 2;
+      CustomerAccountData account_data = 3;
+      GenoaAccountsData accounts = 4;
+      bytes balance_snapshot = 5;
+      GenoaAccountsBalanceUpdate balance_update = 6;
+   }
+}
+
 message GenoaMessage
 {
    GenoaType type = 1;
@@ -594,7 +577,6 @@ message GenoaMessage
       GenoaDisconnectedBroadcast disconnected = 3;
       GenoaXBTReservationsResponse xbt_reservations = 4;
       GenoaCCReservationResponse  cc_reservations = 5;
-      GenoaAccountInfoMessage accounts = 6;
       GenoaCancelCCReservationRequest  cancel_cc_res_request = 7;
       GenoaCancelCCReservationResponse cancel_cc_res_response = 8;
       GenoaUserRequest  user_request = 9;
@@ -608,6 +590,7 @@ message GenoaMessage
       GenoaFxTradeResponse fx_trade_response = 17;
       GenoaTradeXbtUpdateRequest xbt_trade_update = 18;
       GenoaXbtCompleteTransferResponse xbt_transfer_complete = 19;
+      GenoaAccountMessage account = 20;
    }
 }
 
