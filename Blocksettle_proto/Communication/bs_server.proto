@@ -568,7 +568,7 @@ message GenoaFxTradeResponse
    bool   matched = 4;
    string error_text = 5;
    repeated AccountBalances account_balances = 6;
-   
+
    message AccountBalances {
       string entity_name = 1;
       repeated Balance balances = 2;
@@ -1014,15 +1014,21 @@ enum TerminalMessageType
    TerminalUnsignedPayinRequest = 2;
    TerminalSignedPayinRequest = 3;
    TerminalSignedPayoutRequest = 4;
+   TerminalOtcStart     = 10;
+   TerminalOtcVerify    = 11;
+   TerminalOtcSealPayin = 12;
+   TerminalOtcTxProcess = 13;
+   TerminalOtcCancel    = 14;
+   TerminalOtcUpdate    = 15;
+}
+
+message PreimageData {
+   string address = 1;
+   bytes data = 2;
 }
 
 message TerminalUnsignedPayin
 {
-   message PreimageData {
-      string address = 1;
-      bytes data = 2;
-   }
-
    string settlement_id = 1;
    repeated PreimageData preimage_data = 2;
    bytes unsigned_payin = 3;
@@ -1041,6 +1047,38 @@ message TerminalSignPayinRequest
    bytes  signed_payout = 3;
 }
 
+message TerminalOtcStartRequest
+{
+   int32 request_id = 1;
+}
+
+message TerminalOtcVerifyRequest
+{
+   bool   is_sell = 1;
+   string settlement_id = 2;
+   bytes  payin_tx_hash = 3;
+   bytes  seller_auth_pubkey = 4;
+   bytes  buyer_auth_pubkey = 5;
+   int64  price = 6;
+   int64  amount = 7;
+   bytes  unsigned_payin = 8;   
+   repeated PreimageData preimage_data = 9;
+}
+
+message TerminalOtcUpdateMessage
+{
+   string settlement_id = 1;
+   int32  state = 2;
+   string error_text = 3;
+   uint64 timestamp = 4;
+}
+
+message TerminalOtcTxMessage
+{
+   string settlement_id = 1;
+   bytes  signed_tx = 2;
+}
+
 message TerminalMessage
 {
    TerminalMessageType type = 1;
@@ -1050,6 +1088,10 @@ message TerminalMessage
       TerminalUnsignedPayin unsigned_payin = 4;
       TerminalSignPayinRequest sign_payin_request = 5;
       TerminalSignedData signed_data = 6;
+      TerminalOtcStartRequest  otc_start = 10;
+      TerminalOtcVerifyRequest otc_verify = 11;
+      TerminalOtcUpdateMessage otc_update = 12;
+      TerminalOtcTxMessage     otc_tx = 13;
    }
 }
 
@@ -1059,7 +1101,10 @@ enum ProxyMessageType
    ProxyUnknownType = 0;
    ProxyConnected    = 1;
    ProxyDisconnected = 2;
-   ProxyLoadTrades = 3;
+   ProxyReconnect    = 3;
+   ProxyLoadTrades   = 4;
+   ProxyBlotterUpdates = 5;
+   ProxyOnlineUsers  = 6;
 }
 
 message ProxyLoadTradesMessage
@@ -1067,11 +1112,20 @@ message ProxyLoadTradesMessage
    repeated TradeDataXbtMessage trades = 1;
 }
 
+message ProxyOnlineUsersMessage
+{
+   int32 chat_users = 1;
+   int32 market_users = 2;
+   int32 trading_users = 3;
+   int32 dealing_users = 4;
+}
+
 message ProxyMessage
 {
    ProxyMessageType type = 1;
    oneof data {
-      ProxyLoadTradesMessage load_trades = 2;
+      ProxyLoadTradesMessage  load_trades = 2;
+      ProxyOnlineUsersMessage online_users = 3;
    }
 }
 
@@ -1113,7 +1167,6 @@ message WebClientMessage
    }
 }
 
-
 enum RelayUser
 {
    UserUnknown = 0;
@@ -1129,4 +1182,69 @@ message RelayedMessage
 {
    RelayUser user = 1;
    bytes data = 2;
+}
+
+// RequestsProcessing messages
+
+enum RequestStorageMessageType
+{
+   SaveNewRequestFileType     = 0;
+
+   ExportRequestsType         = 1;
+   ExportRequestsResponseType = 2;
+
+   RequestCompletedType       = 3;
+}
+
+enum RequestFileType
+{
+   SubmitAuthAddressRequestFileType       = 0;
+   RevokeAuthAddressRequestFileType       = 1;
+   GenerateCCSeedRequestFileType          = 2;
+   CCInitialDistributionRequestFileType   = 3;
+   FundCCGenAddressRequestFileType        = 4;
+
+   RequestFileTypeSize                    = 5;
+}
+
+message SaveNewRequest
+{
+   RequestFileType   type           = 1;
+   bytes             data           = 2;
+}
+
+message ExportRequestFiles
+{
+   string export_path = 1;
+}
+
+message ExportRequestFilesResponse
+{
+   bool     export_result  = 1;
+   int32    requests_count = 2;
+   string   export_path    = 3;
+}
+
+message RequestCompletedUpdate
+{
+   string request_id = 1;
+}
+
+message RequestStorageMessage
+{
+   RequestStorageMessageType  type = 1;
+   bytes                      associated_data = 2;
+   oneof data {
+      SaveNewRequest             request           = 3;
+      ExportRequestFiles         export_request    = 4;
+      ExportRequestFilesResponse export_response   = 5;
+      RequestCompletedUpdate     completed_request = 6;
+   }
+}
+
+// RequestsStatistics messages
+message PendingRequestsUpdate
+{
+   RequestFileType   request_type   = 1;
+   int32             counter        = 2;
 }
