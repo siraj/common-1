@@ -351,11 +351,12 @@ WalletsManager::HDWalletPtr WalletsManager::createWallet(
             const auto authGroup = std::dynamic_pointer_cast<bs::core::hd::AuthGroup>(group);
             if (authGroup) {
                authGroup->setSalt(userId_);
-               const auto authLeaf = authGroup->createLeaf(AddressEntryType_Default, 0, 5);
+               const auto authLeaf = authGroup->createLeaf(AddressEntryType_Default, 0, 10);
                if (authLeaf) {
                   for (const auto &authAddr : authLeaf->getPooledAddressList()) {
                      try {
                         newWallet->createSettlementLeaf(authAddr);
+                        authLeaf->getNewExtAddress();
                      }
                      catch (const std::exception &e) {
                         logger_->error("[{}] failed to create settlement leaf for {}: {}"

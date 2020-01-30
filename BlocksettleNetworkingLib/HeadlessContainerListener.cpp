@@ -1134,7 +1134,7 @@ bool HeadlessContainerListener::onCreateHDLeaf(const std::string &clientId
             }
 
             if ((path.get(1) | bs::hd::hardFlag) == bs::hd::CoinType::BlockSettle_Auth) {
-               for (int i = 0; i < 5; i++) {
+               for (int i = 0; i < 10; i++) {
                   leaf->getNewExtAddress();
                }
                createSettlementLeaves(hdWallet, leaf->getUsedAddressList());
