@@ -88,28 +88,71 @@ message StorageAddressMessage
    }
 }
 
-message StorageRequestsCCSeed
+enum RequestStorageMessageType
 {
-   string email = 1;
-   string cc = 2;
-   double quantity = 3;
+   SaveNewRequestFileType     = 0;
+
+   ExportRequestsType         = 1;
+   ExportRequestsResponseType = 2;
+
+   RequestCompletedType       = 3;
+   PendingRequestsStatistics  = 4;
+
 }
 
-message StorageRequestsCCGenAddr
+enum RequestFileType
 {
-   string cc = 1;
-   uint32 amount = 2;
-   uint32 lot_size = 3;
-   string reference = 4;
+   SubmitAuthAddressRequestFileType       = 0;
+   RevokeAuthAddressRequestFileType       = 1;
+   GenerateCCSeedRequestFileType          = 2;
+   CCInitialDistributionRequestFileType   = 3;
+   FundCCGenAddressRequestFileType        = 4;
+
+   RequestFileTypeSize                    = 5;
+}
+
+message SaveNewRequest
+{
+   RequestFileType   type           = 1;
+   bytes             data           = 2;
+}
+
+message ExportRequestFiles
+{
+   string export_path = 1;
+}
+
+message ExportRequestFilesResponse
+{
+   bool     export_result  = 1;
+   int32    requests_count = 2;
+   string   export_path    = 3;
+}
+
+message RequestCompletedUpdate
+{
+   string request_id = 1;
+}
+
+message PendingRequestsInfo
+{
+   int32 submit_auth_address     = 1;
+   int32 revoke_auth_address     = 2;
+   int32 generate_cc_seed        = 3;
+   int32 cc_initial_distribution = 4;
+   int32 fund_cc_gen_address     = 5;
 }
 
 message StorageRequestsMessage
 {
+   RequestStorageMessageType  type = 1;
+   bytes                      associated_data = 2;
    oneof data {
-      string auth_address = 2;
-      StorageRequestsCCSeed cc_seed = 3;
-      StorageRequestsCCGenAddr cc_ga = 4;
-      string cc_token = 5;
+      SaveNewRequest             request           = 3;
+      ExportRequestFiles         export_request    = 4;
+      ExportRequestFilesResponse export_response   = 5;
+      RequestCompletedUpdate     completed_request = 6;
+      PendingRequestsInfo        pending_requests_statistics = 7;
    }
 }
 
@@ -122,7 +165,6 @@ message StorageMessage
       StorageRequestsMessage requests = 5;
    }
 }
-
 
 enum ArmoryMessageType
 {
@@ -1165,69 +1207,4 @@ message RelayedMessage
 {
    RelayUser user = 1;
    bytes data = 2;
-}
-
-// RequestsProcessing messages
-
-enum RequestStorageMessageType
-{
-   SaveNewRequestFileType     = 0;
-
-   ExportRequestsType         = 1;
-   ExportRequestsResponseType = 2;
-
-   RequestCompletedType       = 3;
-}
-
-enum RequestFileType
-{
-   SubmitAuthAddressRequestFileType       = 0;
-   RevokeAuthAddressRequestFileType       = 1;
-   GenerateCCSeedRequestFileType          = 2;
-   CCInitialDistributionRequestFileType   = 3;
-   FundCCGenAddressRequestFileType        = 4;
-
-   RequestFileTypeSize                    = 5;
-}
-
-message SaveNewRequest
-{
-   RequestFileType   type           = 1;
-   bytes             data           = 2;
-}
-
-message ExportRequestFiles
-{
-   string export_path = 1;
-}
-
-message ExportRequestFilesResponse
-{
-   bool     export_result  = 1;
-   int32    requests_count = 2;
-   string   export_path    = 3;
-}
-
-message RequestCompletedUpdate
-{
-   string request_id = 1;
-}
-
-message RequestStorageMessage
-{
-   RequestStorageMessageType  type = 1;
-   bytes                      associated_data = 2;
-   oneof data {
-      SaveNewRequest             request           = 3;
-      ExportRequestFiles         export_request    = 4;
-      ExportRequestFilesResponse export_response   = 5;
-      RequestCompletedUpdate     completed_request = 6;
-   }
-}
-
-// RequestsStatistics messages
-message PendingRequestsUpdate
-{
-   RequestFileType   request_type   = 1;
-   int32             counter        = 2;
 }
