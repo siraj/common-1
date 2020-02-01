@@ -349,18 +349,32 @@ message CCDefinitionsData
 message CCGenesisAddressData
 {
    message GenAddrData {
-      string cc = 1;
-      string ga = 2;
+      bytes cc = 1;
+      bytes ga = 2;
    }
    repeated GenAddrData gen_addresses = 1;
 }
 
+message CCTxValidRequest
+{
+   string cc = 1;
+   repeated OutPointData outpoints = 2;
+}
+
+message CCTxValidResponse
+{
+   repeated OutPointData outpoints = 1;
+   repeated bool is_valid = 2;
+}
+
 enum CcTrackMessageType
 {
-   CcTrackUnknownType   = 0;
-   CcTrackOnline        = 1;
-   CcTrackCCDefinitions = 2;
-   CcTrackGenAddresses  = 3;
+   CcTrackUnknownType    = 0;
+   CcTrackOnline         = 1;
+   CcTrackCCDefinitions  = 2;
+   CcTrackGenAddresses   = 3;
+   CcTrackIsTxValid      = 4;
+   CcTrackValidateHalves = 5;
 }
 
 message CcTrackMessage
@@ -369,6 +383,8 @@ message CcTrackMessage
    oneof data {
       CCDefinitionsData cc_definitions = 2;
       CCGenesisAddressData ga_data = 3;
+      CCTxValidRequest  tx_valid_request = 4;
+      CCTxValidResponse tx_valid_response = 5;
    }
 }
 
@@ -396,6 +412,7 @@ enum GenoaType
    GenoaUserTradingStatus  = 21;
    GenoaTradeXbtUpdate     = 22;
    GenoaTradeCcUpdate      = 23;
+   GenoaReserveCC          = 24;
 }
 
 message GenoaConnectedBroadcast
@@ -633,6 +650,7 @@ message GenoaMessage
       GenoaTradeXbtUpdateRequest xbt_trade_update = 18;
       GenoaXbtCompleteTransferResponse xbt_transfer_complete = 19;
       GenoaAccountMessage account = 20;
+      TradeInfoCcData cc_reserve = 21;
    }
 }
 
