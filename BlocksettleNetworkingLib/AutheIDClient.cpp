@@ -459,7 +459,7 @@ void AutheIDClient::processResultReply(const QByteArray &payload)
    }
 
    if (reply.status() == rp::TIMEOUT) {
-      emit failed(ErrorType::Timeout);
+      emit canceledByTimeout();
       return;
    }
 
