@@ -47,9 +47,10 @@ enum StorageMessageType
 
 enum StorageType
 {
-   StorageUnknown   = 0;
-   StorageAddresses = 2;
-   StorageRequests  = 3;
+   StorageUnknown       = 0;
+   StorageAddresses     = 2;
+   StorageRequests      = 3;
+   StorageCCDefinitions = 4;
 }
 
 message StorageAddressUserMessage
@@ -156,13 +157,53 @@ message StorageRequestsMessage
    }
 }
 
+enum CCDefinitionsMessageType
+{
+   CCDefinitionsSnapshot      = 0;
+   CreateCCDefinitionRequest  = 1;
+   DisbleCCDefinitionRequest  = 2;
+   CCDefinitionsResponse      = 3;
+}
+
+message StorageCCDefinition
+{
+   string   cc_name  = 1;
+   int32    lot_size = 2;
+   bool     enabled  = 3;
+}
+
+message CCDefinitionsSnapshotMessage
+{
+   int32                         revision    = 1;
+   repeated StorageCCDefinition  definitions = 2;
+}
+
+message StorageCCDefinitionResponse
+{
+   bool     result         = 1;
+   string   debug_message  = 2;
+}
+
+message StorageCCDefinitionsMessage
+{
+   CCDefinitionsMessageType type = 1;
+
+   oneof data {
+      CCDefinitionsSnapshotMessage  cc_snapshot          = 2;
+      StorageCCDefinition           create_definition    = 3;
+      StorageCCDefinition           disable_definition   = 4;
+      StorageCCDefinitionResponse   response             = 5;
+   }
+}
+
 message StorageMessage
 {
    StorageMessageType type = 1;
    StorageType domain = 2;
    oneof data {
-      StorageAddressMessage  address  = 3;
-      StorageRequestsMessage requests = 5;
+      StorageAddressMessage         address        = 3;
+      StorageRequestsMessage        requests       = 5;
+      StorageCCDefinitionsMessage   cc_definitions = 6;
    }
 }
 
