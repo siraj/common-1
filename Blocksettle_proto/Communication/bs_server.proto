@@ -680,11 +680,12 @@ message GenoaMessage
 
 enum GenoaServerType
 {
-   GenoaServerUnknown = 0;
-   GenoaServerNewClient = 1;
-   GenoaServerUpdBalance = 2;
-   GenoaServerUpdTrdStatus = 3;
-   GenoaServerXbtTrdStatus = 4;
+   GenoaServerResponse        = 0;
+   GenoaServerNewClient       = 1;
+   GenoaServerUpdBalance      = 2;
+   GenoaServerUpdTrdStatus    = 3;
+   GenoaServerXbtTrdStatus    = 4;
+   GenoaServerNewCcSeed       = 5;
 }
 
 message GenoaServerClientRequest
@@ -712,15 +713,23 @@ message GenoaServerXbtTradingStatus
    string status = 2;
 }
 
+message GenoaServerNewCcSeedRequest
+{
+   string      email    = 1;
+   string      cc_name  = 2;
+}
+
 message GenoaServerMessage
 {
    GenoaServerType type = 1;
    oneof data {
-      GenoaServerClientRequest new_client = 2;
-      GenoaServerBalanceUpdate balance_update = 3;
-      GenoaServerTradingStatusUpdate trd_status = 4;
-      GenoaServerXbtTradingStatus xbt_trd_status = 5;
-      bool response = 10;
+      GenoaServerClientRequest         new_client     = 2;
+      GenoaServerBalanceUpdate         balance_update = 3;
+      GenoaServerTradingStatusUpdate   trd_status     = 4;
+      GenoaServerXbtTradingStatus      xbt_trd_status = 5;
+      GenoaServerNewCcSeedRequest      new_cc_seed    = 6;
+
+      bool                             response       = 10;
    }
 }
 
