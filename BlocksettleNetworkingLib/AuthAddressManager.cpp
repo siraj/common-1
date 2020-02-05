@@ -173,26 +173,22 @@ bool AuthAddressManager::HasAuthAddr() const
    return (HaveAuthWallet() && (authWallet_->getUsedAddressCount() > 0));
 }
 
-bool AuthAddressManager::SubmitForVerification(BsClient *bsClient, const bs::Address &address)
+void AuthAddressManager::SubmitForVerification(BsClient *bsClient, const bs::Address &address)
 {
    if (!bsClient) {
-      return false;
+      return;
    }
 
    if (!hasSettlementLeaf(address)) {
-      logger_->error("[{}] can't submit without existing settlement leaf", __func__);
-      return false;
+      SPDLOG_LOGGER_ERROR(logger_, "can't submit without existing settlement leaf");
+      emit Error(tr("Settlement leaf does not exist"));
+      return;
    }
-   const auto &state = GetState(address);
-   switch (state) {
-   case AddressVerificationState::Verified:
-   case AddressVerificationState::PendingVerification:
-   case AddressVerificationState::VerificationSubmitted:
-   case AddressVerificationState::Revoked:
-   case AddressVerificationState::RevokedByBS:
-      logger_->error("[AuthAddressManager::SubmitForVerification] refuse to submit address in state: {}", (int)state);
-      return false;
-   default: break;
+   const auto state = GetState(address);
+   if (state != AddressVerificationState::NotSubmitted) {
+      SPDLOG_LOGGER_ERROR(logger_, "refuse to submit address in state: {}", (int)state);
+      emit Error(tr("Address must be not submitted"));
+      return;
    }
 
    bsClient->submitAuthAddress(address, [this, address](const BsClient::AuthAddrSubmitResponse &response) {
@@ -204,7 +200,6 @@ bool AuthAddressManager::SubmitForVerification(BsClient *bsClient, const bs::Add
          } else {
             emit Error(tr("Authentication Address rejected: %1").arg(QString::fromStdString(response.errorMsg)));
          }
-         emit AddressListUpdated();
          return;
       }
 
@@ -214,8 +209,6 @@ bool AuthAddressManager::SubmitForVerification(BsClient *bsClient, const bs::Add
          markAsSubmitted(address);
       }
    });
-
-   return true;
 }
 
 bool AuthAddressManager::CreateNewAuthAddress()

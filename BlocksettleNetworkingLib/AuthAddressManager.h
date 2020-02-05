@@ -106,7 +106,7 @@ public:
    bool hasSettlementLeaf(const bs::Address &addr) const { return (getSettlementLeaf(addr) != nullptr); }
    void createSettlementLeaf(const bs::Address &, const std::function<void()> &);
 
-   virtual bool SubmitForVerification(BsClient *bsClient, const bs::Address &address);
+   virtual void SubmitForVerification(BsClient *bsClient, const bs::Address &address);
    virtual void ConfirmSubmitForVerification(BsClient *bsClient, const bs::Address &address);
 
    virtual bool RevokeAddress(const bs::Address &address);
