@@ -187,7 +187,6 @@ signals:
    void authSuccess(const std::string &jwt);
    void failed(ErrorType error);
    void userCancelled();
-   void canceledByTimeout();
 
 private:
    struct Result
