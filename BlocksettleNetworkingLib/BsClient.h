@@ -87,32 +87,32 @@ class BsClient : public QObject, public DataConnectionListener
 {
    Q_OBJECT
 public:
-   using SignStartedCb = std::function<void ()>;
-   using SignedCb = std::function<void (const AutheIDClient::SignResult &result)>;
-   using SignFailedCb = std::function<void(AutheIDClient::ErrorType)>;
-
-   struct SignAddressReq
+   struct BasicResponse
    {
-      enum Type
-      {
-         Unknown,
-         AuthAddr,
-         CcAddr,
-      };
-
-      Type type{};
-      bs::Address address;
-      BinaryData invisibleData;
-      SignStartedCb startedCb;
-      SignedCb signedCb;
-      SignFailedCb failedCb;
-      std::string ccProduct;
+      bool success{};
+      std::string errorMsg;
    };
+   using BasicCb = std::function<void(BasicResponse)>;
+
+   struct SignResponse : public BasicResponse
+   {
+      bool userCancelled{};
+   };
+   using SignCb = std::function<void(SignResponse)>;
+
+   struct AuthAddrSubmitResponse : public BasicResponse
+   {
+      int validationAmountCents{};
+      bool confirmationRequired{};
+   };
+   using AuthAddrSubmitCb = std::function<void(AuthAddrSubmitResponse)>;
 
    struct DescCc
    {
       std::string ccProduct;
    };
+
+   using RequestId = int64_t;
 
    BsClient(const std::shared_ptr<spdlog::logger>& logger, const BsClientParams &params
       , QObject *parent = nullptr);
@@ -130,8 +130,15 @@ public:
    void logout();
    void celerSend(CelerAPI::CelerMessageType messageType, const std::string &data);
 
-   void signAddress(const SignAddressReq &req);
-   void cancelSign();
+   void submitAuthAddress(const bs::Address address, const AuthAddrSubmitCb &cb);
+   void signAuthAddress(const bs::Address address, const SignCb &cb);
+   void confirmAuthAddress(const bs::Address address, const BasicCb &cb);
+
+   void submitCcAddress(const bs::Address address, uint32_t seed, const std::string &ccProduct, const BasicCb &cb);
+   void signCcAddress(const bs::Address address, const SignCb &cb);
+   void confirmCcAddress(const bs::Address address, const BasicCb &cb);
+
+   void cancelActiveSign();
 
    static std::chrono::seconds autheidLoginTimeout();
    static std::chrono::seconds autheidAuthAddressTimeout();
@@ -183,7 +190,7 @@ private:
    void OnDisconnected() override;
    void OnError(DataConnectionError errorCode) override;
 
-   void sendRequest(Blocksettle::Communication::ProxyTerminal::Request *request
+   RequestId sendRequest(Blocksettle::Communication::ProxyTerminal::Request *request
       , std::chrono::milliseconds timeout, TimeoutCb timeoutCb, ProcessCb processCb = nullptr);
    void sendMessage(Blocksettle::Communication::ProxyTerminal::Request *request);
 
@@ -192,10 +199,7 @@ private:
    void processCeler(const Blocksettle::Communication::ProxyTerminal::Response_Celer &response);
    void processProxyPb(const Blocksettle::Communication::ProxyTerminal::Response_ProxyPb &response);
 
-   void requestSignResult(std::chrono::seconds timeout
-      , const BsClient::SignedCb &signedCb, const BsClient::SignFailedCb &failedCb);
-
-   int64_t newRequestId();
+   RequestId newRequestId();
 
    std::shared_ptr<spdlog::logger> logger_;
 
@@ -203,8 +207,9 @@ private:
 
    std::unique_ptr<ZmqBIP15XDataConnection> connection_;
 
-   std::map<int64_t, ActiveRequest> activeRequests_;
-   int64_t lastRequestId_{};
+   std::map<RequestId, ActiveRequest> activeRequests_;
+   RequestId lastRequestId_{};
+   RequestId lastSignRequestId_{};
 
 };
 

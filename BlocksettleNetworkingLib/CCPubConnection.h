@@ -55,7 +55,6 @@ protected:
    bool SubmitRequestToPB(const std::string& name, const std::string& data);
 
    virtual void ProcessGenAddressesResponse(const std::string& response, const std::string &sig) = 0;
-   virtual void ProcessSubmitAddrResponse(const std::string& response) = 0;
 
 private:
    void OnDataReceived(const std::string& data);

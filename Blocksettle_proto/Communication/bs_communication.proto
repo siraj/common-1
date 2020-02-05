@@ -4,7 +4,6 @@ package Blocksettle.Communication;
 
 enum RequestType
 {
-   SubmitAuthAddressForVerificationType = 1;
    GetBSFundingAddressListType          = 2;
    ErrorMessageResponseType             = 3;
    GetCCGenesisAddressesType            = 5;
@@ -12,8 +11,7 @@ enum RequestType
    GenerateCCSeedRequestType            = 7;
    RevokeAuthAddressRequestType         = 8;
    ConfirmAuthAddressSubmitType         = 9;
-   CancelAuthAddressSubmitType          = 10;
-   FundCCGenAddrRequestType		= 11;
+   FundCCGenAddrRequestType             = 11;
    GetNetworkSettingsType               = 12;
 }
 
@@ -71,13 +69,6 @@ message ResponsePacket
    optional bytes       dataSignature = 3;
 }
 
-message SubmitAuthAddressForVerificationRequest
-{
-   required AddressNetworkType   networkType = 3;
-   required string               address = 5;
-   required string               userName = 8;
-}
-
 message GetBSFundingAddressListRequest
 {
    required AddressType       addressListType = 1;
@@ -91,19 +82,22 @@ message GetBSFundingAddressListResponse
    repeated bytes             addressList             = 2;
 }
 
-message SubmitAuthAddressForVerificationResponse
-{
-   required bool                 keySubmitted = 1;
-   optional AddressNetworkType   networkType = 2;
-   required string               address = 4;
-   optional string               errorMessage = 6;
-   optional bool                 requestConfirmation = 7;
-   optional float                validationAmount = 8;
-}
-
 message ErrorMessageResponse
 {
    required string errorMessage = 1;
+}
+
+message RevokeAuthAddressRequest
+{
+   required string authAddress = 1;
+}
+
+message ConfirmAuthSubmitRequest
+{
+   required string userName = 1;
+   required string address = 2;
+   required AddressNetworkType networkType = 3;
+   required string userId = 6;
 }
 
 message ClientAddress
@@ -168,39 +162,6 @@ message CCSeedResponse
 {
    required uint32 bsSeed = 1;
    required string ccProduct = 2;
-}
-
-message RevokeAuthAddressRequest
-{
-   required string authAddress = 1;
-}
-
-
-message ConfirmAuthSubmitRequest
-{
-   required string userName = 1;
-   required string address = 2;
-   required AddressNetworkType networkType = 3;
-   required string userId = 6;
-}
-
-message ConfirmAuthSubmitResponse
-{
-   required string address = 1;
-   optional string errorMsg = 2;
-}
-
-message CancelAuthAddressSubmitRequest
-{
-   required string userName = 1;
-   required string address  = 2;
-   required string userId   = 3;
-}
-
-message CancelAuthAddressSubmitResponse
-{
-   required string address = 1;
-   optional string errorMsg = 2;
 }
 
 message FundCCGenAddrRequest

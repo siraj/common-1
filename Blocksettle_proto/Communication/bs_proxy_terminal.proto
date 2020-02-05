@@ -11,6 +11,10 @@ message AuthEidError
     int32 error_code = 1;
 }
 
+message Empty
+{
+}
+
 message Request
 {
     message StartLogin
@@ -18,43 +22,10 @@ message Request
         string email = 1;
     }
 
-    message CancelLogin
-    {
-    }
-
-    message GetLoginResult
-    {
-    }
-
-    message Logout
-    {
-    }
-
     message Celer
     {
         int32 message_type = 1;
         bytes data = 2;
-    }
-
-    message StartSignAddress
-    {
-        string address = 1;
-
-        // Used with CC address submit, needed to show in the Auth eID signature request
-        string cc_product = 5;
-
-        bytes invisible_data = 2;
-
-        // BsClient::SignAddressReq::Type as int
-        int32 type = 3;
-    }
-
-    message CancelSign
-    {
-    }
-
-    message GetSignResult
-    {
     }
 
     // Serialized Blocksettle.Communication.ProxyPb.Request
@@ -68,6 +39,18 @@ message Request
         string email = 1;
     }
 
+    message Address
+    {
+        string address = 1;
+    }
+
+    message SubmitCcAddress
+    {
+        Address address = 1;
+        uint32 seed = 2;
+        string cc_product = 3;
+    }
+
     // Set for requests and server will copy them back in response
     int64 request_id = 1;
 
@@ -75,17 +58,21 @@ message Request
     {
         // Requests (there must be some response after some time)
         StartLogin start_login = 10;
-        GetLoginResult get_login_result = 11;
-        StartSignAddress start_sign_address = 12;
-        GetSignResult get_sign_result = 13;
+        Empty get_login_result = 11;
         GetEmailHash get_email_hash = 14;
+        Address submit_auth_address = 15;
+        Address sign_auth_address = 16;
+        Address confirm_auth_address = 17;
+        SubmitCcAddress submit_cc_address = 18;
+        Address sign_cc_address = 19;
+        Address confirm_cc_address = 20;
 
         // Messages
-        CancelLogin cancel_login = 30;
-        Logout logout = 31;
+        Empty cancel_login = 30;
+        Empty logout = 31;
         Celer celer = 32;
-        CancelSign cancel_sign = 33;
         ProxyPb proxy_pb = 34;
+        Empty cancel_sign = 35;
     }
 }
 
@@ -118,23 +105,6 @@ message Response
         bytes data = 2;
     }
 
-    message StartSignAddress
-    {
-        AuthEidError error = 1;
-    }
-
-    message GetSignResult
-    {
-        AuthEidError error = 1;
-
-        // rp::GetResultResponse::SignatureResult::SignatureData from Auth eId
-        bytes sign_data = 3;
-        bytes sign = 4;
-        bytes certificate_client = 5;
-        bytes certificate_issuer = 6;
-        bytes ocsp_response = 7;
-    }
-
     // Serialized Blocksettle.Communication.ProxyPb.Response
     message ProxyPb
     {
@@ -149,6 +119,25 @@ message Response
         string hash = 2;
     }
 
+    message Basic
+    {
+        bool success = 1;
+        string error_msg = 2;
+    }
+
+    message SubmitAuthAddress
+    {
+        Basic basic = 1;
+        int32 validation_amount_cents = 2;
+        bool confirmation_required = 3;
+    }
+
+    message Sign
+    {
+        Basic basic = 1;
+        bool user_cancelled = 2;
+    }
+
     int64 request_id = 1;
 
     oneof data
@@ -156,9 +145,13 @@ message Response
         // Responses
         StartLogin start_login = 10;
         GetLoginResult get_login_result = 11;
-        StartSignAddress start_sign_address = 12;
-        GetSignResult get_sign_result = 13;
         GetEmailHash get_email_hash = 14;
+        SubmitAuthAddress submit_auth_address = 15;
+        Sign sign_auth_address = 16;
+        Basic confirm_auth_submit = 17;
+        Basic submit_cc_address = 18;
+        Sign sign_cc_address = 19;
+        Basic confirm_cc_address = 20;
 
         // Messages
         Celer celer = 30;
