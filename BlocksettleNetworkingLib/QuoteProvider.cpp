@@ -700,7 +700,12 @@ bool QuoteProvider::onQuoteNotifCancelled(const std::string& data)
       return false;
    }
 
-   emit quoteNotifCancelled(QString::fromStdString(response.quoterequestid()));
+   const QString requestId = QString::fromStdString(response.quoterequestid());
+   emit quoteNotifCancelled(requestId);
+   if (response.quotecanceltype() == com::celertech::marketmerchant::api::enums::quotecanceltype::CANCEL_ALL_QUOTES) {
+      emit allQuoteNotifCancelled(requestId);
+   }
+
    if (debugTraffic_) {
       logger_->debug("[QuoteProvider::onQuoteNotifCancelled] {}", ProtobufUtils::toJsonCompact(response));
    }

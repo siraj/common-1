@@ -81,6 +81,7 @@ signals:
 
    void quoteReqNotifReceived(const bs::network::QuoteReqNotification& qrn);
    void quoteNotifCancelled(const QString &reqId);
+   void allQuoteNotifCancelled(const QString &reqId);
 
 private slots:
    void onConnectedToCeler();
