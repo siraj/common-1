@@ -268,6 +268,7 @@ bool QuoteProvider::onQuoteReject(const std::string& data)
       logger_->debug("[QuoteProvider::onQuoteReject] {}", ProtobufUtils::toJsonCompact(response));
    }
 
+   cleanQuoteRequestCcy(response.quoterequestid());
    QString text;
    if (response.quoterequestrejectgroup_size() > 0) {
       const QuoteRequestRejectGroup &rejGrp = response.quoterequestrejectgroup(0);
@@ -562,8 +563,6 @@ bool QuoteProvider::onQuoteCancelled(const std::string& data)
       logger_->debug("[QuoteProvider::onQuoteCancelled] {}", ProtobufUtils::toJsonCompact(response));
    }
 
-   cleanQuoteRequestCcy(response.quoterequestid());
-
    emit quoteCancelled(QString::fromStdString(response.quoterequestid())
       , response.quotecanceltype() == com::celertech::marketmerchant::api::enums::quotecanceltype::CANCEL_ALL_QUOTES
       /*&& (response.quotecancelreason() == "QUOTE_CANCEL_BY_USER")*/);
@@ -810,6 +809,7 @@ void QuoteProvider::delQuoteReqId(const std::string &quoteReqId)
       }
       quoteIds_.erase(itQuoteId);
    }
+   cleanQuoteRequestCcy(quoteReqId);
 }
 
 void QuoteProvider::saveQuoteRequestCcy(const std::string& id, const std::string& ccy)
