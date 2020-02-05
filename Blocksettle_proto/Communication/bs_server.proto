@@ -416,27 +416,28 @@ message CcTrackMessage
 
 enum GenoaType
 {
-   GenoaUnknownType        = 0;
-   GenoaReconnect          = 1;
-   GenoaHeartbeat          = 2;
-   GenoaClientConnected    = 3;
-   GenoaClientDisconnected = 4;
-   GenoaServerConnected    = 5;
-   GenoaServerDisconnected = 6;
-   GenoaAccountsAvailable  = 7;
-   GenoaAccounts           = 8;
-   GenoaGetXBTReservations = 10;
-   GenoaGetCCReservations  = 11;
-   GenoaCancelCCReservation = 12;
-   GenoaCancelXBTReservation = 13;
-   GenoaReserveCashXBT     = 14;
-   GenoaUpdateXbtCashReserve = 15;
-   GenoaCompleteXbtCashTransfer = 16;
-   GenoaExecuteFxTrade     = 19;
-   GenoaFindOrdersForUser  = 20;
-   GenoaUserTradingStatus  = 21;
-   GenoaTradeXbtUpdate     = 22;
-   GenoaTradeCcUpdate      = 23;
+   GenoaUnknownType              = 0;
+   GenoaReconnect                = 1;
+   GenoaHeartbeat                = 2;
+   GenoaClientConnected          = 3;
+   GenoaClientDisconnected       = 4;
+   GenoaServerConnected          = 5;
+   GenoaServerDisconnected       = 6;
+   GenoaAccountsAvailable        = 7;
+   GenoaAccounts                 = 8;
+   GenoaGetXBTReservations       = 10;
+   GenoaGetCCReservations        = 11;
+   GenoaCancelCCReservation      = 12;
+   GenoaCancelXBTReservation     = 13;
+   GenoaReserveCashXBT           = 14;
+   GenoaUpdateXbtCashReserve     = 15;
+   GenoaCompleteXbtCashTransfer  = 16;
+   GenoaExecuteFxTrade           = 19;
+   GenoaFindOrdersForUser        = 20;
+   GenoaUserTradingStatus        = 21;
+   GenoaTradeXbtUpdate           = 22;
+   GenoaTradeCcUpdate            = 23;
+   GenoaSendCCTocken             = 24;
 }
 
 message GenoaConnectedBroadcast
@@ -606,6 +607,14 @@ message GenoaTradeXbtUpdateRequest
    string status = 2;
 }
 
+message GenoaSendCCTokenRequest
+{
+   string user_id    = 1;
+   string cc_token   = 2;
+   string cc_name    = 3;
+   double amount     = 4;
+}
+
 message GenoaAccountUserRequest
 {
    int64  entity_id = 1;
@@ -656,27 +665,27 @@ message GenoaMessage
 {
    GenoaType type = 1;
    oneof data {
-      GenoaConnectedBroadcast    connected = 2;
-      GenoaDisconnectedBroadcast disconnected = 3;
-      GenoaXBTReservationsResponse xbt_reservations = 4;
-      GenoaCCReservationResponse  cc_reservations = 5;
-      GenoaCancelCCReservationRequest  cancel_cc_res_request = 7;
-      GenoaCancelCCReservationResponse cancel_cc_res_response = 8;
-      GenoaUserRequest  user_request = 9;
-      GenoaFindOrdersResponse find_orders_response = 10;
-      GenoaTradingStatusResponse trd_status_response = 11;
-      TradeDataXbtMessage     xbt_reserve_request = 12;
-      GenoaReserveXbtResponse xbt_reserve_response = 13;
-      GenoaUpdateXbtReserveRequest xbt_update_res_request = 14;
-      bool success_response = 15;
-      TradeDataMessage     fx_trade_request = 16;
-      GenoaFxTradeResponse fx_trade_response = 17;
-      GenoaTradeXbtUpdateRequest xbt_trade_update = 18;
-      GenoaXbtCompleteTransferResponse xbt_transfer_complete = 19;
-      GenoaAccountMessage account = 20;
+      GenoaConnectedBroadcast          connected               = 2;
+      GenoaDisconnectedBroadcast       disconnected            = 3;
+      GenoaXBTReservationsResponse     xbt_reservations        = 4;
+      GenoaCCReservationResponse       cc_reservations         = 5;
+      GenoaCancelCCReservationRequest  cancel_cc_res_request   = 7;
+      GenoaCancelCCReservationResponse cancel_cc_res_response  = 8;
+      GenoaUserRequest                 user_request            = 9;
+      GenoaFindOrdersResponse          find_orders_response    = 10;
+      GenoaTradingStatusResponse       trd_status_response     = 11;
+      TradeDataXbtMessage              xbt_reserve_request     = 12;
+      GenoaReserveXbtResponse          xbt_reserve_response    = 13;
+      GenoaUpdateXbtReserveRequest     xbt_update_res_request  = 14;
+      bool                             success_response        = 15;
+      TradeDataMessage                 fx_trade_request        = 16;
+      GenoaFxTradeResponse             fx_trade_response       = 17;
+      GenoaTradeXbtUpdateRequest       xbt_trade_update        = 18;
+      GenoaXbtCompleteTransferResponse xbt_transfer_complete   = 19;
+      GenoaAccountMessage              account                 = 20;
+      GenoaSendCCTokenRequest          cc_token                = 21;
    }
 }
-
 
 enum GenoaServerType
 {
