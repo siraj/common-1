@@ -168,22 +168,23 @@ message StorageMessage
 
 enum ArmoryMessageType
 {
-   ArmoryUnknownType   = 0;
-   ArmoryStateChanged  = 1;
-   ArmoryReconnect     = 2;
-   ArmoryWalletReady   = 3;
-   ArmoryWalletLoaded  = 4;
-   ArmoryWalletReload  = 5;
-   ArmoryGetWalletUTXOs= 6;
-   ArmoryNewBlock      = 7;
-   ArmoryPushTX        = 8;
-   ArmoryFeePerByte    = 9;
-   ArmoryStartSettlement = 10;
-   ArmoryStopSettlement  = 11;
-   ArmoryGetSpentness = 12;
-   ArmoryGetTxByHash  = 13;
-   ArmoryValidateAuthAddr = 14;
-   ArmoryGetBSAddresses = 15;
+   ArmoryUnknownType       = 0;
+   ArmoryStateChanged      = 1;
+   ArmoryReconnect         = 2;
+   ArmoryWalletReady       = 3;
+   ArmoryWalletLoaded      = 4;
+   ArmoryWalletReload      = 5;
+   ArmoryGetWalletUTXOs    = 6;
+   ArmoryNewBlock          = 7;
+   ArmoryPushTX            = 8;
+   ArmoryFeePerByte        = 9;
+   ArmoryStartSettlement   = 10;
+   ArmoryStopSettlement    = 11;
+   ArmoryGetSpentness      = 12;
+   ArmoryGetTxByHash       = 13;
+   ArmoryValidateAuthAddr  = 14;
+   ArmoryGetBSAddresses    = 15;
+   ArmoryGetOutpoints      = 16;
 }
 
 enum ArmoryStateData
@@ -316,6 +317,17 @@ message ArmoryBSAddressesResponse
    string cc_addresses_signed = 2;
 }
 
+message ArmoryGetOutpointsRequest
+{
+   repeated string addresses = 1;
+}
+
+message ArmoryGetOutpointsResponse
+{
+   // Add other fields if needed here (isSpent_, value_, heightCutoff_ etc)
+   repeated OutPointData outpoints = 1;
+}
+
 message ArmoryMessage
 {
    ArmoryMessageType type = 1;
@@ -337,6 +349,8 @@ message ArmoryMessage
       ArmoryValidateAuthRequest  auth_request = 16;
       ArmoryValidateAuthResponse auth_response = 17;
       ArmoryBSAddressesResponse bs_addresses = 18;
+      ArmoryGetOutpointsRequest out_points_request = 19;
+      ArmoryGetOutpointsResponse out_points_response = 20;
    }
 }
 
@@ -1086,7 +1100,7 @@ message TerminalOtcVerifyRequest
    bytes  buyer_auth_pubkey = 5;
    int64  price = 6;
    int64  amount = 7;
-   bytes  unsigned_payin = 8;   
+   bytes  unsigned_payin = 8;
    repeated PreimageData preimage_data = 9;
 }
 
