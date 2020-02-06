@@ -328,6 +328,8 @@ enum GenoaType
    GenoaSendCCToken              = 24;
    GenoaReserveCC                = 25;
    GenoaCompleteCCReserve        = 26;
+   GenoaMakeAuthReservation      = 27;
+   GenoaMakeAuthFeeDecision      = 28;
 }
 
 message GenoaConnectedBroadcast
@@ -551,6 +553,27 @@ message GenoaAccountMessage
    }
 }
 
+message GenoaMakeAuthFeeReservation
+{
+   string user       = 1;
+   string address    = 2;
+   double xbt_amount = 3
+}
+
+enum GenoAuthFeeDecision
+{
+   GenoAcceptAuthFee    = 0;
+   GenoCancelAuthFee    = 1;
+   GenoConfirmAuthFee   = 2;
+   GenoRejectAuthFee    = 3;
+}
+
+message GenoaMakeAuthFeeDecisionMessage
+{
+   string               address  = 1;
+   GenoAuthFeeDecision  decision = 2;
+}
+
 message GenoaMessage
 {
    GenoaType type = 1;
@@ -576,6 +599,8 @@ message GenoaMessage
       GenoaSendCCTokenRequest          cc_token                = 21;
       TradeInfoCcData                  cc_reserve              = 22;
       string                           settlement_id           = 23;
+      GenoaMakeAuthFeeReservation      make_auth_reservation   = 24;
+      GenoaMakeAuthFeeDecisionMessage  auth_fee_decision       = 25;
    }
 }
 
