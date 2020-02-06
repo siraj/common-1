@@ -27,11 +27,30 @@ message Request
         int32 user_type = 3;
     }
 
+    message TermRep
+    {
+        string email = 1;
+        bool success = 2;
+        string error_msg = 3;
+        int64 internal_request_id = 4;
+    }
+
+    message TermRepSubmitAuthAddr
+    {
+        TermRep term_rep = 1;
+        int32 validation_amount_cents = 2;
+        bool confirmation_required = 3;
+    }
+
     oneof data
     {
         // Messages
         Terminal terminal = 30;
         UserInfo user_info = 31;
+        TermRepSubmitAuthAddr submit_auth_address = 32;
+        TermRep confirm_auth_address = 33;
+        TermRep submit_cc_address = 34;
+        TermRep confirm_cc_address = 35;
     }
 }
 
@@ -67,6 +86,21 @@ message Response
         string email = 1;
     }
 
+    message TermReq
+    {
+        // address must be valid
+        string address = 1;
+        string email = 2;
+        int64 internal_request_id = 3;
+    }
+
+    message TermReqCc
+    {
+        TermReq term_req = 1;
+        uint32 seed = 2;
+        string cc_product = 3;
+    }
+
     oneof data
     {
         // Messages
@@ -74,5 +108,9 @@ message Response
         OnlineUsers online_users = 31;
         ClientConnected client_connected = 32;
         ClientDisconnected client_disconnected = 33;
+        TermReq submit_auth_address = 34;
+        TermReq confirm_auth_address = 35;
+        TermReqCc submit_cc_address = 36;
+        TermReqCc confirm_cc_address = 37;
     }
 }

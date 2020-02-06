@@ -98,9 +98,6 @@ void CCPubConnection::OnDataReceived(const std::string& data)
    case RequestType::GetCCGenesisAddressesType:
       ProcessGenAddressesResponse(response.responsedata(), response.datasignature());
       break;
-   case RequestType::SubmitCCAddrInitialDistribType:
-      ProcessSubmitAddrResponse(response.responsedata());
-      break;
    case RequestType::ErrorMessageResponseType:
       ProcessErrorResponse(response.responsedata());
       break;

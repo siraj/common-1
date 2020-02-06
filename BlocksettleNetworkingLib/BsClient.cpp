@@ -21,6 +21,21 @@
 using namespace Blocksettle::Communication;
 using namespace Blocksettle::Communication::ProxyTerminal;
 
+namespace {
+
+   const auto kServerError = QObject::tr("Server error").toStdString();
+   const auto kTimeoutError = QObject::tr("Request timeout").toStdString();
+
+   template<class T>
+   static T errorResponse(const std::string &errorMsg)
+   {
+      T result;
+      result.errorMsg = errorMsg;
+      return result;
+   }
+
+}
+
 BsClient::BsClient(const std::shared_ptr<spdlog::logger> &logger
    , const BsClientParams &params, QObject *parent)
    : QObject(parent)
@@ -165,51 +180,190 @@ void BsClient::celerSend(CelerAPI::CelerMessageType messageType, const std::stri
    sendMessage(&request);
 }
 
-void BsClient::signAddress(const SignAddressReq &req)
+void BsClient::submitAuthAddress(const bs::Address address, const AuthAddrSubmitCb &cb)
 {
-   assert(req.type != SignAddressReq::Unknown);
+   auto processCb = [this, cb, address](const Response &response) {
+      if (!response.has_submit_auth_address()) {
+         SPDLOG_LOGGER_ERROR(logger_, "unexpected response from BsProxy, expected submit_auth_address response");
+         cb(errorResponse<AuthAddrSubmitResponse>(kServerError));
+         return;
+      }
+
+      const auto &d = response.submit_auth_address();
+      AuthAddrSubmitResponse result;
+      result.success = d.basic().success();
+      result.errorMsg = d.basic().error_msg();
+      result.validationAmountCents = d.validation_amount_cents();
+      result.confirmationRequired = d.confirmation_required();
+      cb(result);
+   };
+
+   auto timeoutCb = [cb] {
+      cb(errorResponse<AuthAddrSubmitResponse>(kTimeoutError));
+   };
 
    Request request;
-   auto d = request.mutable_start_sign_address();
-   d->set_type(int(req.type));
-   d->set_address(req.address.display());
-   d->set_invisible_data(req.invisibleData.toBinStr());
-   d->set_cc_product(req.ccProduct);
-
-   auto processCb = [this, req](const Response &response) {
-      if (!response.has_start_sign_address()) {
-         SPDLOG_LOGGER_ERROR(logger_, "unexpected response from BsProxy, expected StartSignAuthAddress response");
-         req.failedCb(AutheIDClient::ServerError);
-         return;
-      }
-
-      const auto &d = response.start_sign_address();
-      if (d.error().error_code() != 0) {
-         SPDLOG_LOGGER_ERROR(logger_, "signature request start failed on the server");
-         req.failedCb(AutheIDClient::ErrorType(d.error().error_code()));
-         return;
-      }
-
-      if (req.startedCb) {
-         req.startedCb();
-      }
-
-      // Add some time to be able get timeout error from the server
-      requestSignResult(autheidAuthAddressTimeout() + std::chrono::seconds(3), req.signedCb, req.failedCb);
-   };
-
-   auto timeoutCb = [failedCb = req.failedCb] {
-      failedCb(AutheIDClient::NetworkError);
-   };
-
+   auto d = request.mutable_submit_auth_address();
+   d->set_address(address.display());
    sendRequest(&request, std::chrono::seconds(10), std::move(timeoutCb), std::move(processCb));
 }
 
-void BsClient::cancelSign()
+void BsClient::signAuthAddress(const bs::Address address, const SignCb &cb)
 {
+   cancelActiveSign();
+
+   auto processCb = [this, cb, address](const Response &response) {
+      if (!response.has_sign_auth_address()) {
+         SPDLOG_LOGGER_ERROR(logger_, "unexpected response from BsProxy, expected sign_auth_address response");
+         cb(errorResponse<SignResponse>(kServerError));
+         return;
+      }
+
+      const auto &d = response.sign_auth_address();
+      SignResponse result;
+      result.success = d.basic().success();
+      result.errorMsg = d.basic().error_msg();
+      result.userCancelled = d.user_cancelled();
+      cb(result);
+   };
+
+   auto timeoutCb = [cb] {
+      cb(errorResponse<SignResponse>(kTimeoutError));
+   };
+
    Request request;
-   request.mutable_cancel_sign();
-   sendMessage(&request);
+   auto d = request.mutable_sign_auth_address();
+   d->set_address(address.display());
+   lastSignRequestId_ = sendRequest(&request, autheidAuthAddressTimeout() + std::chrono::seconds(5), std::move(timeoutCb), std::move(processCb));
+}
+
+void BsClient::confirmAuthAddress(const bs::Address address, const BsClient::BasicCb &cb)
+{
+   auto processCb = [this, cb, address](const Response &response) {
+      if (!response.has_confirm_auth_submit()) {
+         SPDLOG_LOGGER_ERROR(logger_, "unexpected response from BsProxy, expected confirm_auth_submit response");
+         cb(errorResponse<BasicResponse>(kServerError));
+         return;
+      }
+
+      const auto &d = response.confirm_auth_submit();
+      BasicResponse result;
+      result.success = d.success();
+      result.errorMsg = d.error_msg();
+      cb(result);
+   };
+
+   auto timeoutCb = [cb] {
+      cb(errorResponse<BasicResponse>(kTimeoutError));
+   };
+
+   Request request;
+   auto d = request.mutable_confirm_auth_address();
+   d->set_address(address.display());
+   sendRequest(&request, std::chrono::seconds(10), std::move(timeoutCb), std::move(processCb));
+}
+
+void BsClient::submitCcAddress(const bs::Address address, uint32_t seed, const std::string &ccProduct, const BasicCb &cb)
+{
+   auto processCb = [this, cb, address](const Response &response) {
+      if (!response.has_submit_cc_address()) {
+         SPDLOG_LOGGER_ERROR(logger_, "unexpected response from BsProxy, expected submit_cc_address response");
+         cb(errorResponse<BasicResponse>(kServerError));
+         return;
+      }
+
+      const auto &d = response.submit_cc_address();
+      BasicResponse result;
+      result.success = d.success();
+      result.errorMsg = d.error_msg();
+      cb(result);
+   };
+
+   auto timeoutCb = [cb] {
+      cb(errorResponse<BasicResponse>(kTimeoutError));
+   };
+
+   Request request;
+   auto d = request.mutable_submit_cc_address();
+   d->mutable_address()->set_address(address.display());
+   d->set_seed(seed);
+   d->set_cc_product(ccProduct);
+   sendRequest(&request, std::chrono::seconds(10), std::move(timeoutCb), std::move(processCb));
+}
+
+void BsClient::signCcAddress(const bs::Address address, const BsClient::SignCb &cb)
+{
+   cancelActiveSign();
+
+   auto processCb = [this, cb, address](const Response &response) {
+      if (!response.has_sign_cc_address()) {
+         SPDLOG_LOGGER_ERROR(logger_, "unexpected response from BsProxy, expected sign_cc_address response");
+         cb(errorResponse<SignResponse>(kServerError));
+         return;
+      }
+
+      const auto &d = response.sign_cc_address();
+      SignResponse result;
+      result.success = d.basic().success();
+      result.errorMsg = d.basic().error_msg();
+      result.userCancelled = d.user_cancelled();
+      cb(result);
+   };
+
+   auto timeoutCb = [cb] {
+      cb(errorResponse<SignResponse>(kTimeoutError));
+   };
+
+   Request request;
+   auto d = request.mutable_sign_cc_address();
+   d->set_address(address.display());
+   lastSignRequestId_ = sendRequest(&request, autheidCcAddressTimeout() + std::chrono::seconds(5), std::move(timeoutCb), std::move(processCb));
+}
+
+void BsClient::confirmCcAddress(const bs::Address address, const BsClient::BasicCb &cb)
+{
+   auto processCb = [this, cb, address](const Response &response) {
+      if (!response.has_confirm_cc_address()) {
+         SPDLOG_LOGGER_ERROR(logger_, "unexpected response from BsProxy, expected confirm_cc_address response");
+         cb(errorResponse<BasicResponse>(kServerError));
+         return;
+      }
+
+      const auto &d = response.confirm_cc_address();
+      BasicResponse result;
+      result.success = d.success();
+      result.errorMsg = d.error_msg();
+      cb(result);
+   };
+
+   auto timeoutCb = [cb] {
+      cb(errorResponse<BasicResponse>(kTimeoutError));
+   };
+
+   Request request;
+   auto d = request.mutable_confirm_cc_address();
+   d->set_address(address.display());
+   sendRequest(&request, std::chrono::seconds(10), std::move(timeoutCb), std::move(processCb));
+}
+
+void BsClient::cancelActiveSign()
+{
+   // Proxy will not send response for cancelled sign request.
+   // And so cancelled sign will result in timeout callback calling.
+   // This is a workaround for that problem.
+
+   if (lastSignRequestId_ == 0) {
+      return;
+   }
+
+   size_t count = activeRequests_.erase(lastSignRequestId_);
+   lastSignRequestId_ = 0;
+
+   if (count > 0) {
+      Request request;
+      request.mutable_cancel_sign();
+      sendMessage(&request);
+   }
 }
 
 // static
@@ -291,9 +445,14 @@ void BsClient::OnDataReceived(const std::string &data)
          case Response::kProxyPb:
             processProxyPb(response->proxy_pb());
             return;
-         case Response::kStartSignAddress:
-         case Response::kGetSignResult:
+
          case Response::kGetEmailHash:
+         case Response::kSubmitAuthAddress:
+         case Response::kSignAuthAddress:
+         case Response::kConfirmAuthSubmit:
+         case Response::kSubmitCcAddress:
+         case Response::kSignCcAddress:
+         case Response::kConfirmCcAddress:
             // Will be handled from processCb
             return;
 
@@ -323,7 +482,7 @@ void BsClient::OnError(DataConnectionListener::DataConnectionError errorCode)
    emit connectionFailed();
 }
 
-void BsClient::sendRequest(Request *request, std::chrono::milliseconds timeout
+BsClient::RequestId BsClient::sendRequest(Request *request, std::chrono::milliseconds timeout
    , TimeoutCb timeoutCb, ProcessCb processCb)
 {
    const int64_t requestId = newRequestId();
@@ -349,6 +508,8 @@ void BsClient::sendRequest(Request *request, std::chrono::milliseconds timeout
 
    request->set_request_id(requestId);
    sendMessage(request);
+
+   return requestId;
 }
 
 void BsClient::sendMessage(Request *request)
@@ -394,43 +555,7 @@ void BsClient::processProxyPb(const Response_ProxyPb &response)
    emit processPbMessage(message);
 }
 
-void BsClient::requestSignResult(std::chrono::seconds timeout
-   , const BsClient::SignedCb &signedCb, const BsClient::SignFailedCb &failedCb)
-{
-   auto successCbWrap = [this, signedCb, failedCb](const Response &response) {
-      if (!response.has_get_sign_result()) {
-         SPDLOG_LOGGER_ERROR(logger_, "unexpected response from BsProxy, expected GetSignResult response");
-         failedCb(AutheIDClient::ServerError);
-         return;
-      }
-
-      const auto &d = response.get_sign_result();
-      if (d.error().error_code() != 0) {
-         SPDLOG_LOGGER_ERROR(logger_, "getting sign response faild on the server");
-         failedCb(AutheIDClient::ErrorType(d.error().error_code()));
-         return;
-      }
-
-      AutheIDClient::SignResult result;
-      result.serialization = AutheIDClient::Serialization::Protobuf;
-      result.data = BinaryData::fromString(d.sign_data());
-      result.sign = BinaryData::fromString(d.sign());
-      result.certificateClient = BinaryData::fromString(d.certificate_client());
-      result.certificateIssuer = BinaryData::fromString(d.certificate_issuer());
-      result.ocspResponse = BinaryData::fromString(d.ocsp_response());
-      signedCb(result);
-   };
-
-   auto failedCbWrap = [failedCb] {
-      failedCb(AutheIDClient::NetworkError);
-   };
-
-   Request request;
-   request.mutable_get_sign_result();
-   sendRequest(&request, timeout, std::move(failedCbWrap), std::move(successCbWrap));
-}
-
-int64_t BsClient::newRequestId()
+BsClient::RequestId BsClient::newRequestId()
 {
    lastRequestId_ += 1;
    return lastRequestId_;

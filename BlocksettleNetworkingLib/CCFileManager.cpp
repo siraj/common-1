@@ -94,10 +94,10 @@ bool CCFileManager::wasAddressSubmitted(const bs::Address &addr)
    return celerClient_->IsCCAddressSubmitted(addr.display());
 }
 
-void CCFileManager::cancelSubmitAddressToPub()
+void CCFileManager::cancelActiveSign()
 {
    if (bsClient_) {
-      bsClient_->cancelSign();
+      bsClient_->cancelActiveSign();
    }
 }
 
@@ -139,7 +139,7 @@ void CCFileManager::ProcessGenAddressesResponse(const std::string& response, con
    resolver_->saveToFile(ccFilePath_.toStdString(), response, sig);
 }
 
-bool CCFileManager::SubmitAddressToPuB(const bs::Address &address, uint32_t seed, const std::string &ccProduct)
+bool CCFileManager::submitAddress(const bs::Address &address, uint32_t seed, const std::string &ccProduct)
 {
    if (!celerClient_) {
       logger_->error("[CCFileManager::SubmitAddressToPuB] not connected");
@@ -156,87 +156,56 @@ bool CCFileManager::SubmitAddressToPuB(const bs::Address &address, uint32_t seed
       return false;
    }
 
-   SubmitAddrForInitialDistributionRequest request;
-   request.set_username(celerClient_->email());
-   request.set_networktype(networkType(appSettings_));
-   request.set_prefixedaddress(address.display());
-   request.set_bsseed(seed);
-
-   std::string requestData = request.SerializeAsString();
-   BinaryData requestDataHash = BtcUtils::getSha256(BinaryData::fromString(requestData));
-
-   BsClient::SignAddressReq req;
-   req.type = BsClient::SignAddressReq::CcAddr;
-   req.address = address;
-   req.invisibleData = requestDataHash;
-   req.ccProduct = ccProduct;
-
-   req.signedCb = [this, address, requestData](const AutheIDClient::SignResult &result) {
-      // No need to check result.data (AutheIDClient will check that invisible data is the same)
-
-      RequestPacket packet;
-      packet.set_requesttype(SubmitCCAddrInitialDistribType);
-      packet.set_requestdata(requestData);
-
-      // Copy AuthEid signature
-      auto autheidSign = packet.mutable_autheidsign();
-      autheidSign->set_serialization(AuthEidSign::Serialization(result.serialization));
-      autheidSign->set_signature_data(result.data.toBinStr());
-      autheidSign->set_sign(result.sign.toBinStr());
-      autheidSign->set_certificate_client(result.certificateClient.toBinStr());
-      autheidSign->set_certificate_issuer(result.certificateIssuer.toBinStr());
-      autheidSign->set_ocsp_response(result.ocspResponse.toBinStr());
-
-      logger_->debug("[CCFileManager::SubmitAddressToPuB] submitting addr {}", address.display());
-      if (SubmitRequestToPB("submit_cc_addr", packet.SerializeAsString())) {
-         emit CCInitialSubmitted(QString::fromStdString(address.display()));
+   bsClient_->submitCcAddress(address, seed, ccProduct, [this, address](const BsClient::BasicResponse &result) {
+      if (!result.success) {
+         SPDLOG_LOGGER_ERROR(logger_, "submit CC address failed: '{}'", result.errorMsg);
+         emit CCSubmitFailed(QString::fromStdString(address.display()), QString::fromStdString(result.errorMsg));
+         return;
       }
-      else {
-         emit CCSubmitFailed(QString::fromStdString(address.display()), tr("Failed to send to PB"));
+
+      emit CCInitialSubmitted(QString::fromStdString(address.display()));
+
+      if (!bsClient_) {
+         SPDLOG_LOGGER_ERROR(logger_, "disconnected from server");
+         return;
       }
-   };
 
-   req.failedCb = [this, address](AutheIDClient::ErrorType error) {
-      std::string errorStr = fmt::format("failed to sign data: {}", AutheIDClient::errorString(error).toStdString());
-      SPDLOG_LOGGER_ERROR(logger_, "{}", errorStr);
-      emit CCSubmitFailed(QString::fromStdString(address.display()), QString::fromStdString(errorStr));
-   };
+      bsClient_->signCcAddress(address, [this, address](const BsClient::SignResponse &result) {
+         if (result.userCancelled) {
+            SPDLOG_LOGGER_DEBUG(logger_, "signing CC address cancelled: '{}'", result.errorMsg);
+            emit CCSubmitFailed(QString::fromStdString(address.display()), tr("Cancelled"));
+            return;
+         }
 
-   bsClient_->signAddress(req);
+         if (!result.success) {
+            SPDLOG_LOGGER_ERROR(logger_, "signing CC address failed: '{}'", result.errorMsg);
+            emit CCSubmitFailed(QString::fromStdString(address.display()), QString::fromStdString(result.errorMsg));
+            return;
+         }
+
+         if (!bsClient_) {
+            SPDLOG_LOGGER_ERROR(logger_, "disconnected from server");
+            return;
+         }
+
+         bsClient_->confirmCcAddress(address, [this, address](const BsClient::BasicResponse &result) {
+            if (!result.success) {
+               SPDLOG_LOGGER_ERROR(logger_, "confirming CC address failed: '{}'", result.errorMsg);
+               emit CCSubmitFailed(QString::fromStdString(address.display()), QString::fromStdString(result.errorMsg));
+               return;
+            }
+
+            if (!celerClient_->SetCCAddressSubmitted(address.display())) {
+               SPDLOG_LOGGER_WARN(logger_, "failed to save address {} request event to Celer's user storage"
+                  , address.display());
+            }
+
+            emit CCAddressSubmitted(QString::fromStdString(address.display()));
+         });
+      });
+   });
+
    return true;
-}
-
-void CCFileManager::ProcessSubmitAddrResponse(const std::string& responseString)
-{
-   SubmitAddrForInitialDistributionResponse response;
-   if (!response.ParseFromString(responseString)) {
-      logger_->error("[CCFileManager::ProcessSubmitAddrResponse] failed to parse response");
-      return;
-   }
-
-   auto addr = bs::Address::fromAddressString(response.prefixedaddress());
-
-   if (!response.success()) {
-      if (response.has_errormessage()) {
-         logger_->error("[CCFileManager::ProcessSubmitAddrResponse] recv address {} rejected: {}"
-            , addr.display(), response.errormessage());
-      }
-      else {
-         logger_->error("[CCFileManager::ProcessSubmitAddrResponse] recv address {} rejected", addr.display());
-      }
-      return;
-   }
-
-   if (celerClient_->IsConnected()) {
-      if (!celerClient_->SetCCAddressSubmitted(addr.display())) {
-         logger_->warn("[CCFileManager::ProcessSubmitAddrResponse] failed to save address {} request event to Celer's user storage"
-            , addr.display());
-      }
-   }
-
-   logger_->debug("[CCFileManager::ProcessSubmitAddrResponse] {} succeeded", addr.display());
-
-   emit CCAddressSubmitted(QString::fromStdString(addr.display()));
 }
 
 std::string CCFileManager::GetPuBHost() const

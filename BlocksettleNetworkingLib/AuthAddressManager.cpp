@@ -173,25 +173,42 @@ bool AuthAddressManager::HasAuthAddr() const
    return (HaveAuthWallet() && (authWallet_->getUsedAddressCount() > 0));
 }
 
-bool AuthAddressManager::SubmitForVerification(const bs::Address &address)
+void AuthAddressManager::SubmitForVerification(BsClient *bsClient, const bs::Address &address)
 {
-   if (!hasSettlementLeaf(address)) {
-      logger_->error("[{}] can't submit without existing settlement leaf", __func__);
-      return false;
-   }
-   const auto &state = GetState(address);
-   switch (state) {
-   case AddressVerificationState::Verified:
-   case AddressVerificationState::PendingVerification:
-   case AddressVerificationState::VerificationSubmitted:
-   case AddressVerificationState::Revoked:
-   case AddressVerificationState::RevokedByBS:
-      logger_->error("[AuthAddressManager::SubmitForVerification] refuse to submit address in state: {}", (int)state);
-      return false;
-   default: break;
+   if (!bsClient) {
+      return;
    }
 
-   return SubmitAddressToPublicBridge(address);
+   if (!hasSettlementLeaf(address)) {
+      SPDLOG_LOGGER_ERROR(logger_, "can't submit without existing settlement leaf");
+      emit Error(tr("Settlement leaf does not exist"));
+      return;
+   }
+   const auto state = GetState(address);
+   if (state != AddressVerificationState::NotSubmitted) {
+      SPDLOG_LOGGER_ERROR(logger_, "refuse to submit address in state: {}", (int)state);
+      emit Error(tr("Address must be not submitted"));
+      return;
+   }
+
+   bsClient->submitAuthAddress(address, [this, address](const BsClient::AuthAddrSubmitResponse &response) {
+      if (!response.success) {
+         SPDLOG_LOGGER_ERROR(logger_, "auth address {} rejected, errorMsg: '{}'"
+            , address.display(), response.errorMsg);
+         if (response.errorMsg.empty()) {
+            emit Error(tr("Authentication Address rejected"));
+         } else {
+            emit Error(tr("Authentication Address rejected: %1").arg(QString::fromStdString(response.errorMsg)));
+         }
+         return;
+      }
+
+      if (response.confirmationRequired) {
+         emit AuthAddressConfirmationRequired(response.validationAmountCents / 100.0f);
+      } else {
+         markAsSubmitted(address);
+      }
+   });
 }
 
 bool AuthAddressManager::CreateNewAuthAddress()
@@ -289,20 +306,11 @@ void AuthAddressManager::OnDataReceived(const std::string& data)
    }
 
    switch(response.responsetype()) {
-   case RequestType::SubmitAuthAddressForVerificationType:
-      ProcessSubmitAuthAddressResponse(response.responsedata(), sigVerified);
-      break;
    case RequestType::GetBSFundingAddressListType:
       ProcessBSAddressListResponse(response.responsedata(), sigVerified);
       break;
    case RequestType::ErrorMessageResponseType:
       ProcessErrorResponse(response.responsedata());
-      break;
-   case RequestType::ConfirmAuthAddressSubmitType:
-      ProcessConfirmAuthAddressSubmit(response.responsedata(), sigVerified);
-      break;
-   case RequestType::CancelAuthAddressSubmitType:
-      ProcessCancelAuthSubmitResponse(response.responsedata());
       break;
    default:
       logger_->error("[AuthAddressManager::OnDataReceived] unrecognized response type from public bridge: {}", response.responsetype());
@@ -310,102 +318,43 @@ void AuthAddressManager::OnDataReceived(const std::string& data)
    }
 }
 
-bool AuthAddressManager::SubmitAddressToPublicBridge(const bs::Address &address)
-{
-   SubmitAuthAddressForVerificationRequest addressRequest;
-
-   addressRequest.set_username(celerClient_->email());
-   addressRequest.set_networktype((settings_->get<NetworkType>(ApplicationSettings::netType) != NetworkType::MainNet)
-      ? AddressNetworkType::TestNetType : AddressNetworkType::MainNetType);
-
-   addressRequest.set_address(address.display());
-
-   RequestPacket  request;
-   request.set_requesttype(SubmitAuthAddressForVerificationType);
-   request.set_requestdata(addressRequest.SerializeAsString());
-
-   logger_->debug("[AuthAddressManager::SubmitAddressToPublicBridge] submitting address {}"
-      , address.display());
-
-   return SubmitRequestToPB("submit_address", request.SerializeAsString());
-}
-
 void AuthAddressManager::ConfirmSubmitForVerification(BsClient *bsClient, const bs::Address &address)
 {
-   ConfirmAuthSubmitRequest request;
+   SPDLOG_LOGGER_DEBUG(logger_, "confirm submission of {}", address.display());
 
-   request.set_username(celerClient_->email());
-   request.set_address(address.display());
-   request.set_networktype((settings_->get<NetworkType>(ApplicationSettings::netType) != NetworkType::MainNet)
-      ? AddressNetworkType::TestNetType : AddressNetworkType::MainNetType);
-   request.set_userid(celerClient_->userId());
-
-   std::string requestData = request.SerializeAsString();
-   BinaryData requestDataHash = BtcUtils::getSha256(BinaryData::fromString(requestData));
-
-   QPointer<AuthAddressManager> thisPtr = this;
-
-   BsClient::SignAddressReq req;
-   req.type = BsClient::SignAddressReq::AuthAddr;
-   req.address = address;
-   req.invisibleData = requestDataHash;
-
-   req.signedCb = [thisPtr, requestData](const AutheIDClient::SignResult &result) {
-      if (!thisPtr) {
+   QPointer<BsClient> client = bsClient;
+   bsClient->signAuthAddress(address, [this, address, client] (const BsClient::SignResponse &response) {
+      if (response.userCancelled) {
+         SPDLOG_LOGGER_DEBUG(logger_, "signing auth address cancelled: {}", response.errorMsg);
+         emit AuthAddressSubmitCancelled(QString::fromStdString(address.display()));
          return;
       }
 
-      RequestPacket  packet;
-
-      packet.set_requesttype(ConfirmAuthAddressSubmitType);
-      packet.set_requestdata(requestData);
-
-      // Copy AuthEid signature
-      auto autheidSign = packet.mutable_autheidsign();
-      autheidSign->set_serialization(AuthEidSign::Serialization(result.serialization));
-      autheidSign->set_signature_data(result.data.toBinStr());
-      autheidSign->set_sign(result.sign.toBinStr());
-      autheidSign->set_certificate_client(result.certificateClient.toBinStr());
-      autheidSign->set_certificate_issuer(result.certificateIssuer.toBinStr());
-      autheidSign->set_ocsp_response(result.ocspResponse.toBinStr());
-
-      SPDLOG_LOGGER_DEBUG(thisPtr->logger_, "confirmed auth address submission");
-      thisPtr->SubmitRequestToPB("confirm_submit_auth_addr", packet.SerializeAsString());
-   };
-
-   req.failedCb = [thisPtr](AutheIDClient::ErrorType error) {
-      if (!thisPtr) {
+      if (!response.success) {
+         SPDLOG_LOGGER_ERROR(logger_, "signing auth address failed: {}", response.errorMsg);
+         emit AuthConfirmSubmitError(QString::fromStdString(address.display()), QString::fromStdString(response.errorMsg));
          return;
       }
 
-      SPDLOG_LOGGER_ERROR(thisPtr->logger_, "failed to sign data: {}", AutheIDClient::errorString(error).toStdString());
-      emit thisPtr->signFailed(error);
-   };
+      SPDLOG_LOGGER_DEBUG(logger_, "signing auth address succeed");
 
-   bsClient->signAddress(req);
-}
+      if (!client) {
+         SPDLOG_LOGGER_ERROR(logger_, "disconnected from server");
+         return;
+      }
 
-bool AuthAddressManager::CancelSubmitForVerification(BsClient *bsClient, const bs::Address &address)
-{
-   CancelAuthAddressSubmitRequest request;
+      client->confirmAuthAddress(address, [this, address] (const BsClient::BasicResponse &response) {
+         if (!response.success) {
+            SPDLOG_LOGGER_ERROR(logger_, "confirming auth address failed: {}", response.errorMsg);
+            emit AuthConfirmSubmitError(QString::fromStdString(address.display()), QString::fromStdString(response.errorMsg));
+            return;
+         }
 
-   request.set_username(celerClient_->email());
-   request.set_address(address.display());
-   request.set_userid(celerClient_->userId());
+         SPDLOG_LOGGER_DEBUG(logger_, "confirming auth address succeed");
 
-   RequestPacket  packet;
-
-   packet.set_requesttype(CancelAuthAddressSubmitType);
-   packet.set_requestdata(request.SerializeAsString());
-
-   logger_->debug("[AuthAddressManager::CancelSubmitForVerification] cancel submission of {}"
-      , address.display());
-
-   if (bsClient) {
-      bsClient->cancelSign();
-   }
-
-   return SubmitRequestToPB("confirm_submit_auth_addr", packet.SerializeAsString());
+         markAsSubmitted(address);
+      });
+   });
 }
 
 void AuthAddressManager::SubmitToCeler(const bs::Address &address)
@@ -420,73 +369,6 @@ void AuthAddressManager::SubmitToCeler(const bs::Address &address)
    }
    else {
       logger_->debug("[AuthAddressManager::SubmitToCeler] Celer is not connected");
-   }
-}
-
-void AuthAddressManager::ProcessSubmitAuthAddressResponse(const std::string& responseString, bool)
-{
-   SubmitAuthAddressForVerificationResponse response;
-   if (!response.ParseFromString(responseString)) {
-      logger_->error("[AuthAddressManager::ProcessSubmitAuthAddressResponse] failed to parse response");
-      return;
-   }
-
-   auto&& address = bs::Address::fromAddressString(response.address());
-   if (response.keysubmitted()) {
-      if (response.requestconfirmation()) {
-         emit AuthAddressConfirmationRequired(response.validationamount());
-      } else {
-         logger_->debug("[AuthAddressManager::ProcessSubmitAuthAddressResponse] address submitted. No verification required");
-      }
-   }
-   else {
-      if (response.has_errormessage()) {
-         logger_->error("[AuthAddressManager::ProcessSubmitAuthAddressResponse] auth address {} rejected: {}"
-            , address.display(), response.errormessage());
-         emit Error(tr("Authentication Address rejected: %1").arg(QString::fromStdString(response.errormessage())));
-      } else {
-         logger_->error("[AuthAddressManager::ProcessSubmitAuthAddressResponse] auth address {} rejected"
-            , address.display());
-         emit Error(tr("Authentication Address rejected"));
-      }
-   }
-}
-
-void AuthAddressManager::ProcessConfirmAuthAddressSubmit(const std::string &responseData, bool)
-{
-   ConfirmAuthSubmitResponse response;
-   if (!response.ParseFromString(responseData)) {
-      logger_->error("[AuthAddressManager::ProcessConfirmAuthAddressSubmit] failed to parse response");
-      return;
-   }
-
-   auto&& address = bs::Address::fromAddressString(response.address());
-   if (response.has_errormsg()) {
-      emit AuthAddrSubmitError(QString::fromStdString(address.display()), QString::fromStdString(response.errormsg()));
-   }
-   else {
-      SubmitToCeler(address);
-      SetState(address, AddressVerificationState::Submitted);
-      emit AddressListUpdated();
-      emit AuthAddrSubmitSuccess(QString::fromStdString(address.display()));
-   }
-}
-
-void AuthAddressManager::ProcessCancelAuthSubmitResponse(const std::string& responseData)
-{
-   CancelAuthAddressSubmitResponse response;
-   if (!response.ParseFromString(responseData)) {
-      logger_->error("[AuthAddressManager::ProcessCancelAuthSubmitResponse] failed to parse response");
-      return;
-   }
-
-   auto&& address = bs::Address::fromAddressString(response.address());
-   if (response.has_errormsg()) {
-
-   } else {
-      SetState(address, AddressVerificationState::NotSubmitted);
-      emit AddressListUpdated();
-      emit AuthAddressSubmitCancelled(QString::fromStdString(address.display()));
    }
 }
 
@@ -877,6 +759,14 @@ void AuthAddressManager::onStateChanged(ArmoryState)
    QMetaObject::invokeMethod(this, [this]{
       tryVerifyWalletAddresses();
    });
+}
+
+void AuthAddressManager::markAsSubmitted(const bs::Address &address)
+{
+   SubmitToCeler(address);
+   SetState(address, AddressVerificationState::Submitted);
+   emit AddressListUpdated();
+   emit AuthAddrSubmitSuccess(QString::fromStdString(address.display()));
 }
 
 template <typename TVal> TVal AuthAddressManager::lookup(const bs::Address &key, const std::map<bs::Address, TVal> &container) const

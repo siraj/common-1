@@ -106,9 +106,8 @@ public:
    bool hasSettlementLeaf(const bs::Address &addr) const { return (getSettlementLeaf(addr) != nullptr); }
    void createSettlementLeaf(const bs::Address &, const std::function<void()> &);
 
-   virtual bool SubmitForVerification(const bs::Address &address);
+   virtual void SubmitForVerification(BsClient *bsClient, const bs::Address &address);
    virtual void ConfirmSubmitForVerification(BsClient *bsClient, const bs::Address &address);
-   virtual bool CancelSubmitForVerification(BsClient *bsClient, const bs::Address &address);
 
    virtual bool RevokeAddress(const bs::Address &address);
 
@@ -148,9 +147,7 @@ signals:
    void AuthAddressSubmitCancelled(const QString &address);
    void AuthRevokeTxSent();
    void gotBsAddressList();
-
    void AuthAddressConfirmationRequired(float validationAmount);
-   void signFailed(AutheIDClient::ErrorType error);
 
 private:
    void SetAuthWallet();
@@ -160,14 +157,9 @@ private:
 
    bool SubmitRequestToPB(const std::string& requestName, const std::string& data);
 
-   bool SubmitAddressToPublicBridge(const bs::Address &);
    bool SendGetBSAddressListRequest();
 
-   void ProcessSubmitAuthAddressResponse(const std::string& response, bool sigVerified);
-   void ProcessConfirmAuthAddressSubmit(const std::string &response, bool sigVerified);
    void ProcessBSAddressListResponse(const std::string& response, bool sigVerified);
-
-   void ProcessCancelAuthSubmitResponse(const std::string& response);
 
    void ProcessErrorResponse(const std::string& response) const;
 
@@ -185,6 +177,8 @@ private:
 
    // From ArmoryCallbackTarget
    void onStateChanged(ArmoryState) override;
+
+   void markAsSubmitted(const bs::Address &address);
 
 protected:
    std::shared_ptr<spdlog::logger>        logger_;

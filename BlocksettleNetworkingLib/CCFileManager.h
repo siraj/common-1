@@ -87,9 +87,9 @@ public:
    void LoadSavedCCDefinitions();
    void ConnectToCelerClient(const std::shared_ptr<BaseCelerClient> &);
 
-   bool SubmitAddressToPuB(const bs::Address &, uint32_t seed, const std::string &ccProduct);
+   bool submitAddress(const bs::Address &, uint32_t seed, const std::string &ccProduct);
    bool wasAddressSubmitted(const bs::Address &);
-   void cancelSubmitAddressToPub();
+   void cancelActiveSign();
 
    bool hasLocalFile() const;
 
@@ -109,7 +109,6 @@ signals:
 
 protected:
    void ProcessGenAddressesResponse(const std::string& response, const std::string &sig) override;
-   void ProcessSubmitAddrResponse(const std::string& response) override;
 
    bool IsTestNet() const override;
 
