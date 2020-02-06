@@ -519,7 +519,7 @@ enum GenoaType
    GenoaUserTradingStatus        = 21;
    GenoaTradeXbtUpdate           = 22;
    GenoaTradeCcUpdate            = 23;
-   GenoaSendCCTocken             = 24;
+   GenoaSendCCToken              = 24;
    GenoaReserveCC                = 25;
    GenoaCompleteCCReserve        = 26;
 }
