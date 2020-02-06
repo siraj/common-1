@@ -24,11 +24,12 @@ message StorageCCUtxoMessage
 
 enum StorageType
 {
-   StorageUnknown       = 0;
-   StorageCC            = 1;
-   StorageAddresses     = 2;
-   StorageRequests      = 3;
-   StorageCCDefinitions = 4;
+   StorageUnknown             = 0;
+   StorageCC                  = 1;
+   StorageAddresses           = 2;
+   StorageRequests            = 3;
+   StorageCCDefinitions       = 4;
+   StorageAuthAddressSubmit   = 5;
 }
 
 
@@ -67,13 +68,6 @@ message StorageAddressAuthResponse
    int32  status = 3;
 }
 
-enum StorageAddressDomain
-{
-   StorageAddressUnknown = 0;
-   StorageAddressUser = 1;
-   StorageAddressAuth = 2;
-}
-
 message SaveNewRequest
 {
    RequestFileType   type           = 1;
@@ -99,7 +93,15 @@ message RequestCompletedUpdate
 
 message StorageAddressMessage
 {
-  StorageAddressDomain domain = 1;
+   enum StorageAddressDomain
+   {
+      StorageAddressUnknown = 0;
+      StorageAddressUser = 1;
+      StorageAddressAuth = 2;
+   }
+
+   StorageAddressDomain domain = 1;
+
    oneof data {
       StorageAddressUserMessage user = 2;
       StorageAddressAuthRequest  auth_request = 3;
@@ -200,14 +202,79 @@ message PendingRequestsInfo
    int32 fund_cc_gen_address     = 5;
 }
 
+message AuthAddressSubmit
+{
+   // Keep in sync with AddressStorage::ReservationState
+   enum ReservationState
+   {
+      UNDEFINED = 0;
+      PENDING_APPROVAL = 1;
+      RESERVED = 2;
+      REJECTED = 4;
+      CONFIRMED = 5;
+   };
+
+   message AuthFeeReservationInfo
+   {
+      string username = 1;
+      uint64 xbt_amount = 2;
+      float eur_amount = 3;
+      ReservationState state = 4;
+   }
+
+   message SaveAuthResRequest
+   {
+      string address = 1;
+      AuthFeeReservationInfo info = 2;
+   }
+
+   message SaveAuthResResponse
+   {
+      bool success = 1;
+      AuthFeeReservationInfo info = 2;
+   }
+
+   message GetAuthResRequest
+   {
+      string address = 1;
+   }
+
+   message GetAuthResResponse
+   {
+      bool success = 1;
+      AuthFeeReservationInfo info = 2;
+   }
+
+   message UpdateAuthResRequest
+   {
+      string address = 1;
+      ReservationState state = 2;
+   }
+
+   message UpdateAuthResResponse
+   {
+      bool success = 1;
+   }
+
+   oneof data {
+      SaveAuthResRequest save_auth_res_request = 5;
+      SaveAuthResResponse save_auth_res_response = 6;
+      GetAuthResRequest get_auth_res_request = 7;
+      GetAuthResResponse get_auth_res_response = 8;
+      UpdateAuthResRequest update_auth_res_request = 9;
+      UpdateAuthResResponse update_auth_res_resonse = 10;
+   }
+}
+
 message StorageMessage
 {
    StorageMessageType type = 1;
    StorageType domain = 2;
    oneof data {
-      StorageAddressMessage         address        = 3;
-      StorageCCMessage              cc             = 4;
-      StorageRequestsMessage        requests       = 5;
-      StorageCCDefinitionsMessage   cc_definitions = 6;
+      StorageAddressMessage         address              = 3;
+      StorageCCMessage              cc                   = 4;
+      StorageRequestsMessage        requests             = 5;
+      StorageCCDefinitionsMessage   cc_definitions       = 6;
+      AuthAddressSubmit             auth_address_submit  = 7;
    }
 }
