@@ -48,10 +48,46 @@ enum StorageMessageType
 enum StorageType
 {
    StorageUnknown       = 0;
+   StorageCC            = 1;
    StorageAddresses     = 2;
    StorageRequests      = 3;
    StorageCCDefinitions = 4;
 }
+
+
+enum StorageCCDomain
+{
+   StorageCCUnknown = 0;
+   StorageCcUtxo = 1;
+}
+
+message StorageCCUtxoMessage
+{
+   string settlement_id = 1;
+   bytes  tx_hash = 2;
+   uint32 index = 3;
+   string cc = 4;
+   uint64 amount = 5;
+   string user = 6;
+   string address = 7;
+   int32  status = 8;
+}
+
+message StorageCCUtxoBatch
+{
+   string settlement_id = 1;
+   repeated StorageCCUtxoMessage utxos = 2;
+}
+
+message StorageCCMessage
+{
+  StorageCCDomain domain = 1;
+   oneof data {
+      StorageCCUtxoMessage utxo = 2;
+      StorageCCUtxoBatch   utxo_batch = 3;
+   }
+}
+
 
 message StorageAddressUserMessage
 {
@@ -202,6 +238,7 @@ message StorageMessage
    StorageType domain = 2;
    oneof data {
       StorageAddressMessage         address        = 3;
+      StorageCCMessage              cc             = 4;
       StorageRequestsMessage        requests       = 5;
       StorageCCDefinitionsMessage   cc_definitions = 6;
    }
@@ -390,18 +427,59 @@ message CCDefinitionsData
 message CCGenesisAddressData
 {
    message GenAddrData {
-      string cc = 1;
-      string ga = 2;
+      bytes cc = 1;
+      bytes ga = 2;
    }
    repeated GenAddrData gen_addresses = 1;
 }
 
+message CCTxValidRequest
+{
+   string cc = 1;
+   repeated OutPointData outpoints = 2;
+}
+
+message CCTxValidResponse
+{
+   repeated OutPointData outpoints = 1;
+   repeated bool is_valid = 2;
+}
+
+message CCValidateHalvesRequest
+{
+   string settlement_id = 1;
+   bytes  requester_tx = 2;
+   bytes  dealer_tx = 3;
+   string cc = 4;
+   string requester_receipt_addr = 5;
+   string dealer_receipt_addr = 6;
+   double quantity = 7;
+   double price = 8;
+   bool   requester_buys = 9;
+}
+
+message CCValidateHalvesResponse
+{
+   string settlement_id = 1;
+   bool   success = 2;
+   repeated OutPointData outpoints = 3;
+   ReturnData return = 4;
+
+   message ReturnData {
+      int32  index = 1;
+      string address = 2;
+      uint32 amount = 3;
+   }
+}
+
 enum CcTrackMessageType
 {
-   CcTrackUnknownType   = 0;
-   CcTrackOnline        = 1;
-   CcTrackCCDefinitions = 2;
-   CcTrackGenAddresses  = 3;
+   CcTrackUnknownType    = 0;
+   CcTrackOnline         = 1;
+   CcTrackCCDefinitions  = 2;
+   CcTrackGenAddresses   = 3;
+   CcTrackIsTxValid      = 4;
+   CcTrackValidateHalves = 5;
 }
 
 message CcTrackMessage
@@ -410,6 +488,10 @@ message CcTrackMessage
    oneof data {
       CCDefinitionsData cc_definitions = 2;
       CCGenesisAddressData ga_data = 3;
+      CCTxValidRequest  tx_valid_request = 4;
+      CCTxValidResponse tx_valid_response = 5;
+      CCValidateHalvesRequest  cc_valid_request = 6;
+      CCValidateHalvesResponse cc_valid_response = 7;
    }
 }
 
@@ -438,6 +520,8 @@ enum GenoaType
    GenoaTradeXbtUpdate           = 22;
    GenoaTradeCcUpdate            = 23;
    GenoaSendCCTocken             = 24;
+   GenoaReserveCC                = 25;
+   GenoaCompleteCCReserve        = 26;
 }
 
 message GenoaConnectedBroadcast
@@ -684,6 +768,8 @@ message GenoaMessage
       GenoaXbtCompleteTransferResponse xbt_transfer_complete   = 19;
       GenoaAccountMessage              account                 = 20;
       GenoaSendCCTokenRequest          cc_token                = 21;
+      TradeInfoCcData                  cc_reserve              = 22;
+      string                           settlement_id           = 23;
    }
 }
 
