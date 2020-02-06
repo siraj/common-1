@@ -47,10 +47,47 @@ enum StorageMessageType
 
 enum StorageType
 {
-   StorageUnknown   = 0;
-   StorageAddresses = 2;
-   StorageRequests  = 3;
+   StorageUnknown       = 0;
+   StorageCC            = 1;
+   StorageAddresses     = 2;
+   StorageRequests      = 3;
+   StorageCCDefinitions = 4;
 }
+
+
+enum StorageCCDomain
+{
+   StorageCCUnknown = 0;
+   StorageCcUtxo = 1;
+}
+
+message StorageCCUtxoMessage
+{
+   string settlement_id = 1;
+   bytes  tx_hash = 2;
+   uint32 index = 3;
+   string cc = 4;
+   uint64 amount = 5;
+   string user = 6;
+   string address = 7;
+   int32  status = 8;
+}
+
+message StorageCCUtxoBatch
+{
+   string settlement_id = 1;
+   repeated StorageCCUtxoMessage utxos = 2;
+}
+
+message StorageCCMessage
+{
+  StorageCCDomain domain = 1;
+   oneof data {
+      StorageCCUtxoMessage utxo = 2;
+      StorageCCUtxoBatch   utxo_batch = 3;
+   }
+}
+
 
 message StorageAddressUserMessage
 {
@@ -156,13 +193,54 @@ message StorageRequestsMessage
    }
 }
 
+enum CCDefinitionsMessageType
+{
+   CCDefinitionsSnapshot      = 0;
+   CreateCCDefinitionRequest  = 1;
+   DisbleCCDefinitionRequest  = 2;
+   CCDefinitionsResponse      = 3;
+}
+
+message StorageCCDefinition
+{
+   string   cc_name  = 1;
+   int32    lot_size = 2;
+   bool     enabled  = 3;
+}
+
+message CCDefinitionsSnapshotMessage
+{
+   int32                         revision    = 1;
+   repeated StorageCCDefinition  definitions = 2;
+}
+
+message StorageCCDefinitionResponse
+{
+   bool     result         = 1;
+   string   debug_message  = 2;
+}
+
+message StorageCCDefinitionsMessage
+{
+   CCDefinitionsMessageType type = 1;
+
+   oneof data {
+      CCDefinitionsSnapshotMessage  cc_snapshot          = 2;
+      StorageCCDefinition           create_definition    = 3;
+      StorageCCDefinition           disable_definition   = 4;
+      StorageCCDefinitionResponse   response             = 5;
+   }
+}
+
 message StorageMessage
 {
    StorageMessageType type = 1;
    StorageType domain = 2;
    oneof data {
-      StorageAddressMessage  address  = 3;
-      StorageRequestsMessage requests = 5;
+      StorageAddressMessage         address        = 3;
+      StorageCCMessage              cc             = 4;
+      StorageRequestsMessage        requests       = 5;
+      StorageCCDefinitionsMessage   cc_definitions = 6;
    }
 }
 
@@ -363,18 +441,59 @@ message CCDefinitionsData
 message CCGenesisAddressData
 {
    message GenAddrData {
-      string cc = 1;
-      string ga = 2;
+      bytes cc = 1;
+      bytes ga = 2;
    }
    repeated GenAddrData gen_addresses = 1;
 }
 
+message CCTxValidRequest
+{
+   string cc = 1;
+   repeated OutPointData outpoints = 2;
+}
+
+message CCTxValidResponse
+{
+   repeated OutPointData outpoints = 1;
+   repeated bool is_valid = 2;
+}
+
+message CCValidateHalvesRequest
+{
+   string settlement_id = 1;
+   bytes  requester_tx = 2;
+   bytes  dealer_tx = 3;
+   string cc = 4;
+   string requester_receipt_addr = 5;
+   string dealer_receipt_addr = 6;
+   double quantity = 7;
+   double price = 8;
+   bool   requester_buys = 9;
+}
+
+message CCValidateHalvesResponse
+{
+   string settlement_id = 1;
+   bool   success = 2;
+   repeated OutPointData outpoints = 3;
+   ReturnData return = 4;
+
+   message ReturnData {
+      int32  index = 1;
+      string address = 2;
+      uint32 amount = 3;
+   }
+}
+
 enum CcTrackMessageType
 {
-   CcTrackUnknownType   = 0;
-   CcTrackOnline        = 1;
-   CcTrackCCDefinitions = 2;
-   CcTrackGenAddresses  = 3;
+   CcTrackUnknownType    = 0;
+   CcTrackOnline         = 1;
+   CcTrackCCDefinitions  = 2;
+   CcTrackGenAddresses   = 3;
+   CcTrackIsTxValid      = 4;
+   CcTrackValidateHalves = 5;
 }
 
 message CcTrackMessage
@@ -383,33 +502,40 @@ message CcTrackMessage
    oneof data {
       CCDefinitionsData cc_definitions = 2;
       CCGenesisAddressData ga_data = 3;
+      CCTxValidRequest  tx_valid_request = 4;
+      CCTxValidResponse tx_valid_response = 5;
+      CCValidateHalvesRequest  cc_valid_request = 6;
+      CCValidateHalvesResponse cc_valid_response = 7;
    }
 }
 
 
 enum GenoaType
 {
-   GenoaUnknownType        = 0;
-   GenoaReconnect          = 1;
-   GenoaHeartbeat          = 2;
-   GenoaClientConnected    = 3;
-   GenoaClientDisconnected = 4;
-   GenoaServerConnected    = 5;
-   GenoaServerDisconnected = 6;
-   GenoaAccountsAvailable  = 7;
-   GenoaAccounts           = 8;
-   GenoaGetXBTReservations = 10;
-   GenoaGetCCReservations  = 11;
-   GenoaCancelCCReservation = 12;
-   GenoaCancelXBTReservation = 13;
-   GenoaReserveCashXBT     = 14;
-   GenoaUpdateXbtCashReserve = 15;
-   GenoaCompleteXbtCashTransfer = 16;
-   GenoaExecuteFxTrade     = 19;
-   GenoaFindOrdersForUser  = 20;
-   GenoaUserTradingStatus  = 21;
-   GenoaTradeXbtUpdate     = 22;
-   GenoaTradeCcUpdate      = 23;
+   GenoaUnknownType              = 0;
+   GenoaReconnect                = 1;
+   GenoaHeartbeat                = 2;
+   GenoaClientConnected          = 3;
+   GenoaClientDisconnected       = 4;
+   GenoaServerConnected          = 5;
+   GenoaServerDisconnected       = 6;
+   GenoaAccountsAvailable        = 7;
+   GenoaAccounts                 = 8;
+   GenoaGetXBTReservations       = 10;
+   GenoaGetCCReservations        = 11;
+   GenoaCancelCCReservation      = 12;
+   GenoaCancelXBTReservation     = 13;
+   GenoaReserveCashXBT           = 14;
+   GenoaUpdateXbtCashReserve     = 15;
+   GenoaCompleteXbtCashTransfer  = 16;
+   GenoaExecuteFxTrade           = 19;
+   GenoaFindOrdersForUser        = 20;
+   GenoaUserTradingStatus        = 21;
+   GenoaTradeXbtUpdate           = 22;
+   GenoaTradeCcUpdate            = 23;
+   GenoaSendCCToken              = 24;
+   GenoaReserveCC                = 25;
+   GenoaCompleteCCReserve        = 26;
 }
 
 message GenoaConnectedBroadcast
@@ -579,6 +705,14 @@ message GenoaTradeXbtUpdateRequest
    string status = 2;
 }
 
+message GenoaSendCCTokenRequest
+{
+   string user_id    = 1;
+   string cc_token   = 2;
+   string cc_name    = 3;
+   double amount     = 4;
+}
+
 message GenoaAccountUserRequest
 {
    int64  entity_id = 1;
@@ -629,35 +763,39 @@ message GenoaMessage
 {
    GenoaType type = 1;
    oneof data {
-      GenoaConnectedBroadcast    connected = 2;
-      GenoaDisconnectedBroadcast disconnected = 3;
-      GenoaXBTReservationsResponse xbt_reservations = 4;
-      GenoaCCReservationResponse  cc_reservations = 5;
-      GenoaCancelCCReservationRequest  cancel_cc_res_request = 7;
-      GenoaCancelCCReservationResponse cancel_cc_res_response = 8;
-      GenoaUserRequest  user_request = 9;
-      GenoaFindOrdersResponse find_orders_response = 10;
-      GenoaTradingStatusResponse trd_status_response = 11;
-      TradeDataXbtMessage     xbt_reserve_request = 12;
-      GenoaReserveXbtResponse xbt_reserve_response = 13;
-      GenoaUpdateXbtReserveRequest xbt_update_res_request = 14;
-      bool success_response = 15;
-      TradeDataMessage     fx_trade_request = 16;
-      GenoaFxTradeResponse fx_trade_response = 17;
-      GenoaTradeXbtUpdateRequest xbt_trade_update = 18;
-      GenoaXbtCompleteTransferResponse xbt_transfer_complete = 19;
-      GenoaAccountMessage account = 20;
+      GenoaConnectedBroadcast          connected               = 2;
+      GenoaDisconnectedBroadcast       disconnected            = 3;
+      GenoaXBTReservationsResponse     xbt_reservations        = 4;
+      GenoaCCReservationResponse       cc_reservations         = 5;
+      GenoaCancelCCReservationRequest  cancel_cc_res_request   = 7;
+      GenoaCancelCCReservationResponse cancel_cc_res_response  = 8;
+      GenoaUserRequest                 user_request            = 9;
+      GenoaFindOrdersResponse          find_orders_response    = 10;
+      GenoaTradingStatusResponse       trd_status_response     = 11;
+      TradeDataXbtMessage              xbt_reserve_request     = 12;
+      GenoaReserveXbtResponse          xbt_reserve_response    = 13;
+      GenoaUpdateXbtReserveRequest     xbt_update_res_request  = 14;
+      bool                             success_response        = 15;
+      TradeDataMessage                 fx_trade_request        = 16;
+      GenoaFxTradeResponse             fx_trade_response       = 17;
+      GenoaTradeXbtUpdateRequest       xbt_trade_update        = 18;
+      GenoaXbtCompleteTransferResponse xbt_transfer_complete   = 19;
+      GenoaAccountMessage              account                 = 20;
+      GenoaSendCCTokenRequest          cc_token                = 21;
+      TradeInfoCcData                  cc_reserve              = 22;
+      string                           settlement_id           = 23;
    }
 }
 
-
 enum GenoaServerType
 {
-   GenoaServerUnknown = 0;
-   GenoaServerNewClient = 1;
-   GenoaServerUpdBalance = 2;
-   GenoaServerUpdTrdStatus = 3;
-   GenoaServerXbtTrdStatus = 4;
+   GenoaServerResponse        = 0;
+   GenoaServerNewClient       = 1;
+   GenoaServerUpdBalance      = 2;
+   GenoaServerUpdTrdStatus    = 3;
+   GenoaServerXbtTrdStatus    = 4;
+   GenoaServerNewCcSeed       = 5;
+   GenoaServerNewCCDeposit    = 6;
 }
 
 message GenoaServerClientRequest
@@ -685,15 +823,31 @@ message GenoaServerXbtTradingStatus
    string status = 2;
 }
 
+message GenoaServerNewCcSeedRequest
+{
+   string      email    = 1;
+   string      cc_name  = 2;
+}
+
+message GenoaServerNewCCDepositRequest
+{
+   string      entity_name = 1;
+   string      cc_name     = 2;
+   double      amount      = 3;
+}
+
 message GenoaServerMessage
 {
    GenoaServerType type = 1;
    oneof data {
-      GenoaServerClientRequest new_client = 2;
-      GenoaServerBalanceUpdate balance_update = 3;
-      GenoaServerTradingStatusUpdate trd_status = 4;
-      GenoaServerXbtTradingStatus xbt_trd_status = 5;
-      bool response = 10;
+      GenoaServerClientRequest         new_client     = 2;
+      GenoaServerBalanceUpdate         balance_update = 3;
+      GenoaServerTradingStatusUpdate   trd_status     = 4;
+      GenoaServerXbtTradingStatus      xbt_trd_status = 5;
+      GenoaServerNewCcSeedRequest      new_cc_seed    = 6;
+      GenoaServerNewCCDepositRequest   new_cc_deposit = 7;
+
+      bool                             response       = 10;
    }
 }
 
