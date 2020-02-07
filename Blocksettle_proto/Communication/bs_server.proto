@@ -557,14 +557,15 @@ message GenoaAuthFeeMakeRequest
 {
    string email      = 1;
    string address    = 2;
-   double xbt_amount = 3;
+   uint64 xbt_amount = 3;
 }
 
 message GenoaAuthFeeMakeResponse
 {
    bool success         = 1;
    string error_msg     = 2;
-   double eur_emount    = 3;
+   float eur_emount    = 3;
+   uint64 xbt_amount    = 4;
 }
 
 message GenoaAuthFeeUpdateRequest
