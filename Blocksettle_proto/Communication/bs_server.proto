@@ -328,8 +328,8 @@ enum GenoaType
    GenoaSendCCToken              = 24;
    GenoaReserveCC                = 25;
    GenoaCompleteCCReserve        = 26;
-   GenoaMakeAuthReservation      = 27;
-   GenoaMakeAuthFeeDecision      = 28;
+   GenoaAuthFeeMake              = 27;
+   GenoaAuthFeeUpdate            = 28;
 }
 
 message GenoaConnectedBroadcast
@@ -553,25 +553,38 @@ message GenoaAccountMessage
    }
 }
 
-message GenoaMakeAuthFeeReservation
+message GenoaAuthFeeMakeRequest
 {
-   string user       = 1;
+   string email      = 1;
    string address    = 2;
-   double xbt_amount = 3
+   double xbt_amount = 3;
 }
 
-enum GenoAuthFeeDecision
+message GenoaAuthFeeMakeResponse
 {
-   GenoAcceptAuthFee    = 0;
-   GenoCancelAuthFee    = 1;
-   GenoConfirmAuthFee   = 2;
-   GenoRejectAuthFee    = 3;
+   bool success         = 1;
+   string error_msg     = 2;
+   double eur_emount    = 3;
 }
 
-message GenoaMakeAuthFeeDecisionMessage
+message GenoaAuthFeeUpdateRequest
 {
-   string               address  = 1;
-   GenoAuthFeeDecision  decision = 2;
+   // Keep in sync with
+   enum Decision
+   {
+      ACCEPT      = 0;
+      CANCEL      = 1;
+      CONFIRM     = 2;
+      REJECT      = 3;
+   }
+   string      auth_address   = 1;
+   Decision    decision       = 2;
+}
+
+message GenoaAuthFeeUpdateResponse
+{
+   bool success         = 1;
+   string error_msg     = 2;
 }
 
 message GenoaMessage
@@ -599,8 +612,10 @@ message GenoaMessage
       GenoaSendCCTokenRequest          cc_token                = 21;
       TradeInfoCcData                  cc_reserve              = 22;
       string                           settlement_id           = 23;
-      GenoaMakeAuthFeeReservation      make_auth_reservation   = 24;
-      GenoaMakeAuthFeeDecisionMessage  auth_fee_decision       = 25;
+      GenoaAuthFeeMakeRequest          auth_fee_make_request   = 24;
+      GenoaAuthFeeMakeResponse         auth_fee_make_response  = 25;
+      GenoaAuthFeeUpdateRequest        auth_fee_upd_request    = 26;
+      GenoaAuthFeeUpdateResponse       auth_fee_upd_response   = 27;
    }
 }
 
