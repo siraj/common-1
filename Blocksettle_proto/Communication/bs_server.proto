@@ -556,7 +556,7 @@ message GenoaAccountMessage
 message GenoaAuthFeeMakeRequest
 {
    string email      = 1;
-   string address    = 2;
+   string auth_address = 2;
    uint64 xbt_amount = 3;
 }
 
