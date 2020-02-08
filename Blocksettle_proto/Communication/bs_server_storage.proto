@@ -63,9 +63,17 @@ message StorageAddressAuthRequest
 
 message StorageAddressAuthResponse
 {
-   string address = 1;
-   string username = 2;
-   int32  status = 3;
+   enum AuthAddressStatus
+   {
+      AuthAddressFunded       = 0;
+      AuthAddressRevoked      = 1;
+      AuthAddressBlacklisted  = 2;
+      AuthAddressUnknown      = 3;
+   }
+
+   string            address  = 1;
+   string            username = 2;
+   AuthAddressStatus status   = 3;
 }
 
 message SaveNewRequest
