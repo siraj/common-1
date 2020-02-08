@@ -49,13 +49,6 @@ enum StorageMessageType
    StorageDataAvail   = 4;
 }
 
-message StorageAddressUserMessage
-{
-   string email = 1;
-   bytes  user_id = 2;
-   string full_name = 3;
-}
-
 message StorageAddressAuthRequest
 {
    string address = 1;
@@ -104,16 +97,14 @@ message StorageAddressMessage
    enum StorageAddressDomain
    {
       StorageAddressUnknown = 0;
-      StorageAddressUser = 1;
-      StorageAddressAuth = 2;
+      StorageAddressAuth = 1;
    }
 
    StorageAddressDomain domain = 1;
 
    oneof data {
-      StorageAddressUserMessage user = 2;
-      StorageAddressAuthRequest  auth_request = 3;
-      StorageAddressAuthResponse auth_response = 4;
+      StorageAddressAuthRequest  auth_request = 2;
+      StorageAddressAuthResponse auth_response = 3;
    }
 }
 
