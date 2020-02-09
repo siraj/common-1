@@ -94,10 +94,9 @@ message RevokeAuthAddressRequest
 
 message ConfirmAuthSubmitRequest
 {
-   required string userName = 1;
-   required string address = 2;
-   required AddressNetworkType networkType = 3;
-   required string userId = 6;
+   required string userName   = 1;
+   required string address    = 2;
+   required uint64 xbt_amount = 3;
 }
 
 message ClientAddress
