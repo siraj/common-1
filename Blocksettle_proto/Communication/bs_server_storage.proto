@@ -21,7 +21,6 @@ message StorageCCUtxoMessage
    int32  status = 8;
 }
 
-
 enum StorageType
 {
    StorageUnknown             = 0;
@@ -29,7 +28,6 @@ enum StorageType
    StorageAddresses           = 2;
    StorageRequests            = 3;
    StorageCCDefinitions       = 4;
-   StorageAuthAddressSubmit   = 5;
 }
 
 
@@ -49,24 +47,55 @@ enum StorageMessageType
    StorageDataAvail   = 4;
 }
 
-message StorageAddressAuthRequest
+message StorageAuthReservation
 {
-   string address = 1;
+   enum AuthReservationState
+   {
+      AuthReservationUndefined         = 0;
+      AuthReservationPendingApproval   = 1;
+      AuthReservationReserved          = 2;
+      AuthReservationRejected          = 3;
+      AuthReservationConfirmed         = 4;
+   }
+
+   string               address     = 1;
+   string               user        = 2;
+   uint64               xbt_amount  = 3;
+   double               eur_amount  = 4;
+   AuthReservationState state       = 5;
 }
 
-message StorageAddressAuthResponse
+message StorageAuthAddressState
 {
    enum AuthAddressStatus
    {
-      AuthAddressFunded       = 0;
-      AuthAddressRevoked      = 1;
-      AuthAddressBlacklisted  = 2;
-      AuthAddressUnknown      = 3;
+      AuthAddressUnknown      = 0;
+      AuthAddressFunded       = 1;
+      AuthAddressRevoked      = 2;
+      AuthAddressBlacklisted  = 3;
    }
 
    string            address  = 1;
-   string            username = 2;
+   string            user     = 2;
    AuthAddressStatus status   = 3;
+}
+
+message StorageAddressMessage
+{
+   enum StorageAddressDomain
+   {
+      StorageAddressReservationDefinition = 0;
+      StorageAddressReservationUpdate     = 1;
+      StorageAddressAuthStatus            = 2;
+   }
+
+   StorageAddressDomain domain = 1;
+
+   oneof data {
+      StorageAuthReservation  auth_reservation  = 2;
+      StorageAuthAddressState auth_address      = 3;
+      bool                    put_result        = 4;
+   }
 }
 
 message SaveNewRequest
@@ -90,22 +119,6 @@ message ExportRequestFilesResponse
 message RequestCompletedUpdate
 {
    string request_id = 1;
-}
-
-message StorageAddressMessage
-{
-   enum StorageAddressDomain
-   {
-      StorageAddressUnknown = 0;
-      StorageAddressAuth = 1;
-   }
-
-   StorageAddressDomain domain = 1;
-
-   oneof data {
-      StorageAddressAuthRequest  auth_request = 2;
-      StorageAddressAuthResponse auth_response = 3;
-   }
 }
 
 enum RequestStorageMessageType
@@ -201,70 +214,6 @@ message PendingRequestsInfo
    int32 fund_cc_gen_address     = 5;
 }
 
-message AuthAddressSubmit
-{
-   // Keep in sync with AddressStorage::ReservationState
-   enum ReservationState
-   {
-      UNDEFINED = 0;
-      PENDING_APPROVAL = 1;
-      RESERVED = 2;
-      REJECTED = 4;
-      CONFIRMED = 5;
-   };
-
-   message AuthFeeReservationInfo
-   {
-      string username = 1;
-      uint64 xbt_amount = 2;
-      float eur_amount = 3;
-      ReservationState state = 4;
-   }
-
-   message SaveAuthResRequest
-   {
-      string address = 1;
-      AuthFeeReservationInfo info = 2;
-   }
-
-   message SaveAuthResResponse
-   {
-      bool success = 1;
-      AuthFeeReservationInfo info = 2;
-   }
-
-   message GetAuthResRequest
-   {
-      string address = 1;
-   }
-
-   message GetAuthResResponse
-   {
-      bool success = 1;
-      AuthFeeReservationInfo info = 2;
-   }
-
-   message UpdateAuthResRequest
-   {
-      string address = 1;
-      ReservationState state = 2;
-   }
-
-   message UpdateAuthResResponse
-   {
-      bool success = 1;
-   }
-
-   oneof data {
-      SaveAuthResRequest save_auth_res_request = 5;
-      SaveAuthResResponse save_auth_res_response = 6;
-      GetAuthResRequest get_auth_res_request = 7;
-      GetAuthResResponse get_auth_res_response = 8;
-      UpdateAuthResRequest update_auth_res_request = 9;
-      UpdateAuthResResponse update_auth_res_resonse = 10;
-   }
-}
-
 message StorageMessage
 {
    StorageMessageType type = 1;
@@ -274,6 +223,5 @@ message StorageMessage
       StorageCCMessage              cc                   = 4;
       StorageRequestsMessage        requests             = 5;
       StorageCCDefinitionsMessage   cc_definitions       = 6;
-      AuthAddressSubmit             auth_address_submit  = 7;
    }
 }
