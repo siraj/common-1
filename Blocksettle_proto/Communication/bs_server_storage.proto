@@ -80,21 +80,35 @@ message StorageAuthAddressState
    AuthAddressStatus status   = 3;
 }
 
+message StorageAuthReservationResponse
+{
+   bool                    result            = 1;
+   string                  error_message     = 2;
+   StorageAuthReservation  reservation_info  = 3;
+}
+
+message StorageAuthAddressStateResponse
+{
+   bool     result         = 1;
+   string   error_message  = 2;
+}
+
 message StorageAddressMessage
 {
    enum StorageAddressDomain
    {
-      StorageAddressReservationDefinition = 0;
-      StorageAddressReservationUpdate     = 1;
-      StorageAddressAuthStatus            = 2;
+      StorageAddressReservationDefinition    = 0;
+      StorageAddressReservationUpdateState   = 1;
+      StorageAddressAuthStatus               = 2;
    }
 
    StorageAddressDomain domain = 1;
 
    oneof data {
-      StorageAuthReservation  auth_reservation  = 2;
-      StorageAuthAddressState auth_address      = 3;
-      bool                    put_result        = 4;
+      StorageAuthReservation           auth_reservation        = 2;
+      StorageAuthReservationResponse   put_reservation_result  = 3;
+      StorageAuthAddressState          auth_address            = 4;
+      StorageAuthAddressStateResponse  pub_auth_address_result = 5;
    }
 }
 
