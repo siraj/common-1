@@ -73,10 +73,10 @@ message StorageAuthAddressState
 {
    enum AuthAddressStatus
    {
-      AuthAddressUnknown      = 0;
-      AuthAddressFunded       = 1;
-      AuthAddressRevoked      = 2;
-      AuthAddressBlacklisted  = 3;
+      AuthAddressFunded       = 0;
+      AuthAddressRevoked      = 1;
+      AuthAddressBlacklisted  = 2;
+      AuthAddressUnknown      = 3;
    }
 
    string            address  = 1;
