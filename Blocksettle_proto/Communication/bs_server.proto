@@ -564,8 +564,9 @@ message GenoaAuthFeeMakeResponse
 {
    bool success         = 1;
    string error_msg     = 2;
-   float eur_emount    = 3;
+   float eur_emount     = 3;
    uint64 xbt_amount    = 4;
+   string error_code    = 5;
 }
 
 message GenoaAuthFeeConfirmRequest
