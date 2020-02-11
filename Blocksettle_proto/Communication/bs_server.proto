@@ -820,7 +820,7 @@ message CelerMessage
 
 enum TradeHistType
 {
-   TradeHistUnknownType  = 0;
+   TradeHistReconnect    = 0;
    TradeHistSaveFxTrade  = 1;
    TradeHistSaveXbtTrade = 2;
    TradeHistSaveCcTrade  = 3;
