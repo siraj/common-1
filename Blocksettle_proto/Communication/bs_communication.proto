@@ -136,10 +136,9 @@ message GetCCGenesisAddressesResponse
 
 message SubmitAddrForInitialDistributionRequest
 {
-   required AddressNetworkType   networkType     = 1;
-   required bytes                prefixedAddress = 2;
-   required uint32               bsSeed          = 3;
-   required string               userName        = 4;
+   required bytes                prefixedAddress = 1;
+   required uint32               bsSeed          = 2;
+   required string               userName        = 3;
 }
 
 message SubmitAddrForInitialDistributionResponse
