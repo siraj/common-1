@@ -328,6 +328,8 @@ enum GenoaType
    GenoaSendCCToken              = 24;
    GenoaReserveCC                = 25;
    GenoaCompleteCCReserve        = 26;
+   GenoaAuthFeeMake              = 27;
+   GenoaAuthFeeConfirm           = 28;
 }
 
 message GenoaConnectedBroadcast
@@ -551,31 +553,62 @@ message GenoaAccountMessage
    }
 }
 
+message GenoaAuthFeeMakeRequest
+{
+   string email      = 1;
+   string auth_address = 2;
+   uint64 xbt_amount = 3;
+}
+
+message GenoaAuthFeeMakeResponse
+{
+   bool success         = 1;
+   string error_msg     = 2;
+   float eur_emount     = 3;
+   uint64 xbt_amount    = 4;
+   string error_code    = 5;
+}
+
+message GenoaAuthFeeConfirmRequest
+{
+   string      auth_address   = 1;
+}
+
+message GenoaAuthFeeUpdateResponse
+{
+   bool success         = 1;
+   string error_msg     = 2;
+}
+
 message GenoaMessage
 {
    GenoaType type = 1;
    oneof data {
-      GenoaConnectedBroadcast          connected               = 2;
-      GenoaDisconnectedBroadcast       disconnected            = 3;
-      GenoaXBTReservationsResponse     xbt_reservations        = 4;
-      GenoaCCReservationResponse       cc_reservations         = 5;
-      GenoaCancelCCReservationRequest  cancel_cc_res_request   = 7;
-      GenoaCancelCCReservationResponse cancel_cc_res_response  = 8;
-      GenoaUserRequest                 user_request            = 9;
-      GenoaFindOrdersResponse          find_orders_response    = 10;
-      GenoaTradingStatusResponse       trd_status_response     = 11;
-      TradeDataXbtMessage              xbt_reserve_request     = 12;
-      GenoaReserveXbtResponse          xbt_reserve_response    = 13;
-      GenoaUpdateXbtReserveRequest     xbt_update_res_request  = 14;
-      bool                             success_response        = 15;
-      TradeDataMessage                 fx_trade_request        = 16;
-      GenoaFxTradeResponse             fx_trade_response       = 17;
-      GenoaTradeXbtUpdateRequest       xbt_trade_update        = 18;
-      GenoaXbtCompleteTransferResponse xbt_transfer_complete   = 19;
-      GenoaAccountMessage              account                 = 20;
-      GenoaSendCCTokenRequest          cc_token                = 21;
-      TradeInfoCcData                  cc_reserve              = 22;
-      string                           settlement_id           = 23;
+      GenoaConnectedBroadcast          connected                  = 2;
+      GenoaDisconnectedBroadcast       disconnected               = 3;
+      GenoaXBTReservationsResponse     xbt_reservations           = 4;
+      GenoaCCReservationResponse       cc_reservations            = 5;
+      GenoaCancelCCReservationRequest  cancel_cc_res_request      = 7;
+      GenoaCancelCCReservationResponse cancel_cc_res_response     = 8;
+      GenoaUserRequest                 user_request               = 9;
+      GenoaFindOrdersResponse          find_orders_response       = 10;
+      GenoaTradingStatusResponse       trd_status_response        = 11;
+      TradeDataXbtMessage              xbt_reserve_request        = 12;
+      GenoaReserveXbtResponse          xbt_reserve_response       = 13;
+      GenoaUpdateXbtReserveRequest     xbt_update_res_request     = 14;
+      bool                             success_response           = 15;
+      TradeDataMessage                 fx_trade_request           = 16;
+      GenoaFxTradeResponse             fx_trade_response          = 17;
+      GenoaTradeXbtUpdateRequest       xbt_trade_update           = 18;
+      GenoaXbtCompleteTransferResponse xbt_transfer_complete      = 19;
+      GenoaAccountMessage              account                    = 20;
+      GenoaSendCCTokenRequest          cc_token                   = 21;
+      TradeInfoCcData                  cc_reserve                 = 22;
+      string                           settlement_id              = 23;
+      GenoaAuthFeeMakeRequest          auth_fee_make_request      = 24;
+      GenoaAuthFeeMakeResponse         auth_fee_make_response     = 25;
+      GenoaAuthFeeConfirmRequest       auth_fee_confirm_request   = 26;
+      GenoaAuthFeeUpdateResponse       auth_fee_confirm_response  = 27;
    }
 }
 

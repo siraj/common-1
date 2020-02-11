@@ -24,7 +24,6 @@ message StorageCCUtxoMessage
    int32  status = 8;
 }
 
-
 enum StorageType
 {
    StorageUnknown       = 0;
@@ -52,30 +51,69 @@ enum StorageMessageType
    StorageDataAvail   = 4;
 }
 
-message StorageAddressUserMessage
+message StorageAuthReservation
 {
-   string email = 1;
-   bytes  user_id = 2;
-   string full_name = 3;
+   enum AuthReservationState
+   {
+      AuthReservationUndefined         = 0;
+      AuthReservationPendingApproval   = 1;
+      AuthReservationReserved          = 2;
+      AuthReservationRejected          = 3;
+      AuthReservationConfirmed         = 4;
+   }
+
+   string               address     = 1;
+   string               user        = 2;
+   uint64               xbt_amount  = 3;
+   double               eur_amount  = 4;
+   AuthReservationState state       = 5;
 }
 
-message StorageAddressAuthRequest
+message StorageAuthAddressState
 {
-   string address = 1;
+   enum AuthAddressStatus
+   {
+      AuthAddressFunded       = 0;
+      AuthAddressRevoked      = 1;
+      AuthAddressBlacklisted  = 2;
+      AuthAddressUnknown      = 3;
+   }
+
+   string            address  = 1;
+   string            user     = 2;
+   AuthAddressStatus status   = 3;
 }
 
-message StorageAddressAuthResponse
+message StorageAuthReservationResponse
 {
-   string address = 1;
-   string username = 2;
-   int32  status = 3;
+   bool                    result            = 1;
+   string                  error_message     = 2;
+   StorageAuthReservation  reservation_info  = 3;
 }
 
-enum StorageAddressDomain
+message StorageAuthAddressStateResponse
 {
-   StorageAddressUnknown = 0;
-   StorageAddressUser = 1;
-   StorageAddressAuth = 2;
+   bool     result         = 1;
+   string   error_message  = 2;
+}
+
+message StorageAddressMessage
+{
+   enum StorageAddressDomain
+   {
+      StorageAddressReservationDefinition    = 0;
+      StorageAddressReservationUpdateState   = 1;
+      StorageAddressAuthStatus               = 2;
+   }
+
+   StorageAddressDomain domain = 1;
+
+   oneof data {
+      StorageAuthReservation           auth_reservation        = 2;
+      StorageAuthReservationResponse   put_reservation_result  = 3;
+      StorageAuthAddressState          auth_address            = 4;
+      StorageAuthAddressStateResponse  pub_auth_address_result = 5;
+   }
 }
 
 message SaveNewRequest
@@ -99,16 +137,6 @@ message ExportRequestFilesResponse
 message RequestCompletedUpdate
 {
    string request_id = 1;
-}
-
-message StorageAddressMessage
-{
-  StorageAddressDomain domain = 1;
-   oneof data {
-      StorageAddressUserMessage user = 2;
-      StorageAddressAuthRequest  auth_request = 3;
-      StorageAddressAuthResponse auth_response = 4;
-   }
 }
 
 enum RequestStorageMessageType
