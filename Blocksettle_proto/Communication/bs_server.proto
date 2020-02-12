@@ -331,6 +331,7 @@ enum GenoaType
    GenoaAuthFeeMake              = 27;
    GenoaAuthFeeConfirm           = 28;
    GenoaGetUserAccounts          = 29;
+   GenoaGetAccountBalance        = 30;
 }
 
 message GenoaConnectedBroadcast
@@ -593,8 +594,26 @@ message GenoaAccountData
 
 message GenoaAccountInfoResponse
 {
-   repeated GenoaAccountData accounts = 1;
-   string error_text = 2;
+   string email = 1;
+   repeated GenoaAccountData accounts = 2;
+   string error_text = 3;
+}
+
+message GenoaAccountBalanceRequest
+{
+   string entity_name = 1;
+   repeated string currency = 2;
+}
+
+message GenoaAccountBalanceResponse
+{
+   string entity_name = 1;
+   repeated Balance balances = 2;
+
+   message Balance {
+      string currency = 1;
+      double balance = 2;
+   }
 }
 
 message GenoaMessage
@@ -628,6 +647,8 @@ message GenoaMessage
       GenoaAuthFeeUpdateResponse       auth_fee_confirm_response  = 27;
       string                           user_email                 = 28;
       GenoaAccountInfoResponse         user_account_response      = 29;
+      GenoaAccountBalanceRequest       acc_balance_request        = 30;
+      GenoaAccountBalanceResponse      acc_balance_response       = 31;
    }
 }
 
