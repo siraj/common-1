@@ -330,6 +330,7 @@ enum GenoaType
    GenoaCompleteCCReserve        = 26;
    GenoaAuthFeeMake              = 27;
    GenoaAuthFeeConfirm           = 28;
+   GenoaGetUserAccounts          = 29;
 }
 
 message GenoaConnectedBroadcast
@@ -580,6 +581,22 @@ message GenoaAuthFeeUpdateResponse
    string error_msg     = 2;
 }
 
+message GenoaAccountData
+{
+   string email = 1;
+   string entity_name = 2;
+   int64  entity_id = 3;
+   string account_name = 4;
+   string account_type = 5;
+   int64  account_id = 6;
+}
+
+message GenoaAccountInfoResponse
+{
+   repeated GenoaAccountData accounts = 1;
+   string error_text = 2;
+}
+
 message GenoaMessage
 {
    GenoaType type = 1;
@@ -609,6 +626,8 @@ message GenoaMessage
       GenoaAuthFeeMakeResponse         auth_fee_make_response     = 25;
       GenoaAuthFeeConfirmRequest       auth_fee_confirm_request   = 26;
       GenoaAuthFeeUpdateResponse       auth_fee_confirm_response  = 27;
+      string                           user_email                 = 28;
+      GenoaAccountInfoResponse         user_account_response      = 29;
    }
 }
 
