@@ -609,6 +609,7 @@ message GenoaAccountBalanceResponse
 {
    string entity_name = 1;
    repeated Balance balances = 2;
+   string error_text = 3;
 
    message Balance {
       string currency = 1;
