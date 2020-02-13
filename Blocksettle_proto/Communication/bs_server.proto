@@ -330,6 +330,8 @@ enum GenoaType
    GenoaCompleteCCReserve        = 26;
    GenoaAuthFeeMake              = 27;
    GenoaAuthFeeConfirm           = 28;
+   GenoaGetUserAccounts          = 29;
+   GenoaGetAccountBalance        = 30;
 }
 
 message GenoaConnectedBroadcast
@@ -580,6 +582,41 @@ message GenoaAuthFeeUpdateResponse
    string error_msg     = 2;
 }
 
+message GenoaAccountData
+{
+   string email = 1;
+   string entity_name = 2;
+   int64  entity_id = 3;
+   string account_name = 4;
+   string account_type = 5;
+   int64  account_id = 6;
+}
+
+message GenoaAccountInfoResponse
+{
+   string email = 1;
+   repeated GenoaAccountData accounts = 2;
+   string error_text = 3;
+}
+
+message GenoaAccountBalanceRequest
+{
+   string entity_name = 1;
+   repeated string currency = 2;
+}
+
+message GenoaAccountBalanceResponse
+{
+   string entity_name = 1;
+   repeated Balance balances = 2;
+   string error_text = 3;
+
+   message Balance {
+      string currency = 1;
+      double balance = 2;
+   }
+}
+
 message GenoaMessage
 {
    GenoaType type = 1;
@@ -609,6 +646,10 @@ message GenoaMessage
       GenoaAuthFeeMakeResponse         auth_fee_make_response     = 25;
       GenoaAuthFeeConfirmRequest       auth_fee_confirm_request   = 26;
       GenoaAuthFeeUpdateResponse       auth_fee_confirm_response  = 27;
+      string                           user_email                 = 28;
+      GenoaAccountInfoResponse         user_account_response      = 29;
+      GenoaAccountBalanceRequest       acc_balance_request        = 30;
+      GenoaAccountBalanceResponse      acc_balance_response       = 31;
    }
 }
 
@@ -820,7 +861,7 @@ message CelerMessage
 
 enum TradeHistType
 {
-   TradeHistUnknownType  = 0;
+   TradeHistReconnect    = 0;
    TradeHistSaveFxTrade  = 1;
    TradeHistSaveXbtTrade = 2;
    TradeHistSaveCcTrade  = 3;
