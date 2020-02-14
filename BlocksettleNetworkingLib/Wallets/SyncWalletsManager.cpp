@@ -1284,9 +1284,10 @@ void WalletsManager::onZCInvalidated(const std::set<BinaryData> &ids)
    QMetaObject::invokeMethod(this, [this, ids] {emit invalidatedZCs(ids); });
 }
 
-void WalletsManager::onTxBroadcastError(const std::string &txHash, const std::string &errMsg)
+void WalletsManager::onTxBroadcastError(const BinaryData &txHash, int errCode, const std::string &errMsg)
 {
-   logger_->error("[WalletsManager::{}] - TX {} error: {}", __func__, txHash, errMsg);
+   logger_->error("[WalletsManager::onTxBroadcastError] - TX {} error: {} ({})"
+      , txHash.toHexStr(true), errCode, errMsg);
 }
 
 void WalletsManager::invokeFeeCallbacks(unsigned int blocks, float fee)

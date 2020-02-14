@@ -64,7 +64,8 @@ protected:
 
 public:
    void onZCReceived(const std::vector<bs::TXEntry>& entries) override;
-   void onTxBroadcastError(const std::string &txHash, const std::string &errMsg) override;
+   void onTxBroadcastError(const BinaryData &txHash, int errCode
+      , const std::string &errMsg) override;
    void onZCInvalidated(const std::set<BinaryData> &ids) override;
 
 protected:

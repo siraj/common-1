@@ -76,13 +76,13 @@ void SettlementTransactionBroadcaster::onZCReceived(const std::vector<bs::TXEntr
    }
 }
 
-void SettlementTransactionBroadcaster::onTxBroadcastError(const std::string &txHashString, const std::string &errMsg)
+void SettlementTransactionBroadcaster::onTxBroadcastError(const BinaryData &txHash
+   , int errCode, const std::string &errMsg)
 {
-   const auto txHash = BinaryData::CreateFromHex(txHashString);
-
    if (!IsOurTx(txHash)) {
       return;
    }
+   const auto &txHashString = txHash.toHexStr(true);
 
    if (errMsg == KnownBitcoinCoreErrors::TxAlreadyInMemPool) {
       logger_->debug("[SettlementTransactionBroadcaster::onTxBroadcastError] {} already in mempool. Processing as broadcasted"
