@@ -14,7 +14,7 @@
 #include <exception>
 #include <condition_variable>
 #include <spdlog/spdlog.h>
-
+#include "ArmoryErrors.h"
 #include "ClientClasses.h"
 #include "DbHeader.h"
 #include "EncryptionUtils.h"
@@ -263,14 +263,14 @@ void ArmoryConnection::setupConnection(NetworkType netType, const std::string &h
             logger_->error("[ArmoryConnection::setupConnection] registerBDV exception: {}", e.what());
             setState(ArmoryState::Error);
             addToMaintQueue([e](ArmoryCallbackTarget *tgt) {
-               tgt->onError("Connection error", e.what());
+               tgt->onError(static_cast<int>(ErrorCodes::BDV_Error), e.what());
             });
          }
          catch (...) {
             logger_->error("[ArmoryConnection::setupConnection] registerBDV exception");
             setState(ArmoryState::Error);
             addToMaintQueue([](ArmoryCallbackTarget *tgt) {
-               tgt->onError("Connection error", {});
+               tgt->onError(static_cast<int>(ErrorCodes::BDV_Error), {});
             });
          }
 
@@ -1198,18 +1198,20 @@ void ArmoryCallback::run(BdmNotification bdmNotif)
 
    case BDMAction_BDV_Error: {
       const auto bdvError = bdmNotif.error_;
-      logger_->debug("[ArmoryCallback::run] BDMAction_BDV_Error {}, str: {}, msg: {}"
-                     , (int)bdvError.errType_, bdvError.errorStr_
-                     , bdvError.extraMsg_);
-      switch (bdvError.errType_) {
-      case Error_ZC:
+      logger_->debug("[ArmoryCallback::run] BDMAction_BDV_Error {}, str: {}"
+         , (int)bdvError.errCode_, bdvError.errorStr_);
+      switch (static_cast<ArmoryErrorCodes>(bdvError.errCode_)) {
+      case ArmoryErrorCodes::ZcBroadcast_Error:
+      case ArmoryErrorCodes::ZcBroadcast_AlreadyInChain:
+      case ArmoryErrorCodes::ZcBatch_Timeout:
+      case ArmoryErrorCodes::ZcBroadcast_AlreadyInMempool:
          connection_->addToMaintQueue([bdvError](ArmoryCallbackTarget *tgt) {
-            tgt->onTxBroadcastError(bdvError.extraMsg_, bdvError.errorStr_);
+            tgt->onTxBroadcastError(bdvError.errData_, bdvError.errCode_, bdvError.errorStr_);
          });
          break;
       default:
          connection_->addToMaintQueue([bdvError](ArmoryCallbackTarget *tgt) {
-            tgt->onError(bdvError.errorStr_, bdvError.extraMsg_);
+            tgt->onError(bdvError.errCode_, bdvError.errorStr_);
          });
          break;
       }

@@ -153,7 +153,7 @@ private:
    void processNotification(void);
 
 private:
-   BlockingQueue<std::shared_ptr<DBNotificationStruct>> notifQueue_;
+   ArmoryThreading::BlockingQueue<std::shared_ptr<DBNotificationStruct>> notifQueue_;
    std::thread processThr_;
 
    ValidationAddressManager* vamPtr_ = nullptr;
@@ -213,7 +213,7 @@ private:
    std::shared_ptr<ArmoryConnection> connPtr_;
    std::shared_ptr<ValidationAddressACT> actPtr_;
    std::shared_ptr<AsyncClient::BtcWallet> walletObj_;
-   BlockingQueue<BinaryData> refreshQueue_;
+   ArmoryThreading::BlockingQueue<BinaryData> refreshQueue_;
 
    std::map<BinaryData, std::shared_ptr<ValidationAddressStruct>> validationAddresses_;
    unsigned topBlock_ = 0;
