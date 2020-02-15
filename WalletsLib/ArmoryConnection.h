@@ -108,8 +108,9 @@ public:
    virtual void onZCInvalidated(const std::set<BinaryData> &ids) {}
    virtual void onLoadProgress(BDMPhase, float, unsigned int, unsigned int) {}
    virtual void onNodeStatus(NodeStatus, bool, RpcStatus) {}
-   virtual void onError(const std::string &str, const std::string &extra) {}
-   virtual void onTxBroadcastError(const std::string &, const std::string &) {}
+   virtual void onError(int errCode, const std::string &errText) {}
+   virtual void onTxBroadcastError(const BinaryData &txHash, int errCode
+      , const std::string &errText) {}
 
    virtual void onLedgerForAddress(const bs::Address &, const std::shared_ptr<AsyncClient::LedgerDelegate> &) {}
 
@@ -148,6 +149,10 @@ class ArmoryConnection
 {
    friend class ArmoryCallback;
 public:
+   enum class ErrorCodes : int {
+      BDV_Error = 0x800000
+   };
+
    ArmoryConnection(const std::shared_ptr<spdlog::logger> &);
    virtual ~ArmoryConnection() noexcept;
 

@@ -48,7 +48,7 @@ void ValidationAddressACT::processNotification()
       try {
          dbNotifPtr = notifQueue_.pop_front();
       }
-      catch (StopBlockingLoop&) {
+      catch (ArmoryThreading::StopBlockingLoop&) {
          break;
       }
 

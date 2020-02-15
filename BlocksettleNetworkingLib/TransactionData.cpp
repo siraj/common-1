@@ -13,7 +13,6 @@
 #include "ArmoryConnection.h"
 #include "BTCNumericTypes.h"
 #include "CoinSelection.h"
-#include "SwigClient.h"
 #include "SelectedTransactionInputs.h"
 #include "ScriptRecipient.h"
 #include "RecipientContainer.h"
