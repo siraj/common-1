@@ -49,7 +49,8 @@ namespace bs {
       // If request failed for at least one wallet callback would not be called.
       bool getSpendableTxOutList(const std::vector<std::shared_ptr<bs::sync::Wallet>> &wallets
          // maps UTXO to the wallet used
-         , const std::function<void(const std::map<UTXO, std::string> &)> &);
+         // #UTXO_MANAGER: consider to delete excludeReservation flag from everywhere 
+         , const std::function<void(const std::map<UTXO, std::string> &)> &, bool excludeReservation);
 
       struct Args
       {

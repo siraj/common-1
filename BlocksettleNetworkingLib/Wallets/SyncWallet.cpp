@@ -276,14 +276,14 @@ bool Wallet::updateBalances(const std::function<void(void)> &cb)
    }
 }
 
-bool Wallet::getSpendableTxOutList(const ArmoryConnection::UTXOsCb &cb, uint64_t val)
+bool Wallet::getSpendableTxOutList(const ArmoryConnection::UTXOsCb &cb, uint64_t val, bool excludeReservation)
 {   //combined utxo fetch method
 
    if (!isBalanceAvailable()) {
       return false;
    }
 
-   const auto &cbTxOutList = [this, val, cb, handle = validityFlag_.handle()]
+   const auto &cbTxOutList = [this, val, cb, handle = validityFlag_.handle(), excludeReservation]
       (const std::vector<UTXO> &txOutList) mutable
    {
       ValidityGuard lock(handle);
@@ -291,7 +291,7 @@ bool Wallet::getSpendableTxOutList(const ArmoryConnection::UTXOsCb &cb, uint64_t
          return;
       }
       std::vector<UTXO> txOutListCopy = txOutList;
-      if (UtxoReservation::instance()) {
+      if (UtxoReservation::instance() && excludeReservation) {
          UtxoReservation::instance()->filter(txOutListCopy);
       }
       cb(bs::selectUtxoForAmount(std::move(txOutListCopy), val));

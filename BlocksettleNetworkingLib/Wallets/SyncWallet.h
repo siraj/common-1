@@ -199,7 +199,7 @@ namespace bs {
          virtual bool getAddressTxnCounts(const std::function<void(void)> &cb = nullptr);
          
          //utxos
-         virtual bool getSpendableTxOutList(const ArmoryConnection::UTXOsCb &, uint64_t val);
+         virtual bool getSpendableTxOutList(const ArmoryConnection::UTXOsCb &, uint64_t val, bool excludeReservation);
          virtual bool getSpendableZCList(const ArmoryConnection::UTXOsCb &) const;
          virtual bool getRBFTxOutList(const ArmoryConnection::UTXOsCb &) const;
 
