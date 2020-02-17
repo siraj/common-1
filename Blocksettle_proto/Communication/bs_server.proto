@@ -507,7 +507,7 @@ message GenoaSendCCTokenRequest
    string user_id    = 1;
    string cc_token   = 2;
    string cc_name    = 3;
-   double amount     = 4;
+   uint32 amount     = 4;
 }
 
 message GenoaAccountUserRequest
