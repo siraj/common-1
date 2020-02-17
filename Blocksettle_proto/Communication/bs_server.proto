@@ -865,6 +865,13 @@ message CelerSetUserPropertiesRequest
    }
 }
 
+message CelerSetUserPropertiesResponse
+{
+   string email = 1;
+   repeated string property_names = 2;
+   repeated bool results = 3;
+}
+
 message CelerUpdateBalanceRequest
 {
    string entity_name = 1;
@@ -885,8 +892,9 @@ message CelerMessage
       bytes saved_trade = 2;
       CelerRegisteredCCDefinitions cc_definitions = 3;
       CelerCreateUserRequest create_user = 4;
-      CelerSetUserPropertiesRequest user_properties = 5;
-      CelerUpdateBalanceRequest user_balance = 6;
+      CelerSetUserPropertiesRequest  user_properties = 5;
+      CelerSetUserPropertiesResponse user_prop_response = 6;
+      CelerUpdateBalanceRequest user_balance = 7;
       CelerResultResponse response = 9;
       bytes opaque_data = 10;	// for Celer-encoded messages
       CelerSecurityDefData security_def = 11;
