@@ -82,7 +82,7 @@ void BitcoinFeeCache::setFeeEstimationValue(const unsigned int blocksToWait, flo
    {
       std::lock_guard<std::mutex> lock(cacheMutex_);
 
-      if (qFuzzyIsNull(fee)) {
+      if (qFuzzyIsNull(fee) || qIsInf(fee)) {
          fee = kFallbackFeeAmount;
       } else {
          FeeEstimationCache currentValue;
