@@ -51,7 +51,7 @@ bool BitcoinFeeCache::getFeePerByteEstimation(unsigned int blocksToWait, const f
             pendingCB_.emplace(blocksToWait, std::vector<feeCB>{ cb });
 
             auto cbWrap = [this, blocksToWait](float fee) {
-               setFeeEstimationValue(blocksToWait, fee);
+               setFeeEstimationValue(blocksToWait, ArmoryConnection::toFeePerByte(fee));
             };
 
             if (!armory_->estimateFee(blocksToWait, cbWrap)) {
@@ -85,8 +85,6 @@ void BitcoinFeeCache::setFeeEstimationValue(const unsigned int blocksToWait, flo
       if (qFuzzyIsNull(fee) || qIsInf(fee)) {
          fee = kFallbackFeeAmount;
       } else {
-         fee = ArmoryConnection::toFeePerByte(fee);
-
          FeeEstimationCache currentValue;
          currentValue.feeEstimation = fee;
          currentValue.estimationTimestamp = std::chrono::system_clock::now();
