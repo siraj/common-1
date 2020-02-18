@@ -57,11 +57,11 @@ protected:
    virtual void ProcessGenAddressesResponse(const std::string& response, const std::string &sig) = 0;
 
 private:
-   void OnDataReceived(const std::string& data);
-
    void ProcessErrorResponse(const std::string& responseString) const;
 
 protected:
+   void OnDataReceived(const std::string& data);
+
    std::shared_ptr<spdlog::logger>  logger_;
    unsigned int                     currentRev_ = 0;
 
