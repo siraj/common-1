@@ -228,6 +228,7 @@ CcTrackerClient::~CcTrackerClient()
 {
    dispatchQueue_.quit();
    dispatchThread_.join();
+   connection_.reset();
 }
 
 std::unique_ptr<ColoredCoinTrackerInterface> CcTrackerClient::createClient(
