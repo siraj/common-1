@@ -515,6 +515,11 @@ const std::unordered_set<std::string> &AuthAddressManager::GetBSAddresses() cons
    return bsAddressList_;
 }
 
+void AuthAddressManager::setAuthAddressesSigned(const BinaryData &data)
+{
+   OnDataReceived(data.toBinStr());
+}
+
 std::string AuthAddressManager::readyErrorStr(AuthAddressManager::ReadyError error)
 {
    switch (error) {

@@ -56,8 +56,9 @@ enum ArmoryMessageType
    ArmoryGetSpentness      = 12;
    ArmoryGetTxByHash       = 13;
    ArmoryValidateAuthAddr  = 14;
-   ArmoryGetBSAddresses    = 15;
    ArmoryGetOutpoints      = 16;
+   ArmoryUpdateAuthAddrs   = 17;
+   ArmoryUpdateCcAddrs     = 18;
 }
 
 enum ArmoryStateData
@@ -184,10 +185,14 @@ message ArmoryValidateAuthResponse
    repeated ValidateAuthResult results = 1;
 }
 
-message ArmoryBSAddressesResponse
+message ArmoryUpdateAuthAddrsRequest
 {
-   string auth_addresses_signed = 1;
-   string cc_addresses_signed = 2;
+   bytes auth_addresses_signed = 1;
+}
+
+message ArmoryUpdateCcAddrsRequest
+{
+   bytes cc_addresses_signed = 1;
 }
 
 message ArmoryGetOutpointsRequest
@@ -221,9 +226,10 @@ message ArmoryMessage
       ArmoryGetTxResponse tx_response = 15;
       ArmoryValidateAuthRequest  auth_request = 16;
       ArmoryValidateAuthResponse auth_response = 17;
-      ArmoryBSAddressesResponse bs_addresses = 18;
       ArmoryGetOutpointsRequest out_points_request = 19;
       ArmoryGetOutpointsResponse out_points_response = 20;
+      ArmoryUpdateAuthAddrsRequest update_auth_addrs = 21;
+      ArmoryUpdateCcAddrsRequest update_cc_addrs = 22;
    }
 }
 

@@ -530,6 +530,8 @@ void BsClient::processGetLoginResult(const Response_GetLoginResult &response)
    result.celerLogin = response.celer_login();
    result.chatTokenData = BinaryData::fromString(response.chat_token_data());
    result.chatTokenSign = BinaryData::fromString(response.chat_token_sign());
+   result.authAddressesSigned = BinaryData::fromString(response.auth_addresses_signed());
+   result.ccAddressesSigned = BinaryData::fromString(response.cc_addresses_signed());
    emit getLoginResultDone(result);
 }
 
