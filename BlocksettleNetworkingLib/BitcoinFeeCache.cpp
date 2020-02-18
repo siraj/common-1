@@ -16,7 +16,7 @@
 
 static constexpr auto kCacheValueExpireTimeout = std::chrono::hours(1);
 // 200 s/b
-static constexpr float kFallbackFeeAmount = 0.000002;
+static constexpr float kFallbackFeeAmount = 200;
 
 
 BitcoinFeeCache::BitcoinFeeCache(const std::shared_ptr<spdlog::logger> &logger
@@ -51,7 +51,7 @@ bool BitcoinFeeCache::getFeePerByteEstimation(unsigned int blocksToWait, const f
             pendingCB_.emplace(blocksToWait, std::vector<feeCB>{ cb });
 
             auto cbWrap = [this, blocksToWait](float fee) {
-               setFeeEstimationValue(blocksToWait, ArmoryConnection::toFeePerByte(fee));
+               setFeeEstimationValue(blocksToWait, fee);
             };
 
             if (!armory_->estimateFee(blocksToWait, cbWrap)) {
@@ -85,6 +85,8 @@ void BitcoinFeeCache::setFeeEstimationValue(const unsigned int blocksToWait, flo
       if (qFuzzyIsNull(fee) || qIsInf(fee)) {
          fee = kFallbackFeeAmount;
       } else {
+         fee = ArmoryConnection::toFeePerByte(fee);
+
          FeeEstimationCache currentValue;
          currentValue.feeEstimation = fee;
          currentValue.estimationTimestamp = std::chrono::system_clock::now();
