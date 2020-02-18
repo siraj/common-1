@@ -27,7 +27,7 @@ std::vector<UTXO> bs::selectUtxoForAmount(std::vector<UTXO> inputs, uint64_t amo
 
    auto remainingAmount = static_cast<int64_t>(amount);
    auto begin = inputs.begin();
-   for (; begin < inputs.end() && remainingAmount > 0; ++begin) {
+   for (; begin != inputs.end() && remainingAmount > 0; ++begin) {
       auto value = static_cast<int64_t>(begin->getValue());
       if (remainingAmount > value) {
          remainingAmount -= value;
@@ -41,6 +41,10 @@ std::vector<UTXO> bs::selectUtxoForAmount(std::vector<UTXO> inputs, uint64_t amo
       
       std::iter_swap(begin, --next);
       break;
+   }
+
+   if (begin == inputs.end()) {
+      return inputs;
    }
 
    inputs.erase(++begin, inputs.end());
