@@ -163,8 +163,6 @@ private:
 
    void ProcessBSAddressListResponse(const std::string& response, bool sigVerified);
 
-   void ProcessErrorResponse(const std::string& response) const;
-
    bool HaveBSAddressList() const;
 
    void VerifyWalletAddressesFunction();
