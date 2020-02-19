@@ -20,6 +20,9 @@ std::vector<UTXO> bs::selectUtxoForAmount(std::vector<UTXO> inputs, uint64_t amo
    if (amount == std::numeric_limits<uint64_t>::max()) {
       return inputs;
    }
+   else if (amount == 0) {
+      return {};
+   }
 
    std::sort(inputs.begin(), inputs.end(), [](const UTXO& left, const UTXO& right) -> bool {
       return left.getValue() > right.getValue();
@@ -35,7 +38,7 @@ std::vector<UTXO> bs::selectUtxoForAmount(std::vector<UTXO> inputs, uint64_t amo
       }
 
       auto next = begin + 1;
-      while (next != inputs.end() && remainingAmount < static_cast<int64_t>(next->getValue())) {
+      while (next != inputs.end() && remainingAmount <= static_cast<int64_t>(next->getValue())) {
          ++next;
       }
       
