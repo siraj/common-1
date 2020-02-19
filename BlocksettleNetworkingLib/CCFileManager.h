@@ -95,6 +95,8 @@ public:
 
    void setBsClient(BsClient *bsClient);
 
+   void setCcAddressesSigned(const BinaryData &data);
+
 signals:
    void CCSecurityDef(bs::network::CCSecurityDef);
    void CCSecurityId(const std::string& securityId);

@@ -81,6 +81,8 @@ struct BsClientLoginResult
    std::string celerLogin;
    BinaryData chatTokenData;
    BinaryData chatTokenSign;
+   BinaryData authAddressesSigned;
+   BinaryData ccAddressesSigned;
 };
 
 class BsClient : public QObject, public DataConnectionListener

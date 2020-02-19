@@ -121,6 +121,8 @@ public:
    size_t FromVerifiedIndex(size_t index) const;
    const std::unordered_set<std::string> &GetBSAddresses() const;
 
+   void setAuthAddressesSigned(const BinaryData &data);
+
    static std::string readyErrorStr(ReadyError error);
 
 private slots:
@@ -160,8 +162,6 @@ private:
    bool SendGetBSAddressListRequest();
 
    void ProcessBSAddressListResponse(const std::string& response, bool sigVerified);
-
-   void ProcessErrorResponse(const std::string& response) const;
 
    bool HaveBSAddressList() const;
 
