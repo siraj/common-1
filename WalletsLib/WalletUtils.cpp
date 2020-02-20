@@ -20,24 +20,36 @@ std::vector<UTXO> bs::selectUtxoForAmount(std::vector<UTXO> inputs, uint64_t amo
    if (amount == std::numeric_limits<uint64_t>::max()) {
       return inputs;
    }
-
-   std::multimap<int64_t, UTXO> inputsSorted;
-   for (auto &utxo : inputs) {
-      auto value = static_cast<int64_t>(utxo.getValue());
-      inputsSorted.emplace(value, std::move(utxo));
+   else if (amount == 0) {
+      return {};
    }
+
+   std::sort(inputs.begin(), inputs.end(), [](const UTXO& left, const UTXO& right) -> bool {
+      return left.getValue() > right.getValue();
+   });
 
    auto remainingAmount = static_cast<int64_t>(amount);
-   std::vector<UTXO> result;
-   while (!inputsSorted.empty() && remainingAmount > 0) {
-      auto it = inputsSorted.lower_bound(remainingAmount);
-      if (it == inputsSorted.end()) {
-         --it;
+   auto begin = inputs.begin();
+   for (; begin != inputs.end() && remainingAmount > 0; ++begin) {
+      auto value = static_cast<int64_t>(begin->getValue());
+      if (remainingAmount > value) {
+         remainingAmount -= value;
+         continue;
       }
-      remainingAmount -= it->first;
-      result.push_back(std::move(it->second));
-      inputsSorted.erase(it);
+
+      auto next = begin + 1;
+      while (next != inputs.end() && remainingAmount <= static_cast<int64_t>(next->getValue())) {
+         ++next;
+      }
+      
+      std::iter_swap(begin, --next);
+      break;
    }
 
-   return result;
+   if (begin == inputs.end()) {
+      return inputs;
+   }
+
+   inputs.erase(++begin, inputs.end());
+   return inputs;
 }

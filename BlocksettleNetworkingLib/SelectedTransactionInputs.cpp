@@ -100,13 +100,14 @@ void SelectedTransactionInputs::onCPFPReceived(const std::shared_ptr<bs::sync::W
       accCpfpInputs_.clear();
    }
    QPointer<SelectedTransactionInputs> thisPtr = this;
+   // #UTXO_MANAGER: consider to fix this to get data via utxo_reservation manager
    wallet->getSpendableTxOutList([thisPtr, wallet](const std::vector<UTXO> &utxos) {
       QMetaObject::invokeMethod(qApp, [thisPtr, wallet, utxos] {
          if (thisPtr) {
             thisPtr->onUTXOsReceived(wallet, utxos);
          }
       });
-   }, UINT64_MAX);
+   }, UINT64_MAX, true);
 }
 
 void SelectedTransactionInputs::onUTXOsReceived(const std::shared_ptr<bs::sync::Wallet> &wallet
@@ -147,13 +148,14 @@ void SelectedTransactionInputs::ResetInputs(const std::function<void()> &cb)
    QPointer<SelectedTransactionInputs> thisPtr = this;
    for (const auto &wallet : wallets_) {
       if (confirmedOnly_) {
+         // #UTXO_MANAGER: consider to fix this to get data via utxo_reservation manager
          wallet->getSpendableTxOutList([thisPtr, wallet](const std::vector<UTXO> &inputs) {
             QMetaObject::invokeMethod(qApp, [thisPtr, wallet, inputs] {
                if (thisPtr) {
                   thisPtr->onUTXOsReceived(wallet, inputs);
                }
             });
-         }, UINT64_MAX);
+         }, UINT64_MAX, true);
       } else {
          wallet->getSpendableZCList([thisPtr, wallet](const std::vector<UTXO> &inputs) {
             QMetaObject::invokeMethod(qApp, [thisPtr, wallet, inputs] {
