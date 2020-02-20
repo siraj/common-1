@@ -9,7 +9,7 @@
 
 */
 #include "ConnectionManager.h"
-#include <QNetworkAccessManager>
+
 #include "CelerClientConnection.h"
 #include "CelerStreamServerConnection.h"
 #include "GenoaConnection.h"
@@ -20,6 +20,8 @@
 #include "ZmqDataConnection.h"
 #include "ZMQ_BIP15X_DataConnection.h"
 #include "ZMQ_BIP15X_ServerConnection.h"
+
+#include <QNetworkAccessManager>
 
 #ifdef Q_OS_WIN
    #include <Winsock2.h>

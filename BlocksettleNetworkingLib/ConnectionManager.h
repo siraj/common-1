@@ -37,7 +37,7 @@ public:
       , const ZmqBIP15XPeers &zmqTrustedTerminals);
    ConnectionManager(const std::shared_ptr<spdlog::logger>& logger
       , std::shared_ptr<ArmoryServersProvider> armoryServers);
-   ~ConnectionManager() noexcept;
+   virtual ~ConnectionManager() noexcept;
 
    ConnectionManager(const ConnectionManager&) = delete;
    ConnectionManager& operator = (const ConnectionManager&) = delete;
@@ -49,9 +49,9 @@ public:
    std::shared_ptr<spdlog::logger>     GetLogger() const;
 
    std::shared_ptr<ServerConnection>   CreateGenoaAPIServerConnection() const;
-   std::shared_ptr<ServerConnection>   CreateCelerAPIServerConnection() const;
+   virtual std::shared_ptr<ServerConnection>   CreateCelerAPIServerConnection() const;
 
-   std::shared_ptr<DataConnection>     CreateCelerClientConnection() const;
+   virtual std::shared_ptr<DataConnection>     CreateCelerClientConnection() const;
    std::shared_ptr<DataConnection>     CreateGenoaClientConnection(
       bool monitored = false) const;
 
