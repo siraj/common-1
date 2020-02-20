@@ -76,6 +76,9 @@ struct XBTTradeData
    std::string lastStatus;
 
    std::map<std::string, BinaryData> preimageData;
+
+   //the block height the payout was broadcasted at
+   unsigned payoutBroadcastHeight_ = UINT32_MAX;
 };
 
 using XBTTradePtr = std::shared_ptr<XBTTradeData>;
