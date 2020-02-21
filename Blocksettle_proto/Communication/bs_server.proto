@@ -289,24 +289,26 @@ message CCValidateHalvesResponse
 
 enum CcTrackMessageType
 {
-   CcTrackUnknownType    = 0;
-   CcTrackOnline         = 1;
-   CcTrackCCDefinitions  = 2;
-   CcTrackGenAddresses   = 3;
-   CcTrackIsTxValid      = 4;
-   CcTrackValidateHalves = 5;
+   CcTrackUnknownType         = 0;
+   CcTrackOnline              = 1;
+   CcTrackCCDefinitions       = 2;
+   CcTrackGenAddresses        = 3;
+   CcTrackIsTxValid           = 4;
+   CcTrackValidateHalves      = 5;
+   CcTrackNewDefinitions      = 6;
+   CcTrackDisabledDefinition  = 7;
 }
 
 message CcTrackMessage
 {
    CcTrackMessageType type = 1;
    oneof data {
-      CCDefinitionsData cc_definitions = 2;
-      CCGenesisAddressData ga_data = 3;
-      CCTxValidRequest  tx_valid_request = 4;
-      CCTxValidResponse tx_valid_response = 5;
-      CCValidateHalvesRequest  cc_valid_request = 6;
-      CCValidateHalvesResponse cc_valid_response = 7;
+      CCDefinitionsData          cc_definitions = 2;
+      CCGenesisAddressData       ga_data = 3;
+      CCTxValidRequest           tx_valid_request = 4;
+      CCTxValidResponse          tx_valid_response = 5;
+      CCValidateHalvesRequest    cc_valid_request = 6;
+      CCValidateHalvesResponse   cc_valid_response = 7;
    }
 }
 
@@ -922,8 +924,6 @@ enum TradeHistType
    TradeHistRequestCcPrices         = 8;
    TradeHistRequestEOD              = 9;
    TradeHistRequestEODSnapshot      = 10;
-   TradeHistNewCCDefinitions        = 11;
-   TradeHistDisableCCDefinitions    = 12;
 }
 
 message TradeDataMessage
@@ -1093,7 +1093,6 @@ message TradeHistMessage
       Communication.TradeHistory.DateContainer  eod_request       = 11;
       bytes                                     eod_data          = 12;
       TradeHistEODSnapshotResponse              eod_snapshot      = 13;
-      string                                    cc_product_name   = 14;
    }
 }
 
