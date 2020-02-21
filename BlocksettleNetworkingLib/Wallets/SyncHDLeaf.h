@@ -62,7 +62,7 @@ namespace bs {
             bool hasExtOnlyAddresses() const override { return isExtOnly_; }
             bool hasId(const std::string &) const override;
 
-            bool getSpendableTxOutList(const ArmoryConnection::UTXOsCb &, uint64_t val) override;
+            bool getSpendableTxOutList(const ArmoryConnection::UTXOsCb &, uint64_t val, bool excludeReservation) override;
             BTCNumericTypes::balance_type getSpendableBalance() const override;
             bool getHistoryPage(uint32_t id, std::function<void(const bs::sync::Wallet *wallet
                , std::vector<ClientClasses::LedgerEntry>)>, bool onlyNew = false) const;
@@ -230,7 +230,7 @@ namespace bs {
             void setCCTracker(const std::shared_ptr<ColoredCoinTrackerClient> &);
             void setPath(const bs::hd::Path &) override;
 
-            bool getSpendableTxOutList(const ArmoryConnection::UTXOsCb &, uint64_t val) override;
+            bool getSpendableTxOutList(const ArmoryConnection::UTXOsCb &, uint64_t val, bool excludeReservation) override;
             bool getSpendableZCList(const ArmoryConnection::UTXOsCb &) const override;
             bool isBalanceAvailable() const override;
             BTCNumericTypes::balance_type getSpendableBalance() const override;

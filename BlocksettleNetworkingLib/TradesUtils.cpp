@@ -40,7 +40,7 @@ namespace {
 } // namespace
 
 bool bs::tradeutils::getSpendableTxOutList(const std::vector<std::shared_ptr<bs::sync::Wallet>> &wallets
-   , const std::function<void(const std::map<UTXO, std::string> &)> &cb)
+   , const std::function<void(const std::map<UTXO, std::string> &)> &cb, bool excludeReservation)
 {
    if (wallets.empty()) {
       cb({});
@@ -76,7 +76,7 @@ bool bs::tradeutils::getSpendableTxOutList(const std::vector<std::shared_ptr<bs:
       };
 
       // If request for some wallet failed resulted callback won't be called.
-      if (!wallet->getSpendableTxOutList(cbWrap, UINT64_MAX)) {
+      if (!wallet->getSpendableTxOutList(cbWrap, UINT64_MAX, excludeReservation)) {
          return false;
       }
    }
@@ -254,6 +254,8 @@ void bs::tradeutils::createPayin(bs::tradeutils::PayinArgs args, bs::tradeutils:
             };
 
             if (args.fixedInputs.empty()) {
+               // #UTXO_MANAGER: this shoudn't be possible anymore
+               // leave for now, expecting has assert here
                auto inputsCbWrap = [args, cb, inputsCb](std::map<UTXO, std::string> inputs) {
                   std::vector<UTXO> utxos;
                   utxos.reserve(inputs.size());
@@ -266,7 +268,7 @@ void bs::tradeutils::createPayin(bs::tradeutils::PayinArgs args, bs::tradeutils:
                   }
                   inputsCb(utxos, false);
                };
-               getSpendableTxOutList(args.inputXbtWallets, inputsCbWrap);
+               getSpendableTxOutList(args.inputXbtWallets, inputsCbWrap, true);
             } else {
                inputsCb(args.fixedInputs, true);
             }
