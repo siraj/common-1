@@ -924,6 +924,7 @@ enum TradeHistType
    TradeHistRequestCcPrices         = 8;
    TradeHistRequestEOD              = 9;
    TradeHistRequestEODSnapshot      = 10;
+   TradeHistorySetInitialPrice      = 11;
 }
 
 message TradeDataMessage
@@ -1035,7 +1036,7 @@ message TradeDataCcMessage
    uint64       zc_timestamp = 8;
 }
 
-message TradeDataResponseMessage
+message TradeHistResponse
 {
    bool success = 1;
 }
@@ -1061,9 +1062,16 @@ message TradeHistSnapshotResponse
 
 message TradeHistPricesResponse
 {
-   bool   price_set = 1;
-   double bid_price = 2;
-   double offer_price = 3;
+   bool   price_set     = 1;
+   double bid_price     = 2;
+   double offer_price   = 3;
+}
+
+message SetInitialPriceRequest
+{
+   string cc_name       = 1;
+   double bid_price     = 2;
+   double offer_price   = 3;
 }
 
 message TradeHistEODSnapshotResponse
@@ -1084,7 +1092,7 @@ message TradeHistMessage
       bytes                                     fx_trade          = 2;
       bytes                                     xbt_trade         = 3;
       bytes                                     cc_trade          = 4;
-      TradeDataResponseMessage                  response          = 5;
+      TradeHistResponse                         response          = 5;
       TradeHistRequest                          hist_request      = 6;
       bytes                                     last_trade        = 7;
       TradeHistBuySellResponse                  buy_sell_trades   = 8;
@@ -1093,6 +1101,7 @@ message TradeHistMessage
       Communication.TradeHistory.DateContainer  eod_request       = 11;
       bytes                                     eod_data          = 12;
       TradeHistEODSnapshotResponse              eod_snapshot      = 13;
+      SetInitialPriceRequest                    set_initial_price = 14;
    }
 }
 

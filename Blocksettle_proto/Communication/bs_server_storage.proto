@@ -283,12 +283,13 @@ message StorageTradeHistMessage
        StorageTradeHistTrades fx_trades = 11;
        StorageTradeHistTrades xbt_trades = 12;
        StorageTradeHistTrades cc_trades = 13;
-       string cc_prices_request = 14;
-       StorageTradeHistCCPrices cc_prices_response = 15;
-       Communication.TradeHistory.DateContainer eod_snapshot_request = 16;
-       bytes  eod_snapshot_response = 17;
-       Communication.TradeHistory.DateContainer eod_snapshots_request = 18;
-       StorageTradeHistSnapshots eod_snapshots_response = 19;
+       string                                   cc_prices_request       = 14;
+       StorageTradeHistCCPrices                 cc_prices_response      = 15;
+       StorageTradeHistCCPrices                 set_cc_prices_request   = 16;
+       Communication.TradeHistory.DateContainer eod_snapshot_request    = 17;
+       bytes                                    eod_snapshot_response   = 18;
+       Communication.TradeHistory.DateContainer eod_snapshots_request   = 19;
+       StorageTradeHistSnapshots                eod_snapshots_response  = 20;
    }
 }
 
