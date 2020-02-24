@@ -18,7 +18,7 @@
 #include <set>
 #include <string>
 #include <unordered_map>
-
+#include <QObject>
 #include "CommonTypes.h"
 
 #include "CelerCreateCCSecurityOnMDSequence.h"
@@ -31,13 +31,12 @@ namespace spdlog
 class CelerClient;
 class ConnectionManager;
 
-class CelerMarketDataProvider : public MarketDataProvider
+class CelerMarketDataProvider : public QObject, public MarketDataProvider
 {
 Q_OBJECT
-
 public:
-   CelerMarketDataProvider(const std::shared_ptr<ConnectionManager>& connectionManager
-      , const std::shared_ptr<spdlog::logger>& logger
+   CelerMarketDataProvider(const std::shared_ptr<ConnectionManager> &
+      , const std::shared_ptr<spdlog::logger> &, MDCallbackTarget *
       , bool filterUsdProducts);
    ~CelerMarketDataProvider() noexcept override = default;
 

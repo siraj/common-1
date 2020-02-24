@@ -17,12 +17,11 @@
 
 #include <vector>
 
-BSMarketDataProvider::BSMarketDataProvider(const std::shared_ptr<ConnectionManager>& connectionManager
-      , const std::shared_ptr<spdlog::logger>& logger)
- : MarketDataProvider(logger)
+BSMarketDataProvider::BSMarketDataProvider(const std::shared_ptr<ConnectionManager> &connectionManager
+      , const std::shared_ptr<spdlog::logger> &logger, MDCallbackTarget *callbacks)
+ : MarketDataProvider(logger, callbacks)
  , connectionManager_{connectionManager}
-{
-}
+{}
 
 bool BSMarketDataProvider::StartMDConnection()
 {
@@ -42,10 +41,10 @@ bool BSMarketDataProvider::StartMDConnection()
 
    logger_->debug("[BSMarketDataProvider::StartMDConnection] start connecting to PB updates");
 
-   emit StartConnecting();
+   callbacks_->startConnecting();
    if (!mdConnection_->ConnectToPublisher(host_, port_, listener_.get())) {
       logger_->error("[BSMarketDataProvider::StartMDConnection] failed to start connection");
-      emit Disconnected();
+      callbacks_->disconnected();
       return false;
    }
 
@@ -54,14 +53,13 @@ bool BSMarketDataProvider::StartMDConnection()
 
 void BSMarketDataProvider::StopMDConnection()
 {
-   emit MDUpdate(bs::network::Asset::Undefined, QString(), {});
+   callbacks_->onMDUpdate(bs::network::Asset::Undefined, {}, {});
 
    if (mdConnection_ != nullptr) {
       mdConnection_->stopListen();
       mdConnection_ = nullptr;
    }
-
-   emit Disconnected();
+   callbacks_->disconnected();
 }
 
 bool BSMarketDataProvider::IsConnectionActive() const
@@ -74,7 +72,7 @@ bool BSMarketDataProvider::DisconnectFromMDSource()
    if (mdConnection_ == nullptr) {
       return true;
    }
-   emit Disconnecting();
+   callbacks_->disconnecting();
 
    if (mdConnection_ != nullptr)
       mdConnection_->stopListen();
@@ -106,16 +104,16 @@ void BSMarketDataProvider::onDataFromMD(const std::string& data)
 
 void BSMarketDataProvider::onConnectedToMD()
 {
-   emit Connected();
+   callbacks_->connected();
 }
 
 void BSMarketDataProvider::onDisconnectedFromMD()
 {
-   emit Disconnecting();
-   emit MDUpdate(bs::network::Asset::Undefined, QString(), {});
+   callbacks_->disconnecting();
+   callbacks_->onMDUpdate(bs::network::Asset::Undefined, {}, {});
 
    mdConnection_ = nullptr;
-   emit Disconnected();
+   callbacks_->disconnected();
 }
 
 bs::network::MDFields GetMDFields(const Blocksettle::Communication::BlocksettleMarketData::ProductPriceInfo& productInfo)
@@ -142,10 +140,10 @@ void BSMarketDataProvider::OnProductSnapshot(const bs::network::Asset::Type& ass
    , const Blocksettle::Communication::BlocksettleMarketData::ProductPriceInfo& productInfo
    , double timestamp)
 {
-   emit MDSecurityReceived(productInfo.product_name(), {assetType});
+   callbacks_->onMDSecurityReceived(productInfo.product_name(), {assetType});
    auto fields = GetMDFields(productInfo);
    fields.emplace_back(bs::network::MDField{bs::network::MDField::MDTimestamp, timestamp, {}});
-   emit MDUpdate(assetType, QString::fromStdString(productInfo.product_name()), GetMDFields(productInfo));
+   callbacks_->onMDUpdate(assetType, productInfo.product_name(), GetMDFields(productInfo));
 }
 
 void BSMarketDataProvider::OnFullSnapshot(const std::string& data)
@@ -180,7 +178,7 @@ void BSMarketDataProvider::OnProductUpdate(const bs::network::Asset::Type& asset
    auto fields = GetMDFields(productInfo);
    if (!fields.empty()) {
       fields.emplace_back(bs::network::MDField{bs::network::MDField::MDTimestamp, timestamp, {}});
-      emit MDUpdate(assetType, QString::fromStdString(productInfo.product_name()), fields);
+      callbacks_->onMDUpdate(assetType, productInfo.product_name(), fields);
    }
 }
 
@@ -252,7 +250,7 @@ void BSMarketDataProvider::OnNewFXTradeUpdate(const std::string& data)
    trade.amount = trade_record.amount();
    trade.timestamp = trade_record.timestamp();
 
-   emit OnNewFXTrade(trade);
+   callbacks_->onNewFXTrade(trade);
 }
 
 void BSMarketDataProvider::OnNewXBTTradeUpdate(const std::string& data)
@@ -270,7 +268,7 @@ void BSMarketDataProvider::OnNewXBTTradeUpdate(const std::string& data)
    trade.amount = trade_record.amount();
    trade.timestamp = trade_record.timestamp();
 
-   emit OnNewXBTTrade(trade);
+   callbacks_->onNewXBTTrade(trade);
 }
 
 void BSMarketDataProvider::OnNewPMTradeUpdate(const std::string& data)
@@ -288,5 +286,5 @@ void BSMarketDataProvider::OnNewPMTradeUpdate(const std::string& data)
    trade.amount = trade_record.amount();
    trade.timestamp = trade_record.timestamp();
 
-   emit OnNewPMTrade(trade);
+   callbacks_->onNewPMTrade(trade);
 }

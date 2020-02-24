@@ -11,26 +11,45 @@
 #ifndef __MARKET_DATA_PROVIDER_H__
 #define __MARKET_DATA_PROVIDER_H__
 
-#include <QObject>
-
-#include "CommonTypes.h"
-
 #include <memory>
 #include <string>
 #include <unordered_map>
+#include "CommonTypes.h"
 
-namespace spdlog
-{
+
+namespace spdlog {
    class logger;
 }
 
-class MarketDataProvider : public QObject
+class MDCallbackTarget
 {
-Q_OBJECT
-
 public:
-   MarketDataProvider(const std::shared_ptr<spdlog::logger>& logger);
-   ~MarketDataProvider() noexcept override = default;
+   virtual void userWantsToConnect() {}
+   virtual void waitingForConnectionDetails() {}
+   virtual void startConnecting() {}
+   virtual void connected() {}
+   virtual void disconnecting() {}
+   virtual void disconnected() {}
+   virtual void onRequestRejected(const std::string &security
+      , const std::string &reason) {}
+
+   virtual void onMDUpdate(bs::network::Asset::Type, const std::string &security
+      , bs::network::MDFields) {}
+   virtual void onMDSecurityReceived(const std::string &security
+      , const bs::network::SecurityDef &) {}
+   virtual void allSecuritiesReceived() {}
+
+   virtual void onNewFXTrade(const bs::network::NewTrade &) {}
+   virtual void onNewXBTTrade(const bs::network::NewTrade &) {}
+   virtual void onNewPMTrade(const bs::network::NewPMTrade &) {}
+};
+
+class MarketDataProvider
+{
+public:
+   MarketDataProvider(const std::shared_ptr<spdlog::logger> &
+      , MDCallbackTarget *);
+   virtual ~MarketDataProvider() noexcept = default;
 
    MarketDataProvider(const MarketDataProvider&) = delete;
    MarketDataProvider& operator = (const MarketDataProvider&) = delete;
@@ -42,39 +61,18 @@ public:
 
    void SubscribeToMD();
    void UnsubscribeFromMD();
-   virtual bool DisconnectFromMDSource() { return true; }
+   virtual void MDLicenseAccepted();
 
+   virtual bool DisconnectFromMDSource() { return true; }
    virtual bool IsConnectionActive() const { return false; }
 
 protected:
    virtual bool StartMDConnection() { return true; }
    virtual void StopMDConnection() { }
 
-public slots:
-   void MDLicenseAccepted();
-
-signals:
-   void UserWantToConnectToMD();
-
-   void WaitingForConnectionDetails();
-
-   void StartConnecting();
-   void Connected();
-
-   void Disconnecting();
-   void Disconnected();
-
-   void MDUpdate(bs::network::Asset::Type, const QString &security, bs::network::MDFields);
-   void MDSecurityReceived(const std::string &security, const bs::network::SecurityDef &sd);
-   void MDSecuritiesReceived();
-   void MDReqRejected(const std::string &security, const std::string &reason);
-
-   void OnNewFXTrade(const bs::network::NewTrade& trade);
-   void OnNewXBTTrade(const bs::network::NewTrade& trade);
-   void OnNewPMTrade(const bs::network::NewPMTrade& trade);
-
 protected:
    std::shared_ptr<spdlog::logger>  logger_;
+   MDCallbackTarget              *  callbacks_;
 
    bool waitingForConnectionDetails_ = false;
 
