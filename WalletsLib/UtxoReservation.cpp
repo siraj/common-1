@@ -114,6 +114,19 @@ void bs::UtxoReservation::filter(std::vector<UTXO> &utxos) const
    }
 }
 
+bool bs::UtxoReservation::containsReservedUTXO(const std::vector<UTXO> &utxos) const
+{
+   std::lock_guard<std::mutex> lock(mutex_);
+
+   for ( auto it = utxos.begin(); it != utxos.end(); ++it) {
+      if (reserved_.find(*it) != reserved_.end()) {
+         return true;
+      }
+   }
+
+   return false;
+}
+
 UtxoReservation *UtxoReservation::instance()
 {
    return utxoResInstance_.get();
