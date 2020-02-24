@@ -772,7 +772,7 @@ int hd::Leaf::addAddress(const bs::Address &addr, const std::string &index, bool
    return id;
 }
 
-bool hd::Leaf::getSpendableTxOutList(const ArmoryConnection::UTXOsCb &cb, uint64_t val)
+bool hd::Leaf::getSpendableTxOutList(const ArmoryConnection::UTXOsCb &cb, uint64_t val, bool excludeReservation)
 {  // process the UTXOs for the purposes of handling internal/external addresses
    const ArmoryConnection::UTXOsCb &cbWrap = [this, cb, val](const std::vector<UTXO> &utxos) {
       std::vector<UTXO> filteredUTXOs;
@@ -788,7 +788,7 @@ bool hd::Leaf::getSpendableTxOutList(const ArmoryConnection::UTXOsCb &cb, uint64
          cb(bs::selectUtxoForAmount(std::move(filteredUTXOs), val));
       }
    };
-   return bs::sync::Wallet::getSpendableTxOutList(cbWrap, std::numeric_limits<uint64_t>::max());
+   return bs::sync::Wallet::getSpendableTxOutList(cbWrap, std::numeric_limits<uint64_t>::max(), excludeReservation);
 }
 
 BTCNumericTypes::balance_type hd::Leaf::getSpendableBalance() const
@@ -944,9 +944,9 @@ std::vector<std::string> hd::CCLeaf::setUnconfirmedTarget()
    return { btcWallet_->setUnconfirmedTarget(kIntConfCount) };
 }
 
-bool hd::CCLeaf::getSpendableTxOutList(const ArmoryConnection::UTXOsCb &cb, uint64_t val)
+bool hd::CCLeaf::getSpendableTxOutList(const ArmoryConnection::UTXOsCb &cb, uint64_t val, bool excludeReservation)
 {
-   const auto cbWrap = [this, cb, val, handle = validityFlag_.handle()]
+   const auto cbWrap = [this, cb, val, handle = validityFlag_.handle(), excludeReservation]
       (const std::vector<UTXO> &utxos, std::exception_ptr eptr) mutable
    {
       ValidityGuard lock(handle);
@@ -960,7 +960,7 @@ bool hd::CCLeaf::getSpendableTxOutList(const ArmoryConnection::UTXOsCb &cb, uint
             filteredUTXOs.emplace_back(std::move(utxo));
          }
       }
-      if (UtxoReservation::instance()) {
+      if (UtxoReservation::instance() && excludeReservation) {
          UtxoReservation::instance()->filter(filteredUTXOs);
       }
       if (cb) {
@@ -971,7 +971,7 @@ bool hd::CCLeaf::getSpendableTxOutList(const ArmoryConnection::UTXOsCb &cb, uint
 
    if (tracker_ == nullptr) {
       if (ccResolver_->genesisAddrFor(suffix_).isNull()) {
-         return bs::sync::hd::Leaf::getSpendableTxOutList(cb, val);
+         return bs::sync::hd::Leaf::getSpendableTxOutList(cb, val, excludeReservation);
       }
       // GA is null if this CC leaf created inside PB and contain real GA address
       // if it is not - tracker should be set

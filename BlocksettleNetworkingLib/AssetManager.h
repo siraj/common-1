@@ -30,7 +30,7 @@ namespace bs {
    }
 }
 
-class MarketDataProvider;
+class MDCallbacksQt;
 class BaseCelerClient;
 
 class AssetManager : public QObject
@@ -38,10 +38,10 @@ class AssetManager : public QObject
     Q_OBJECT
 
 public:
-   AssetManager(const std::shared_ptr<spdlog::logger>& logger
+   AssetManager(const std::shared_ptr<spdlog::logger> &
       , const std::shared_ptr<bs::sync::WalletsManager> &
-      , const std::shared_ptr<MarketDataProvider>& mdProvider
-      , const std::shared_ptr<BaseCelerClient>& celerClient);
+      , const std::shared_ptr<MDCallbacksQt> &
+      , const std::shared_ptr<BaseCelerClient> &);
    ~AssetManager() = default;
 
    virtual void init();
@@ -100,7 +100,7 @@ private:
 protected:
    std::shared_ptr<spdlog::logger>        logger_;
    std::shared_ptr<bs::sync::WalletsManager> walletsManager_;
-   std::shared_ptr<MarketDataProvider>    mdProvider_;
+   std::shared_ptr<MDCallbacksQt>         mdCallbacks_;
    std::shared_ptr<BaseCelerClient>       celerClient_;
 
    bool     securitiesReceived_ = false;

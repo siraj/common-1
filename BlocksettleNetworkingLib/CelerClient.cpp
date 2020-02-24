@@ -82,9 +82,7 @@ bool CelerClient::LoginToServer(const std::string &hostname, const std::string &
       connection_.reset();
       return false;
    }
-
-   bool result = BaseCelerClient::SendLogin(login, login, password);
-   return result;
+   return BaseCelerClient::SendLogin(login, login, password);
 }
 
 void CelerClient::CloseConnection()

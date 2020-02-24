@@ -8,13 +8,18 @@
 **********************************************************************************
 
 */
+#include <spdlog/spdlog.h>
 #include "MarketDataProvider.h"
 
-#include <spdlog/spdlog.h>
 
-MarketDataProvider::MarketDataProvider(const std::shared_ptr<spdlog::logger>& logger)
-   : logger_{logger}
-{}
+MarketDataProvider::MarketDataProvider(const std::shared_ptr<spdlog::logger> &logger
+   , MDCallbackTarget *callbacks)
+   : logger_{logger}, callbacks_(callbacks)
+{
+   if (callbacks == nullptr) {
+      throw std::runtime_error("callback target is mandatory");
+   }
+}
 
 void MarketDataProvider::SetConnectionSettings(const std::string &host, const std::string &port)
 {
@@ -37,7 +42,7 @@ void MarketDataProvider::SetConnectionSettings(const std::string &host, const st
 
 void MarketDataProvider::SubscribeToMD()
 {
-   emit UserWantToConnectToMD();
+   callbacks_->userWantsToConnect();
 }
 
 void MarketDataProvider::UnsubscribeFromMD()
@@ -48,14 +53,13 @@ void MarketDataProvider::UnsubscribeFromMD()
 void MarketDataProvider::MDLicenseAccepted()
 {
    if (host_.empty() || port_.empty()) {
-      logger_->debug("[MarketDataProvider::MDLicenseAccepted] need to load connection settings before connect");
+      logger_->debug("[MarketDataProvider::MDLicenseAccepted] need to load "
+         "connection settings before connect");
       waitingForConnectionDetails_ = true;
-      WaitingForConnectionDetails();
+      callbacks_->waitingForConnectionDetails();
       return;
    }
-
-   logger_->debug("[MarketDataProvider::MDLicenseAccepted] user accepted MD agreement. Start connection to {}:{}"
-      , host_, port_);
-
+   logger_->debug("[MarketDataProvider::MDLicenseAccepted] user accepted MD "
+      "agreement. Start connection to {}:{}", host_, port_);
    StartMDConnection();
 }

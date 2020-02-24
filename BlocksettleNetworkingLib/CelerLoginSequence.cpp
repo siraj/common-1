@@ -77,7 +77,10 @@ bool CelerLoginSequence::processLoginResponse(const CelerMessage& message)
       if (response.has_message()) {
          errorMessage_ = response.message();
       }
-
+      else {
+         logger_->warn("[CelerLoginSequence::processLoginResponse] failed without error"
+            ": {}", response.DebugString());
+      }
       return false;
    }
 

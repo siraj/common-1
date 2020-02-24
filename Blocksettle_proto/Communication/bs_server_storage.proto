@@ -120,6 +120,13 @@ message SaveNewRequest
 {
    RequestFileType   type           = 1;
    bytes             data           = 2;
+   // Optional key to drop duplicated requests
+   string            ext_request_id = 3;
+}
+
+message SaveNewResponse
+{
+   bool success = 1;
 }
 
 message ExportRequestFiles
@@ -141,13 +148,16 @@ message RequestCompletedUpdate
 
 enum RequestStorageMessageType
 {
-   SaveNewRequestFileType     = 0;
+   UnknownRequestType             = 0;
 
-   ExportRequestsType         = 1;
-   ExportRequestsResponseType = 2;
+   SaveRequestFileType            = 1;
+   SaveRequestFileResponseType    = 2;
 
-   RequestCompletedType       = 3;
-   PendingRequestsStatistics  = 4;
+   ExportRequestsType             = 3;
+   ExportRequestsResponseType     = 4;
+
+   RequestCompletedType           = 5;
+   PendingRequestsStatistics      = 6;
 
 }
 
@@ -215,7 +225,8 @@ message StorageRequestsMessage
    RequestStorageMessageType  type = 1;
    bytes                      associated_data = 2;
    oneof data {
-      SaveNewRequest             request           = 3;
+      SaveNewRequest             save_request      = 3;
+      SaveNewResponse            save_response     = 8;
       ExportRequestFiles         export_request    = 4;
       ExportRequestFilesResponse export_response   = 5;
       RequestCompletedUpdate     completed_request = 6;

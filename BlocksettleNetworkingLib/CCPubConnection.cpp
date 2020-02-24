@@ -98,22 +98,7 @@ void CCPubConnection::OnDataReceived(const std::string& data)
    case RequestType::GetCCGenesisAddressesType:
       ProcessGenAddressesResponse(response.responsedata(), response.datasignature());
       break;
-   case RequestType::ErrorMessageResponseType:
-      ProcessErrorResponse(response.responsedata());
-      break;
    default:
-      logger_->error("[CCPubConnection::OnDataReceived] unrecognized response type from public bridge: {}", response.responsetype());
       break;
    }
-}
-
-void CCPubConnection::ProcessErrorResponse(const std::string& responseString) const
-{
-   ErrorMessageResponse response;
-   if (!response.ParseFromString(responseString)) {
-      logger_->error("[CCPubConnection::ProcessErrorResponse] failed to parse error message response");
-      return;
-   }
-
-   logger_->error("[CCPubConnection::ProcessErrorResponse] error message from public bridge: {}", response.errormessage());
 }
