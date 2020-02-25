@@ -74,7 +74,8 @@ namespace bs {
          void reset();
 
          void syncWallets(const CbProgress &cb = nullptr);
-
+         
+         bool isSynchronising() const;
          bool isWalletsReady() const;
 
          size_t walletsCount() const { return wallets_.size(); }
@@ -303,7 +304,14 @@ namespace bs {
 
          unsigned int createHdReqId_ = 0;
 
-         std::atomic_bool  synchronized_{ false };
+         enum class WalletsSyncState 
+         {
+            NotSynced = 0,
+            Running,
+            Synced
+         };
+
+         std::atomic<WalletsSyncState>  syncState_{ WalletsSyncState::NotSynced };
 
          std::atomic_bool           maintThreadRunning_{ false };
          std::deque<MaintQueueCb>   maintQueue_;
