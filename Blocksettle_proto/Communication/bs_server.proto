@@ -341,6 +341,7 @@ enum GenoaType
    GenoaAuthFeeConfirm           = 28;
    GenoaGetUserAccounts          = 29;
    GenoaGetAccountBalance        = 30;
+   GenoEODUpdate                 = 31;
 }
 
 message GenoaConnectedBroadcast
@@ -626,6 +627,18 @@ message GenoaAccountBalanceResponse
    }
 }
 
+message GenoaEODUpdateMessage
+{
+   message GenoaPrice
+   {
+      string product = 1;
+      double price   = 2;
+   }
+
+   string               date     = 1;
+   repeated GenoaPrice  prices   = 2;
+}
+
 message GenoaMessage
 {
    GenoaType type = 1;
@@ -659,6 +672,7 @@ message GenoaMessage
       GenoaAccountInfoResponse         user_account_response      = 29;
       GenoaAccountBalanceRequest       acc_balance_request        = 30;
       GenoaAccountBalanceResponse      acc_balance_response       = 31;
+      GenoaEODUpdateMessage            eod_update                 = 32;
    }
 }
 
