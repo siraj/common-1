@@ -931,6 +931,7 @@ enum TradeHistType
    TradeHistRequestEOD              = 9;
    TradeHistRequestEODSnapshot      = 10;
    TradeHistorySetInitialPrice      = 11;
+   TradeHistEODEvent                = 12;
 }
 
 message TradeDataMessage

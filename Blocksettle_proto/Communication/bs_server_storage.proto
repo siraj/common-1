@@ -278,6 +278,12 @@ message StorageTradeHistSnapshots
    }
 }
 
+message GetLatestEODDate
+{
+   bool                                      loaded         = 1;
+   Communication.TradeHistory.DateContainer  last_eod_date  = 2;
+}
+
 message StorageTradeHistMessage
 {
    oneof data {
@@ -301,6 +307,7 @@ message StorageTradeHistMessage
        bytes                                    eod_snapshot_response   = 18;
        Communication.TradeHistory.DateContainer eod_snapshots_request   = 19;
        StorageTradeHistSnapshots                eod_snapshots_response  = 20;
+       GetLatestEODDate                         last_eod_date           = 21;
    }
 }
 
