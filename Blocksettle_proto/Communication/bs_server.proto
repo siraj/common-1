@@ -1085,11 +1085,17 @@ message TradeHistEODSnapshotResponse
 {
     message EODSnapshot
     {
-       Communication.TradeHistory.DateContainer date = 1;
-       string eod = 2;
+       Communication.TradeHistory.DateContainer date  = 1;
+       bytes                                    eod   = 2;
     }
-    repeated EODSnapshot snapshot = 1;
+    repeated EODSnapshot                     snapshot = 1;
     Communication.TradeHistory.DateContainer req_date = 2;
+}
+
+message TradeHistEODUpdate
+{
+   Communication.TradeHistory.DateContainer  date  = 1;
+   bytes                                     eod   = 2;
 }
 
 message TradeHistMessage
@@ -1109,6 +1115,7 @@ message TradeHistMessage
       bytes                                     eod_data          = 12;
       TradeHistEODSnapshotResponse              eod_snapshot      = 13;
       SetInitialPriceRequest                    set_initial_price = 14;
+      TradeHistEODUpdate                        eod_update        = 15;
    }
 }
 
