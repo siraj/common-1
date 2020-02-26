@@ -138,6 +138,10 @@ void WalletsManager::syncWallet(const bs::sync::WalletInfo &info, const std::fun
 
 void WalletsManager::syncWallets(const CbProgress &cb)
 {
+   if (syncState_ == WalletsSyncState::Running) {
+      return;
+   }
+
    const auto &cbWalletInfo = [this, cb](const std::vector<bs::sync::WalletInfo> &wi) {
       auto walletIds = std::make_shared<std::unordered_set<std::string>>();
       for (const auto &info : wi)
@@ -154,7 +158,7 @@ void WalletsManager::syncWallets(const CbProgress &cb)
                logger_->debug("[WalletsManager::syncWallets] all wallets synchronized");
                emit walletsSynchronized();
                emit walletChanged("");
-               synchronized_ = true;
+               syncState_ = WalletsSyncState::Synced;
             }
          };
 
@@ -167,12 +171,12 @@ void WalletsManager::syncWallets(const CbProgress &cb)
       }
 
       if (wi.empty()) {
-         synchronized_ = true;
+         syncState_ = WalletsSyncState::Synced;
          emit walletsSynchronized();
       }
    };
 
-   synchronized_ = false;
+   syncState_ = WalletsSyncState::Running;
    emit walletsSynchronizationStarted();
    if (!signContainer_) {
       logger_->error("[WalletsManager::{}] signer is not set - aborting"
@@ -182,9 +186,14 @@ void WalletsManager::syncWallets(const CbProgress &cb)
    signContainer_->syncWalletInfo(cbWalletInfo);
 }
 
+bool WalletsManager::isSynchronising() const
+{
+   return syncState_ == WalletsSyncState::Running;
+}
+
 bool WalletsManager::isWalletsReady() const
 {
-   if (synchronized_ && hdWallets_.empty()) {
+   if (syncState_ == WalletsSyncState::Synced  && hdWallets_.empty()) {
       return true;
    }
    return isReady_;
