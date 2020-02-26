@@ -309,11 +309,7 @@ void AuthAddressManager::OnDataReceived(const std::string& data)
    case RequestType::GetBSFundingAddressListType:
       ProcessBSAddressListResponse(response.responsedata(), sigVerified);
       break;
-   case RequestType::ErrorMessageResponseType:
-      ProcessErrorResponse(response.responsedata());
-      break;
    default:
-      logger_->error("[AuthAddressManager::OnDataReceived] unrecognized response type from public bridge: {}", response.responsetype());
       break;
    }
 }
@@ -370,17 +366,6 @@ void AuthAddressManager::SubmitToCeler(const bs::Address &address)
    else {
       logger_->debug("[AuthAddressManager::SubmitToCeler] Celer is not connected");
    }
-}
-
-void AuthAddressManager::ProcessErrorResponse(const std::string& responseString) const
-{
-   ErrorMessageResponse response;
-   if (!response.ParseFromString(responseString)) {
-      logger_->error("[AuthAddressManager::ProcessErrorResponse] failed to parse error message response");
-      return;
-   }
-   logger_->error("[AuthAddressManager::ProcessErrorResponse] error message from public bridge: {}", response.errormessage());
-   emit Error(tr("Received error from BS server: %1").arg(QString::fromStdString(response.errormessage())));
 }
 
 void AuthAddressManager::tryVerifyWalletAddresses()
@@ -513,6 +498,11 @@ bool AuthAddressManager::HaveBSAddressList() const
 const std::unordered_set<std::string> &AuthAddressManager::GetBSAddresses() const
 {
    return bsAddressList_;
+}
+
+void AuthAddressManager::setAuthAddressesSigned(const BinaryData &data)
+{
+   OnDataReceived(data.toBinStr());
 }
 
 std::string AuthAddressManager::readyErrorStr(AuthAddressManager::ReadyError error)

@@ -76,6 +76,11 @@ void CCFileManager::setBsClient(BsClient *bsClient)
    bsClient_ = bsClient;
 }
 
+void CCFileManager::setCcAddressesSigned(const BinaryData &data)
+{
+   OnDataReceived(data.toBinStr());
+}
+
 void CCFileManager::LoadSavedCCDefinitions()
 {
    if (!resolver_->loadFromFile(ccFilePath_.toStdString(), appSettings_->get<NetworkType>(ApplicationSettings::netType))) {

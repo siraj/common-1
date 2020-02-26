@@ -56,8 +56,9 @@ enum ArmoryMessageType
    ArmoryGetSpentness      = 12;
    ArmoryGetTxByHash       = 13;
    ArmoryValidateAuthAddr  = 14;
-   ArmoryGetBSAddresses    = 15;
    ArmoryGetOutpoints      = 16;
+   ArmoryUpdateAuthAddrs   = 17;
+   ArmoryUpdateCcAddrs     = 18;
 }
 
 enum ArmoryStateData
@@ -184,10 +185,14 @@ message ArmoryValidateAuthResponse
    repeated ValidateAuthResult results = 1;
 }
 
-message ArmoryBSAddressesResponse
+message ArmoryUpdateAuthAddrsRequest
 {
-   string auth_addresses_signed = 1;
-   string cc_addresses_signed = 2;
+   bytes auth_addresses_signed = 1;
+}
+
+message ArmoryUpdateCcAddrsRequest
+{
+   bytes cc_addresses_signed = 1;
 }
 
 message ArmoryGetOutpointsRequest
@@ -221,9 +226,10 @@ message ArmoryMessage
       ArmoryGetTxResponse tx_response = 15;
       ArmoryValidateAuthRequest  auth_request = 16;
       ArmoryValidateAuthResponse auth_response = 17;
-      ArmoryBSAddressesResponse bs_addresses = 18;
       ArmoryGetOutpointsRequest out_points_request = 19;
       ArmoryGetOutpointsResponse out_points_response = 20;
+      ArmoryUpdateAuthAddrsRequest update_auth_addrs = 21;
+      ArmoryUpdateCcAddrsRequest update_cc_addrs = 22;
    }
 }
 
@@ -507,7 +513,7 @@ message GenoaSendCCTokenRequest
    string user_id    = 1;
    string cc_token   = 2;
    string cc_name    = 3;
-   double amount     = 4;
+   uint32 amount     = 4;
 }
 
 message GenoaAccountUserRequest
@@ -674,6 +680,9 @@ message RabbitMqEvent
    {
       string routing_key = 1;
       bytes body = 2;
+      // Correlation ID from Genoa request
+      // Could be used to prevent duplicated requests
+      string correlation_id = 3;
    }
 
    // ACK response, if not succeed then it will be queued and redelivered later with some delay
@@ -729,6 +738,7 @@ message GenoaServerNewCcSeedRequest
 {
    string      email    = 1;
    string      cc_name  = 2;
+   string      correlation_id = 3;
 }
 
 message GenoaServerNewCCDepositRequest
@@ -736,6 +746,7 @@ message GenoaServerNewCCDepositRequest
    string      entity_name = 1;
    string      cc_name     = 2;
    double      amount      = 3;
+   string      correlation_id = 4;
 }
 
 message GenoaServerMessage
@@ -865,6 +876,13 @@ message CelerSetUserPropertiesRequest
    }
 }
 
+message CelerSetUserPropertiesResponse
+{
+   string email = 1;
+   repeated string property_names = 2;
+   repeated bool results = 3;
+}
+
 message CelerUpdateBalanceRequest
 {
    string entity_name = 1;
@@ -885,8 +903,9 @@ message CelerMessage
       bytes saved_trade = 2;
       CelerRegisteredCCDefinitions cc_definitions = 3;
       CelerCreateUserRequest create_user = 4;
-      CelerSetUserPropertiesRequest user_properties = 5;
-      CelerUpdateBalanceRequest user_balance = 6;
+      CelerSetUserPropertiesRequest  user_properties = 5;
+      CelerSetUserPropertiesResponse user_prop_response = 6;
+      CelerUpdateBalanceRequest user_balance = 7;
       CelerResultResponse response = 9;
       bytes opaque_data = 10;	// for Celer-encoded messages
       CelerSecurityDefData security_def = 11;
