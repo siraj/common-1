@@ -1072,8 +1072,8 @@ message TradeHistRequest
 
 message TradeHistBuySellResponse
 {
-   string buy_trade = 1;
-   string sell_trade = 2;
+   bytes buy_trade = 1;
+   bytes sell_trade = 2;
 }
 
 message TradeHistSnapshotResponse
