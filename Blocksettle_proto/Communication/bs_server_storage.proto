@@ -4,6 +4,9 @@ package Blocksettle.Server.Storage;
 
 import "trade_history.proto";
 
+message Empty
+{
+}
 
 message StorageCCDefinition
 {
@@ -317,6 +320,8 @@ message StorageTradeHistMessage
       GetLatestEODDate                          last_eod_date           = 21;
       StorageTradeHistSnapshots                 save_eod_snapshot       = 22;
       SaveEODSnapshotResponse                   save_eod_result         = 23;
+      Empty                                     last_eur_price_request  = 24;
+      double                                    last_eur_price_response = 25;
    }
 }
 
