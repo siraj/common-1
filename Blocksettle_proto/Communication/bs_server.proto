@@ -289,24 +289,26 @@ message CCValidateHalvesResponse
 
 enum CcTrackMessageType
 {
-   CcTrackUnknownType    = 0;
-   CcTrackOnline         = 1;
-   CcTrackCCDefinitions  = 2;
-   CcTrackGenAddresses   = 3;
-   CcTrackIsTxValid      = 4;
-   CcTrackValidateHalves = 5;
+   CcTrackUnknownType         = 0;
+   CcTrackOnline              = 1;
+   CcTrackCCDefinitions       = 2;
+   CcTrackGenAddresses        = 3;
+   CcTrackIsTxValid           = 4;
+   CcTrackValidateHalves      = 5;
+   CcTrackNewDefinitions      = 6;
+   CcTrackDisabledDefinition  = 7;
 }
 
 message CcTrackMessage
 {
    CcTrackMessageType type = 1;
    oneof data {
-      CCDefinitionsData cc_definitions = 2;
-      CCGenesisAddressData ga_data = 3;
-      CCTxValidRequest  tx_valid_request = 4;
-      CCTxValidResponse tx_valid_response = 5;
-      CCValidateHalvesRequest  cc_valid_request = 6;
-      CCValidateHalvesResponse cc_valid_response = 7;
+      CCDefinitionsData          cc_definitions = 2;
+      CCGenesisAddressData       ga_data = 3;
+      CCTxValidRequest           tx_valid_request = 4;
+      CCTxValidResponse          tx_valid_response = 5;
+      CCValidateHalvesRequest    cc_valid_request = 6;
+      CCValidateHalvesResponse   cc_valid_response = 7;
    }
 }
 
@@ -339,6 +341,7 @@ enum GenoaType
    GenoaAuthFeeConfirm           = 28;
    GenoaGetUserAccounts          = 29;
    GenoaGetAccountBalance        = 30;
+   GenoEODUpdate                 = 31;
 }
 
 message GenoaConnectedBroadcast
@@ -624,6 +627,18 @@ message GenoaAccountBalanceResponse
    }
 }
 
+message GenoaEODUpdateMessage
+{
+   message GenoaPrice
+   {
+      string product = 1;
+      double price   = 2;
+   }
+
+   string               date     = 1;
+   repeated GenoaPrice  prices   = 2;
+}
+
 message GenoaMessage
 {
    GenoaType type = 1;
@@ -657,6 +672,7 @@ message GenoaMessage
       GenoaAccountInfoResponse         user_account_response      = 29;
       GenoaAccountBalanceRequest       acc_balance_request        = 30;
       GenoaAccountBalanceResponse      acc_balance_response       = 31;
+      GenoaEODUpdateMessage            eod_update                 = 32;
    }
 }
 
@@ -736,9 +752,10 @@ message GenoaServerXbtTradingStatus
 
 message GenoaServerNewCcSeedRequest
 {
-   string      email    = 1;
-   string      cc_name  = 2;
+   string      email          = 1;
+   string      cc_name        = 2;
    string      correlation_id = 3;
+   double      initial_price  = 4;
 }
 
 message GenoaServerNewCCDepositRequest
@@ -916,17 +933,19 @@ message CelerMessage
 
 enum TradeHistType
 {
-   TradeHistReconnect    = 0;
-   TradeHistSaveFxTrade  = 1;
-   TradeHistSaveXbtTrade = 2;
-   TradeHistSaveCcTrade  = 3;
-   TradeHistSaveTradeResult = 4;
-   TradeHistRequestLastTrade = 5;
+   TradeHistReconnect               = 0;
+   TradeHistSaveFxTrade             = 1;
+   TradeHistSaveXbtTrade            = 2;
+   TradeHistSaveCcTrade             = 3;
+   TradeHistSaveTradeResult         = 4;
+   TradeHistRequestLastTrade        = 5;
    TradeHistRequestLastBuySellTrade = 6;
-   TradeHistRequestSnapshot = 7;
-   TradeHistRequestCcPrices = 8;
-   TradeHistRequestEOD      = 9;
-   TradeHistRequestEODSnapshot = 10;
+   TradeHistRequestSnapshot         = 7;
+   TradeHistRequestCcPrices         = 8;
+   TradeHistRequestEOD              = 9;
+   TradeHistRequestEODSnapshot      = 10;
+   TradeHistorySetInitialPrice      = 11;
+   TradeHistEODEvent                = 12;
 }
 
 message TradeDataMessage
@@ -1038,7 +1057,7 @@ message TradeDataCcMessage
    uint64       zc_timestamp = 8;
 }
 
-message TradeDataResponseMessage
+message TradeHistResponse
 {
    bool success = 1;
 }
@@ -1053,8 +1072,8 @@ message TradeHistRequest
 
 message TradeHistBuySellResponse
 {
-   string buy_trade = 1;
-   string sell_trade = 2;
+   bytes buy_trade = 1;
+   bytes sell_trade = 2;
 }
 
 message TradeHistSnapshotResponse
@@ -1064,38 +1083,53 @@ message TradeHistSnapshotResponse
 
 message TradeHistPricesResponse
 {
-   bool   price_set = 1;
-   double bid_price = 2;
-   double offer_price = 3;
+   bool   price_set     = 1;
+   double bid_price     = 2;
+   double offer_price   = 3;
+}
+
+message SetInitialPriceRequest
+{
+   string cc_name       = 1;
+   double bid_price     = 2;
+   double offer_price   = 3;
 }
 
 message TradeHistEODSnapshotResponse
 {
     message EODSnapshot
     {
-       Communication.TradeHistory.DateContainer date = 1;
-       string eod = 2;
+       Communication.TradeHistory.DateContainer date  = 1;
+       bytes                                    eod   = 2;
     }
-    repeated EODSnapshot snapshot = 1;
+    repeated EODSnapshot                     snapshot = 1;
     Communication.TradeHistory.DateContainer req_date = 2;
+}
+
+message TradeHistEODUpdate
+{
+   Communication.TradeHistory.DateContainer  date  = 1;
+   bytes                                     eod   = 2;
 }
 
 message TradeHistMessage
 {
    TradeHistType type = 1;
    oneof data {
-      bytes fx_trade = 2;
-      bytes xbt_trade = 3;
-      bytes cc_trade = 4;
-      TradeDataResponseMessage response = 5;
-      TradeHistRequest hist_request = 6;
-      bytes last_trade = 7;
-      TradeHistBuySellResponse buy_sell_trades = 8;
-      TradeHistSnapshotResponse trades_snapshot = 9;
-      TradeHistPricesResponse prices = 10;
-      Communication.TradeHistory.DateContainer eod_request = 11;
-      bytes eod_data = 12;
-      TradeHistEODSnapshotResponse eod_snapshot = 13;
+      bytes                                     fx_trade          = 2;
+      bytes                                     xbt_trade         = 3;
+      bytes                                     cc_trade          = 4;
+      TradeHistResponse                         response          = 5;
+      TradeHistRequest                          hist_request      = 6;
+      bytes                                     last_trade        = 7;
+      TradeHistBuySellResponse                  buy_sell_trades   = 8;
+      TradeHistSnapshotResponse                 trades_snapshot   = 9;
+      TradeHistPricesResponse                   prices            = 10;
+      Communication.TradeHistory.DateContainer  eod_request       = 11;
+      bytes                                     eod_data          = 12;
+      TradeHistEODSnapshotResponse              eod_snapshot      = 13;
+      SetInitialPriceRequest                    set_initial_price = 14;
+      TradeHistEODUpdate                        eod_update        = 15;
    }
 }
 
