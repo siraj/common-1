@@ -659,66 +659,6 @@ message GenoaMessage
    }
 }
 
-message RabbitMqEvent
-{
-   enum Action
-   {
-      INVALID = 0;
-
-      // Mark event as successfully processed (and remove from RabbitMQ queue)
-      ACK = 1;
-
-      // Mark event as failed (this will not remove message from RabbitMQ queue and message will be delivered again after restart)
-      NACK = 2;
-
-      // Mark event as failed and drop it from RabbitMQ
-      REJECT = 3;
-   }
-
-   message Header
-   {
-      string name = 1;
-      string value = 2;
-   }
-
-   message EventRequest
-   {
-      string routing_key = 1;
-      bytes body = 2;
-      // Correlation ID from Genoa request
-      // Could be used to prevent duplicated requests
-      string correlation_id = 3;
-   }
-
-   // ACK response, if not succeed then it will be queued and redelivered later with some delay
-   message EventResponse
-   {
-      Action action = 1;
-   }
-
-   message RpcRequest
-   {
-      string routing_key = 1;
-      bytes body = 2;
-      string correlation_id = 3;
-      repeated Header headers = 4;
-   }
-
-   message RpcResponse
-   {
-      string correlation_id = 1;
-      bytes body = 2;
-   }
-
-   oneof data {
-      Empty start = 1;
-      EventRequest event_request = 2;
-      EventResponse event_response = 3;
-      RpcRequest rpc_request = 4;
-      RpcResponse rpc_response = 5;
-   }
-}
-
 enum GenoaServerType
 {
    GenoaServerResponse        = 0;
