@@ -16,7 +16,7 @@
 
 static constexpr auto kCacheValueExpireTimeout = std::chrono::hours(1);
 // 200 s/b
-static constexpr float kFallbackFeeAmount = 0.000002;
+static constexpr float kFallbackFeeAmount = 200;
 
 
 BitcoinFeeCache::BitcoinFeeCache(const std::shared_ptr<spdlog::logger> &logger
@@ -82,7 +82,7 @@ void BitcoinFeeCache::setFeeEstimationValue(const unsigned int blocksToWait, flo
    {
       std::lock_guard<std::mutex> lock(cacheMutex_);
 
-      if (qFuzzyIsNull(fee)) {
+      if (qFuzzyIsNull(fee) || qIsInf(fee)) {
          fee = kFallbackFeeAmount;
       } else {
          FeeEstimationCache currentValue;

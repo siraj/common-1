@@ -17,7 +17,7 @@
 #include "CelerGetAssignedAccountsListSequence.h"
 #include "CommonTypes.h"
 #include "CurrencyPair.h"
-#include "MarketDataProvider.h"
+#include "MDCallbacksQt.h"
 #include "Wallets/SyncHDWallet.h"
 #include "Wallets/SyncWalletsManager.h"
 
@@ -26,12 +26,12 @@
 
 AssetManager::AssetManager(const std::shared_ptr<spdlog::logger>& logger
       , const std::shared_ptr<bs::sync::WalletsManager>& walletsManager
-      , const std::shared_ptr<MarketDataProvider>& mdProvider
+      , const std::shared_ptr<MDCallbacksQt> &mdCallbacks
       , const std::shared_ptr<BaseCelerClient>& celerClient)
- : logger_(logger)
- , walletsManager_(walletsManager)
- , mdProvider_(mdProvider)
- , celerClient_(celerClient)
+   : logger_(logger)
+   , walletsManager_(walletsManager)
+   , mdCallbacks_(mdCallbacks)
+   , celerClient_(celerClient)
 {
    connect(this, &AssetManager::ccPriceChanged, [this] { emit totalChanged(); });
    connect(this, &AssetManager::xbtPriceChanged, [this] { emit totalChanged(); });
@@ -40,8 +40,8 @@ AssetManager::AssetManager(const std::shared_ptr<spdlog::logger>& logger
 
 void AssetManager::init()
 {
-   connect(mdProvider_.get(), &MarketDataProvider::MDSecurityReceived, this, &AssetManager::onMDSecurityReceived);
-   connect(mdProvider_.get(), &MarketDataProvider::MDSecuritiesReceived, this, &AssetManager::onMDSecuritiesReceived);
+   connect(mdCallbacks_.get(), &MDCallbacksQt::MDSecurityReceived, this, &AssetManager::onMDSecurityReceived);
+   connect(mdCallbacks_.get(), &MDCallbacksQt::MDSecuritiesReceived, this, &AssetManager::onMDSecuritiesReceived);
 
    connect(walletsManager_.get(), &bs::sync::WalletsManager::walletChanged, this, &AssetManager::onWalletChanged);
    connect(walletsManager_.get(), &bs::sync::WalletsManager::walletsReady, this, &AssetManager::onWalletChanged);

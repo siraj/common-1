@@ -49,6 +49,8 @@ namespace bs {
       // being queried, remove the UTXOs from the vector.
       void filter(std::vector<UTXO> &utxos) const;
 
+      bool containsReservedUTXO(const std::vector<UTXO> &utxos) const;
+
       // Check that all reservations have been cleared
       void shutdownCheck();
 

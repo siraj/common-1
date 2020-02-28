@@ -11,13 +11,11 @@
 #ifndef __BS_MARKET_DATA_PROVIDER_H__
 #define __BS_MARKET_DATA_PROVIDER_H__
 
-#include "MarketDataProvider.h"
-
 #include <memory>
 #include <string>
 #include <unordered_map>
-
 #include "CommonTypes.h"
+#include "MarketDataProvider.h"
 
 #include "bs_md.pb.h"
 
@@ -32,11 +30,9 @@ class SubscriberConnectionListenerCB;
 
 class BSMarketDataProvider : public MarketDataProvider
 {
-Q_OBJECT
-
 public:
    BSMarketDataProvider(const std::shared_ptr<ConnectionManager>& connectionManager
-      , const std::shared_ptr<spdlog::logger>& logger);
+      , const std::shared_ptr<spdlog::logger> &, MDCallbackTarget *);
    ~BSMarketDataProvider() noexcept override = default;
 
    BSMarketDataProvider(const BSMarketDataProvider&) = delete;

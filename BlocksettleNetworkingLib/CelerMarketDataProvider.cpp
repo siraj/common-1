@@ -29,12 +29,12 @@
 #include "com/celertech/marketdata/api/marketstatistic/DownstreamMarketStatisticProto.pb.h"
 #include "com/celertech/staticdata/api/security/DownstreamSecurityProto.pb.h"
 
-CelerMarketDataProvider::CelerMarketDataProvider(const std::shared_ptr<ConnectionManager>& connectionManager
-      , const std::shared_ptr<spdlog::logger>& logger
+CelerMarketDataProvider::CelerMarketDataProvider(const std::shared_ptr<ConnectionManager> &connectionManager
+      , const std::shared_ptr<spdlog::logger> &logger, MDCallbackTarget *callbacks
       , bool filterUsdProducts)
- : MarketDataProvider(logger)
- , connectionManager_{connectionManager}
- , filterUsdProducts_{filterUsdProducts}
+   : QObject(), MarketDataProvider(logger, callbacks)
+   , connectionManager_{connectionManager}
+   , filterUsdProducts_{filterUsdProducts}
 {
    celerClient_ = nullptr;
 }
@@ -46,7 +46,7 @@ bool CelerMarketDataProvider::StartMDConnection()
       return false;
    }
 
-   emit StartConnecting();
+   callbacks_->startConnecting();
 
    celerClient_ = std::make_shared<CelerClient>(connectionManager_, false);
 
@@ -77,7 +77,7 @@ bool CelerMarketDataProvider::DisconnectFromMDSource()
       return true;
    }
 
-   emit Disconnecting();
+   callbacks_->disconnecting();
    celerClient_->CloseConnection();
 
    return true;
@@ -126,9 +126,8 @@ void CelerMarketDataProvider::OnConnectedToCeler()
             , ccyPair);
       } else {
          logger_->debug("[CelerMarketDataProvider::OnConnectedToCeler] add FX pair: {}", ccyPair);
-
-         emit MDSecurityReceived(ccyPair, {bs::network::Asset::Type::SpotFX});
-         emit MDUpdate(bs::network::Asset::Type::SpotFX, QString::fromStdString(ccyPair), {});
+         callbacks_->onMDSecurityReceived(ccyPair, {bs::network::Asset::Type::SpotFX});
+         callbacks_->onMDUpdate(bs::network::Asset::Type::SpotFX, ccyPair, {});
       }
    }
 
@@ -139,9 +138,8 @@ void CelerMarketDataProvider::OnConnectedToCeler()
             , ccyPair);
       } else {
          logger_->debug("[CelerMarketDataProvider::OnConnectedToCeler] add XBT pair: {}", ccyPair);
-
-         emit MDSecurityReceived(ccyPair, {bs::network::Asset::Type::SpotXBT});
-         emit MDUpdate(bs::network::Asset::Type::SpotXBT, QString::fromStdString(ccyPair), {});
+         callbacks_->onMDSecurityReceived(ccyPair, {bs::network::Asset::Type::SpotXBT});
+         callbacks_->onMDUpdate(bs::network::Asset::Type::SpotXBT, ccyPair, {});
       }
    }
 
@@ -157,8 +155,8 @@ void CelerMarketDataProvider::OnConnectedToCeler()
 
    connectionToCelerCompleted_ = true;
 
-   emit MDSecuritiesReceived();
-   emit Connected();
+   callbacks_->allSecuritiesReceived();
+   callbacks_->connected();
 }
 
 void CelerMarketDataProvider::OnDisconnectedFromCeler()
@@ -170,11 +168,11 @@ void CelerMarketDataProvider::OnDisconnectedFromCeler()
       subscribedSymbols_.clear();
    }
 
-   emit Disconnecting();
-   emit MDUpdate(bs::network::Asset::Undefined, QString(), {});
+   callbacks_->disconnecting();
+   callbacks_->onMDUpdate(bs::network::Asset::Undefined, {}, {});
 
    celerClient_ = nullptr;
-   emit Disconnected();
+   callbacks_->disconnected();
 }
 
 bool CelerMarketDataProvider::isPriceValid(double val)
@@ -194,10 +192,8 @@ bool CelerMarketDataProvider::onFullSnapshot(const std::string& data)
       return false;
    }
 
-   auto security = QString::fromStdString(response.securitycode());
-   if (security.isEmpty()) {
-      security = QString::fromStdString(response.securityid());
-   }
+   const auto &security = response.securitycode().empty() ? response.securityid()
+      : response.securitycode();
 
    if (!response.has_producttype()) {
       logger_->error("[CelerMarketDataProvider::onFullSnapshot] update do not have product type: {}"
@@ -217,14 +213,11 @@ bool CelerMarketDataProvider::onFullSnapshot(const std::string& data)
          }
       }
    }
-
    const auto assetType = bs::network::Asset::fromCelerProductType(response.producttype());
 
    // we probably should not use celer timestamp
    fields.emplace_back(bs::network::MDField{bs::network::MDField::MDTimestamp, static_cast<double>(QDateTime::currentDateTime().toSecsSinceEpoch()), QString{}});
-
-   emit MDUpdate(assetType, security, fields);
-
+   callbacks_->onMDUpdate(assetType, security, fields);
    return true;
 }
 
@@ -242,11 +235,8 @@ bool CelerMarketDataProvider::onMDStatisticsUpdate(const std::string& data)
       return true;
    }
 
-   auto security = QString::fromStdString(response.securitycode());
-   if (security.isEmpty()) {
-      security = QString::fromStdString(response.securityid());
-   }
-
+   const auto &security = response.securitycode().empty() ? response.securityid()
+      : response.securitycode();
    const auto assetType = bs::network::Asset::fromCelerProductType(response.producttype());
 
    bs::network::MDFields fields;
@@ -272,7 +262,7 @@ bool CelerMarketDataProvider::onMDStatisticsUpdate(const std::string& data)
    if (!fields.empty()) {
       fields.emplace_back(bs::network::MDField{bs::network::MDField::MDTimestamp
          , static_cast<double>(QDateTime::currentDateTime().toSecsSinceEpoch()), {}});
-      emit MDUpdate(assetType, security, fields);
+      callbacks_->onMDUpdate(assetType, security, fields);
    }
 
    return true;
@@ -295,9 +285,7 @@ bool CelerMarketDataProvider::onReqRejected(const std::string& data)
          subscribedSymbols_.erase(it);
       }
    }
-
-   emit MDReqRejected(response.securityid(), response.text());
-
+   callbacks_->onRequestRejected(response.securityid(), response.text());
    return true;
 }
 
@@ -342,7 +330,7 @@ void CelerMarketDataProvider::onCCSecurityReceived(const std::string& securityId
 
    if (IsConnectedToCeler()) {
       if (SubscribeToCCProduct(securityId)) {
-         emit MDSecuritiesReceived();
+         callbacks_->allSecuritiesReceived();
       }
    }
 }
@@ -377,9 +365,8 @@ bool CelerMarketDataProvider::SubscribeToCCProduct(const std::string& ccProduct)
       subscribedSymbols_.emplace(ccProduct);
    }
 
-   emit MDSecurityReceived(ccProduct, {bs::network::Asset::Type::PrivateMarket});
-   emit MDUpdate(bs::network::Asset::Type::PrivateMarket, QString::fromStdString(ccProduct), {});
-
+   callbacks_->onMDSecurityReceived(ccProduct, {bs::network::Asset::Type::PrivateMarket});
+   callbacks_->onMDUpdate(bs::network::Asset::Type::PrivateMarket, ccProduct, {});
    return true;
 }
 
