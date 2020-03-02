@@ -59,6 +59,7 @@ enum ArmoryMessageType
    ArmoryGetOutpoints      = 16;
    ArmoryUpdateAuthAddrs   = 17;
    ArmoryUpdateCcAddrs     = 18;
+   ArmoryPushXbtTXs        = 19;
 }
 
 enum ArmoryStateData
@@ -106,6 +107,12 @@ message ArmoryPushTxResponse
    bytes tx_hash = 1;
    ArmoryPushTxResult result = 2;
    string error_message = 3;
+}
+
+message ArmoryPushXbtTXsRequest
+{
+   ArmoryPushTxRequest payin_tx  = 1;
+   ArmoryPushTxRequest payout_tx = 2;
 }
 
 message ArmoryFeeRequest
@@ -230,6 +237,7 @@ message ArmoryMessage
       ArmoryGetOutpointsResponse out_points_response = 20;
       ArmoryUpdateAuthAddrsRequest update_auth_addrs = 21;
       ArmoryUpdateCcAddrsRequest update_cc_addrs = 22;
+      ArmoryPushXbtTXsRequest push_xbt_txs_request = 23;
    }
 }
 
