@@ -154,11 +154,18 @@ message ArmorySpentnessRequest
 
 message ArmorySpentnessResponse
 {
+   enum State {
+      Unknown = 0;
+      Unspent = 1;
+      Spent = 2;
+      Invalid = 3;
+   }
    message Spentness {
       message SpentnessData {
          uint32 out_index = 1;
          bytes tx_hash = 2;
          uint32 height = 3;
+         State  state = 4;
       }
       bytes utxo_hash = 1;
       repeated SpentnessData spentness = 2;

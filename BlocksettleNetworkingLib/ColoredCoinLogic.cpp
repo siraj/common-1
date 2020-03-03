@@ -473,11 +473,11 @@ std::set<BinaryData> ColoredCoinTracker::processTxBatch(
 
    //check new utxo list
    auto spentnessProm = std::make_shared<
-      std::promise<std::map<BinaryData, std::map<unsigned, std::pair<BinaryData, unsigned>>>>>();
+      std::promise<std::map<BinaryData, std::map<unsigned int, SpentnessResult>>>>();
    auto spentnessFut = spentnessProm->get_future();
-   auto spentnessLbd = [spentnessProm](
-      const std::map<BinaryData, std::map<unsigned, std::pair<BinaryData, unsigned>>> &batch
-      , std::exception_ptr exPtr)
+   auto spentnessLbd = [spentnessProm]
+      (const std::map<BinaryData, std::map<unsigned int, SpentnessResult>> &batch
+         , std::exception_ptr exPtr)
    {
       if (exPtr != nullptr) {
          spentnessProm->set_exception(exPtr);
@@ -495,12 +495,11 @@ std::set<BinaryData> ColoredCoinTracker::processTxBatch(
    for (auto& spentness : spentnessBatch) {
       auto& spentnessMap = spentness.second;
       for (auto& hashPair : spentnessMap) {
-         if (hashPair.second.first.getSize() == 32) {
-            spenderHashes.insert(hashPair.second.first);
+         if (hashPair.second.spender_.getSize() == 32) {
+            spenderHashes.insert(hashPair.second.spender_);
          }
       }
    }
-   
    return spenderHashes;
 }
 
@@ -615,11 +614,11 @@ std::set<BinaryData> ColoredCoinTracker::processZcBatch(
 
    //check new utxo list
    auto spentnessProm = std::make_shared<
-      std::promise<std::map<BinaryData, std::map<unsigned, std::pair<BinaryData, unsigned>>>>>();
+      std::promise<std::map<BinaryData, std::map<unsigned int, SpentnessResult>>>>();
    auto spentnessFut = spentnessProm->get_future();
-   auto spentnessLbd = [spentnessProm](
-      const std::map<BinaryData, std::map<unsigned, std::pair<BinaryData, unsigned>>> &batch
-      , std::exception_ptr exPtr)
+   auto spentnessLbd = [spentnessProm]
+      (const std::map<BinaryData, std::map<unsigned int, SpentnessResult>> &batch
+         , std::exception_ptr exPtr)
    {
       if (exPtr != nullptr) {
          spentnessProm->set_exception(exPtr);
@@ -637,12 +636,11 @@ std::set<BinaryData> ColoredCoinTracker::processZcBatch(
    for (auto& spentness : spentnessBatch) {
       auto& spentnessMap = spentness.second;
       for (auto& hashPair : spentnessMap) {
-         if (hashPair.second.first.getSize() == 32) {
-            spenderHashes.insert(hashPair.second.first);
+         if (hashPair.second.spender_.getSize() == 32) {
+            spenderHashes.insert(hashPair.second.spender_);
          }
       }
    }
-
    return spenderHashes;
 }
 
