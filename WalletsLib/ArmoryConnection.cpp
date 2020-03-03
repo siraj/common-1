@@ -1049,6 +1049,16 @@ bool ArmoryConnection::pushZC(const BinaryData& rawTx) const
    return true;
 }
 
+bool ArmoryConnection::pushZCs(const std::vector<BinaryData> &txs) const
+{
+   if (!bdv_ || (state_ != ArmoryState::Ready)) {
+      logger_->error("[ArmoryConnection::pushZCs] invalid state: {}", (int)state_.load());
+      return false;
+   }
+   bdv_->broadcastZC(txs);
+   return true;
+}
+
 unsigned int ArmoryConnection::getConfirmationsNumber(uint32_t blockNum) const
 {
    const auto curBlock = topBlock();

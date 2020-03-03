@@ -217,7 +217,8 @@ public:
 
    virtual bool estimateFee(unsigned int nbBlocks, const FloatCb &);
    virtual bool getFeeSchedule(const FloatMapCb&);
-   bool pushZC(const BinaryData&) const;
+   bool pushZC(const BinaryData &) const;
+   bool pushZCs(const std::vector<BinaryData> &) const;
 
    bool isTransactionVerified(const ClientClasses::LedgerEntry &) const;
    bool isTransactionVerified(uint32_t blockNum) const;
