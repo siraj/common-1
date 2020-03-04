@@ -190,18 +190,20 @@ public:
    bool getOutpointsForAddresses(const std::set<BinaryData> &
       , const std::function<void(const OutpointBatch &, std::exception_ptr)> &
       , unsigned int height = 0, unsigned int zcIndex = 0);
+
+   using SpentnessCb = std::function<void(const std::map<BinaryData
+      , std::map<unsigned int, SpentnessResult>> &, std::exception_ptr)>;
    bool getSpentnessForOutputs(const std::map<BinaryData, std::set<unsigned>> &
-      , const std::function<void(const std::map<BinaryData, std::map<unsigned, std::pair<BinaryData, unsigned>>> &
-         , std::exception_ptr)> &);
+      , const SpentnessCb &);
    bool getSpentnessForZcOutputs(const std::map<BinaryData, std::set<unsigned>> &
-      , const std::function<void(const std::map<BinaryData, std::map<unsigned, std::pair<BinaryData, unsigned>>> &
-         , std::exception_ptr)> &);
-   bool getOutputsForOutpoints(const std::map<BinaryData, std::set<unsigned>>&, bool withZc,
-      const std::function<void(std::vector<UTXO>, std::exception_ptr)>&);
+      , const SpentnessCb &);
+
+   bool getOutputsForOutpoints(const std::map<BinaryData, std::set<unsigned>> &
+      , bool withZc
+      , const std::function<void(const std::vector<UTXO> &, std::exception_ptr)>&);
 
    using TxCb = std::function<void(const Tx&)>;
    using TXsCb = std::function<void(const std::vector<Tx> &, std::exception_ptr)>;
-
    using BinaryDataCb = std::function<void(const BinaryData&)>;
 
    // Is allowCachedResult is set then result could be retrieved from cache.
@@ -217,7 +219,8 @@ public:
 
    virtual bool estimateFee(unsigned int nbBlocks, const FloatCb &);
    virtual bool getFeeSchedule(const FloatMapCb&);
-   virtual bool pushZC(const BinaryData&) const;
+   bool pushZC(const BinaryData &) const;
+   bool pushZCs(const std::vector<BinaryData> &) const;
 
    bool isTransactionVerified(const ClientClasses::LedgerEntry &) const;
    bool isTransactionVerified(uint32_t blockNum) const;

@@ -59,6 +59,7 @@ enum ArmoryMessageType
    ArmoryGetOutpoints      = 16;
    ArmoryUpdateAuthAddrs   = 17;
    ArmoryUpdateCcAddrs     = 18;
+   ArmoryPushXbtTXs        = 19;
 }
 
 enum ArmoryStateData
@@ -108,6 +109,12 @@ message ArmoryPushTxResponse
    string error_message = 3;
 }
 
+message ArmoryPushXbtTXsRequest
+{
+   ArmoryPushTxRequest payin_tx  = 1;
+   ArmoryPushTxRequest payout_tx = 2;
+}
+
 message ArmoryFeeRequest
 {
    uint32 block_count = 1;
@@ -147,11 +154,18 @@ message ArmorySpentnessRequest
 
 message ArmorySpentnessResponse
 {
+   enum State {
+      Unknown = 0;
+      Unspent = 1;
+      Spent = 2;
+      Invalid = 3;
+   }
    message Spentness {
       message SpentnessData {
          uint32 out_index = 1;
          bytes tx_hash = 2;
          uint32 height = 3;
+         State  state = 4;
       }
       bytes utxo_hash = 1;
       repeated SpentnessData spentness = 2;
@@ -230,6 +244,7 @@ message ArmoryMessage
       ArmoryGetOutpointsResponse out_points_response = 20;
       ArmoryUpdateAuthAddrsRequest update_auth_addrs = 21;
       ArmoryUpdateCcAddrsRequest update_cc_addrs = 22;
+      ArmoryPushXbtTXsRequest push_xbt_txs_request = 23;
    }
 }
 
@@ -319,7 +334,6 @@ enum GenoaType
    GenoaReconnect                = 1;
    GenoaHeartbeat                = 2;
    GenoaClientConnected          = 3;
-   GenoaClientDisconnected       = 4;
    GenoaAccountsAvailable        = 7;
    GenoaAccounts                 = 8;
    GenoaGetXBTReservations       = 10;
@@ -673,44 +687,6 @@ message GenoaMessage
       GenoaAccountBalanceRequest       acc_balance_request        = 30;
       GenoaAccountBalanceResponse      acc_balance_response       = 31;
       GenoaEODUpdateMessage            eod_update                 = 32;
-   }
-}
-
-message RabbitMqEvent
-{
-   enum Action
-   {
-      INVALID = 0;
-
-      // Mark event as successfully processed (and remove from RabbitMQ queue)
-      ACK = 1;
-
-      // Mark event as failed (this will not remove message from RabbitMQ queue and message will be delivered again after restart)
-      NACK = 2;
-
-      // Mark event as failed and drop it from RabbitMQ
-      REJECT = 3;
-   }
-
-   message EventRequest
-   {
-      string routing_key = 1;
-      bytes body = 2;
-      // Correlation ID from Genoa request
-      // Could be used to prevent duplicated requests
-      string correlation_id = 3;
-   }
-
-   // ACK response, if not succeed then it will be queued and redelivered later with some delay
-   message EventResponse
-   {
-      Action action = 1;
-   }
-
-   oneof data {
-      Empty start = 1;
-      EventRequest event_request = 2;
-      EventResponse event_response = 3;
    }
 }
 
