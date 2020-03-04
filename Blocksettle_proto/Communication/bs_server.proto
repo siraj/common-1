@@ -254,15 +254,6 @@ message CCDefinitionsData
    repeated string cc = 1;
 }
 
-message CCGenesisAddressData
-{
-   message GenAddrData {
-      bytes cc = 1;
-      bytes ga = 2;
-   }
-   repeated GenAddrData gen_addresses = 1;
-}
-
 message CCTxValidRequest
 {
    string cc = 1;
@@ -302,16 +293,23 @@ message CCValidateHalvesResponse
    }
 }
 
+message CCUpdatedGenesisAddress
+{
+   string cc_name = 1;
+   repeated string ga_addresses = 2;
+}
+
+
 enum CcTrackMessageType
 {
    CcTrackUnknownType         = 0;
    CcTrackOnline              = 1;
    CcTrackCCDefinitions       = 2;
-   CcTrackGenAddresses        = 3;
    CcTrackIsTxValid           = 4;
    CcTrackValidateHalves      = 5;
    CcTrackNewDefinitions      = 6;
    CcTrackDisabledDefinition  = 7;
+   CcUpdatedGenesisAddress    = 8;
 }
 
 message CcTrackMessage
@@ -319,11 +317,11 @@ message CcTrackMessage
    CcTrackMessageType type = 1;
    oneof data {
       CCDefinitionsData          cc_definitions = 2;
-      CCGenesisAddressData       ga_data = 3;
       CCTxValidRequest           tx_valid_request = 4;
       CCTxValidResponse          tx_valid_response = 5;
       CCValidateHalvesRequest    cc_valid_request = 6;
       CCValidateHalvesResponse   cc_valid_response = 7;
+      CCUpdatedGenesisAddress    updated_genesis_address = 8;
    }
 }
 
@@ -806,7 +804,7 @@ enum CelerType
    CelerUpdateBalance         = 13;
    CelerSaveTrade             = 14;
    CelerSaveCcTrade           = 15;
-   CelerCCRegisteredRequest   = 16;
+   CelerRegisterCcDefinition  = 16;
    CelerNewCCCreated          = 17;
    CelerCreateUser            = 18;
    CelerSubscribeMerchant     = 19;
@@ -839,9 +837,9 @@ message CelerSavedTrade
    uint64 timestamp = 7;
 }
 
-message CelerRegisteredCCDefinitions
+message CelerRegisterCCDefinitionRequest
 {
-   repeated string cc = 1;
+   string cc = 1;
 }
 
 message CelerCreateUserRequest
@@ -894,7 +892,7 @@ message CelerMessage
    CelerType type = 1;
    oneof data {
       bytes saved_trade = 2;
-      CelerRegisteredCCDefinitions cc_definitions = 3;
+      CelerRegisterCCDefinitionRequest register_cc_definition = 3;
       CelerCreateUserRequest create_user = 4;
       CelerSetUserPropertiesRequest  user_properties = 5;
       CelerSetUserPropertiesResponse user_prop_response = 6;
