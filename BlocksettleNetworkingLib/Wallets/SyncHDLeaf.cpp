@@ -631,6 +631,13 @@ void hd::Leaf::resumeScan(const std::string &refreshId)
          }
          return;
       }
+      if (!scanWallet_) {
+         logger_->warn("[hd::Leaf::resumeScan] scanWallet_ is null");
+         if (cb) {
+            cb(bs::sync::SyncState::Failure);
+         }
+         return;
+      }
       const auto itCounts = countMap.find(scanWallet_->walletID());
       if (itCounts == countMap.end()) {
          logger_->warn("[hd::Leaf::resumeScan] invalid countMap (scan wallet id not found)");
