@@ -294,6 +294,12 @@ message SaveEODSnapshotResponse
    Communication.TradeHistory.DateContainer  date     = 3;
 }
 
+message CreateCcDefinition
+{
+   string cc_name = 1;
+   bool is_set = 2;
+}
+
 message StorageTradeHistMessage
 {
    oneof data {
@@ -322,6 +328,7 @@ message StorageTradeHistMessage
       SaveEODSnapshotResponse                   save_eod_result         = 23;
       Empty                                     last_eur_price_request  = 24;
       double                                    last_eur_price_response = 25;
+      CreateCcDefinition                        create_cc_definition    = 26;
    }
 }
 
