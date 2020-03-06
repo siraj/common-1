@@ -214,7 +214,6 @@ void WalletsManager::saveWallet(const WalletPtr &newWallet)
    addWallet(newWallet);
 }
 
-// XXX should it be register in armory ?
 // XXX should it start rescan ?
 void WalletsManager::addWallet(const WalletPtr &wallet, bool isHDLeaf)
 {
@@ -238,6 +237,10 @@ void WalletsManager::addWallet(const WalletPtr &wallet, bool isHDLeaf)
       logger_->debug("[WalletsManager] auth leaf changed/created");
       emit AuthLeafCreated();
       emit authWalletChanged();
+   }
+
+   if (walletsRegistered_) {
+      wallet->registerWallet(armoryPtr_);
    }
 }
 
@@ -683,6 +686,7 @@ std::vector<std::string> WalletsManager::registerWallets()
       logger_->warn("[WalletsManager::{}] armory is not set", __func__);
       return result;
    }
+   walletsRegistered_ = true;
    if (empty()) {
       logger_->debug("[WalletsManager::{}] no wallets to register", __func__);
       return result;
@@ -700,6 +704,7 @@ std::vector<std::string> WalletsManager::registerWallets()
 
 void WalletsManager::unregisterWallets()
 {
+   walletsRegistered_ = false;
    for (auto &it : wallets_) {
       it.second->unregisterWallet();
    }

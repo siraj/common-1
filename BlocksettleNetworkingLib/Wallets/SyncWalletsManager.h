@@ -321,6 +321,8 @@ namespace bs {
 
          std::shared_ptr<CcTrackerClient> trackerClient_;
 
+         bool walletsRegistered_{};
+
          ValidityFlag   validityFlag_;
       };
 
