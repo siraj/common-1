@@ -580,7 +580,9 @@ void hd::Leaf::topUpAddressPool(bool extInt, const std::function<void()> &cb)
 void hd::Leaf::scan(const std::function<void(bs::sync::SyncState)> &cb)
 {
    if (!armory_) {
-      logger_->error("[sync::hd::Leaf::scan] armory is not set");
+      if (type() != core::wallet::Type::Settlement) {
+         logger_->error("[sync::hd::Leaf::scan] armory is not set");
+      }
       cb(bs::sync::SyncState::Failure);
       return;
    }
