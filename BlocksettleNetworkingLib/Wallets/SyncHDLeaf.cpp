@@ -247,6 +247,9 @@ void hd::Leaf::postOnline()
    const bool rc = getAddressTxnCounts([this, cbTrackAddrChain] {
       trackChainAddressUse(cbTrackAddrChain);
    });
+   if (!rc) {
+      SPDLOG_LOGGER_ERROR(logger_, "getAddressTxnCounts failed");
+   }
 }
 
 void hd::Leaf::init(bool force)
@@ -576,6 +579,11 @@ void hd::Leaf::topUpAddressPool(bool extInt, const std::function<void()> &cb)
 
 void hd::Leaf::scan(const std::function<void(bs::sync::SyncState)> &cb)
 {
+   if (!armory_) {
+      logger_->error("[sync::hd::Leaf::scan] armory is not set");
+      cb(bs::sync::SyncState::Failure);
+      return;
+   }
    if (!signContainer_) {
       logger_->error("[sync::hd::Leaf::scan] no sign container set");
       cb(bs::sync::SyncState::NothingToDo);
@@ -953,6 +961,9 @@ std::vector<std::string> hd::CCLeaf::setUnconfirmedTarget()
 
 bool hd::CCLeaf::getSpendableTxOutList(const ArmoryConnection::UTXOsCb &cb, uint64_t val, bool excludeReservation)
 {
+   if (!armory_) {
+      return false;
+   }
    const auto cbWrap = [this, cb, val, handle = validityFlag_.handle(), excludeReservation]
       (const std::vector<UTXO> &utxos, std::exception_ptr eptr) mutable
    {
@@ -999,6 +1010,9 @@ void hd::CCLeaf::CCWalletACT::onStateChanged(ArmoryState state)
 
 bool hd::CCLeaf::getSpendableZCList(const ArmoryConnection::UTXOsCb &cb) const
 {
+   if (!armory_) {
+      return false;
+   }
    const auto cbWrap = [cb, armory = armory_]
       (const std::vector<UTXO> &utxos, std::exception_ptr eptr)
    {
