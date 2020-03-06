@@ -1043,8 +1043,7 @@ void WalletsManager::onWalletsListUpdated()
                return (wallet->walletId() == walletId);
          });
          if (itHdWallet == hdWallets_.end()) {
-            syncWallet(hdWallet.second, [this, hdWalletId=hdWallet.first]
-            {
+            syncWallet(hdWallet.second, [this, hdWalletId=hdWallet.first] {
                const auto hdWallet = getHDWalletById(hdWalletId);
                if (hdWallet) {
                   hdWallet->registerWallet(armoryPtr_);

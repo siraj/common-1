@@ -297,8 +297,9 @@ std::vector<std::string> hd::Wallet::registerWallet(
    std::vector<std::string> result;
    for (const auto &leaf : getLeaves()) {
       //settlement leaves are not registered
-      if (leaf->type() == bs::core::wallet::Type::Settlement)
+      if (leaf->type() == bs::core::wallet::Type::Settlement) {
          continue;
+      }
 
       const auto &regIDs = leaf->registerWallet(armory, asNew);
       result.insert(result.end(), regIDs.begin(), regIDs.end());
