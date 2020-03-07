@@ -214,7 +214,6 @@ void WalletsManager::saveWallet(const WalletPtr &newWallet)
    addWallet(newWallet);
 }
 
-// XXX should it be register in armory ?
 // XXX should it start rescan ?
 void WalletsManager::addWallet(const WalletPtr &wallet, bool isHDLeaf)
 {
@@ -238,6 +237,10 @@ void WalletsManager::addWallet(const WalletPtr &wallet, bool isHDLeaf)
       logger_->debug("[WalletsManager] auth leaf changed/created");
       emit AuthLeafCreated();
       emit authWalletChanged();
+   }
+
+   if (walletsRegistered_) {
+      wallet->registerWallet(armoryPtr_);
    }
 }
 
@@ -683,6 +686,7 @@ std::vector<std::string> WalletsManager::registerWallets()
       logger_->warn("[WalletsManager::{}] armory is not set", __func__);
       return result;
    }
+   walletsRegistered_ = true;
    if (empty()) {
       logger_->debug("[WalletsManager::{}] no wallets to register", __func__);
       return result;
@@ -700,6 +704,7 @@ std::vector<std::string> WalletsManager::registerWallets()
 
 void WalletsManager::unregisterWallets()
 {
+   walletsRegistered_ = false;
    for (auto &it : wallets_) {
       it.second->unregisterWallet();
    }
@@ -1038,8 +1043,7 @@ void WalletsManager::onWalletsListUpdated()
                return (wallet->walletId() == walletId);
          });
          if (itHdWallet == hdWallets_.end()) {
-            syncWallet(hdWallet.second, [this, hdWalletId=hdWallet.first]
-            {
+            syncWallet(hdWallet.second, [this, hdWalletId=hdWallet.first] {
                const auto hdWallet = getHDWalletById(hdWalletId);
                if (hdWallet) {
                   hdWallet->registerWallet(armoryPtr_);
@@ -1186,38 +1190,10 @@ bool WalletsManager::isWatchingOnly(const std::string &walletId) const
 
 void WalletsManager::goOnline()
 {
+   trackersStarted_ = true;
    for (const auto &cc : ccResolver_->securities()) {
-      std::unique_ptr<ColoredCoinTrackerInterface> trackerSnapshots;
-      if (trackerClient_) {
-         trackerSnapshots = CcTrackerClient::createClient(trackerClient_, ccResolver_->lotSizeFor(cc));
-      } else {
-         trackerSnapshots = std::make_unique<ColoredCoinTracker>(ccResolver_->lotSizeFor(cc), armoryPtr_);
-      }
-      trackerSnapshots->addOriginAddress(ccResolver_->genesisAddrFor(cc));
-      const auto tracker = std::make_shared<ColoredCoinTrackerClient>(std::move(trackerSnapshots));
-      trackers_[cc] = tracker;
-      logger_->debug("[{}] added CC tracker for {}", __func__, cc);
+      startTracker(cc);
    }
-
-   for (const auto &wallet : getAllWallets()) {
-      auto ccLeaf = std::dynamic_pointer_cast<bs::sync::hd::CCLeaf>(wallet);
-      if (ccLeaf) {
-         updateTracker(ccLeaf);
-      }
-   }
-
-   std::thread([this, handle = validityFlag_.handle(), trackers = trackers_, logger = logger_]() mutable {
-      for (const auto &ccTracker : trackers) {
-         if (!ccTracker.second->goOnline()) {
-            logger->error("[WalletsManager::goOnline] failed for {}", ccTracker.first);
-         }
-      }
-
-      ValidityGuard lock(handle);
-      if (handle.isValid()) {
-         QMetaObject::invokeMethod(this, &WalletsManager::walletsReady);
-      }
-   }).detach();
 }
 
 void WalletsManager::onCCSecurityInfo(QString ccProd, QString ccDesc, unsigned long nbSatoshis, QString genesisAddr)
@@ -1226,6 +1202,10 @@ void WalletsManager::onCCSecurityInfo(QString ccProd, QString ccDesc, unsigned l
    logger_->debug("[{}] received info for {}", __func__, cc);
    const auto genAddr = bs::Address::fromAddressString(genesisAddr.toStdString());
    ccResolver_->addData(cc, nbSatoshis, genAddr, ccDesc.toStdString());
+
+   if (trackersStarted_) {
+      startTracker(ccProd.toStdString());
+   }
 }
 
 void WalletsManager::onCCInfoLoaded()
@@ -1719,6 +1699,33 @@ void WalletsManager::processPromoteHDWallet(bs::error::ErrorCode result, const s
                      , walletId, static_cast<int>(result));
       emit walletPromotionFailed(walletId, result);
    }
+}
+
+void WalletsManager::startTracker(const std::string &cc)
+{
+   std::unique_ptr<ColoredCoinTrackerInterface> trackerSnapshots;
+   if (trackerClient_) {
+      trackerSnapshots = CcTrackerClient::createClient(trackerClient_, ccResolver_->lotSizeFor(cc));
+   } else {
+      trackerSnapshots = std::make_unique<ColoredCoinTracker>(ccResolver_->lotSizeFor(cc), armoryPtr_);
+   }
+   trackerSnapshots->addOriginAddress(ccResolver_->genesisAddrFor(cc));
+   const auto tracker = std::make_shared<ColoredCoinTrackerClient>(std::move(trackerSnapshots));
+   trackers_[cc] = tracker;
+   logger_->debug("[{}] added CC tracker for {}", __func__, cc);
+
+   for (const auto &wallet : getAllWallets()) {
+      auto ccLeaf = std::dynamic_pointer_cast<bs::sync::hd::CCLeaf>(wallet);
+      if (ccLeaf) {
+         updateTracker(ccLeaf);
+      }
+   }
+
+   std::thread([cc, tracker, logger = logger_] {
+      if (!tracker->goOnline()) {
+         SPDLOG_LOGGER_ERROR(logger, "failed for {}", cc);
+      }
+   }).detach();
 }
 
 void WalletsManager::updateTracker(const std::shared_ptr<hd::CCLeaf> &ccLeaf)

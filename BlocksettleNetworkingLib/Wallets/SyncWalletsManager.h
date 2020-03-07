@@ -244,6 +244,7 @@ namespace bs {
             , const std::string &walletId);
 
          void processPromoteHDWallet(bs::error::ErrorCode result, const std::string& walletId);
+         void startTracker(const std::string &cc);
          void updateTracker(const std::shared_ptr<bs::sync::hd::CCLeaf> &ccLeaf);
 
       private:
@@ -320,6 +321,9 @@ namespace bs {
          std::mutex                 maintMutex_;
 
          std::shared_ptr<CcTrackerClient> trackerClient_;
+
+         bool walletsRegistered_{};
+         bool trackersStarted_{};
 
          ValidityFlag   validityFlag_;
       };
