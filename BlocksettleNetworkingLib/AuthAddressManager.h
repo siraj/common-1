@@ -49,7 +49,6 @@ class ApplicationSettings;
 class ArmoryConnection;
 class BsClient;
 class BaseCelerClient;
-class ConnectionManager;
 class RequestReplyCommand;
 class ResolverFeed_AuthAddress;
 class SignContainer;
@@ -70,8 +69,7 @@ public:
    };
 
    AuthAddressManager(const std::shared_ptr<spdlog::logger> &
-      , const std::shared_ptr<ArmoryConnection> &
-      , const ZmqBipNewKeyCb &);
+      , const std::shared_ptr<ArmoryConnection> &);
    ~AuthAddressManager() noexcept override;
 
    AuthAddressManager(const AuthAddressManager&) = delete;
@@ -82,8 +80,7 @@ public:
    void init(const std::shared_ptr<ApplicationSettings> &
       , const std::shared_ptr<bs::sync::WalletsManager> &
       , const std::shared_ptr<SignContainer> &);
-   void ConnectToPublicBridge(const std::shared_ptr<ConnectionManager> &
-      , const std::shared_ptr<BaseCelerClient> &);
+   void setCelerClient(const std::shared_ptr<BaseCelerClient> &);
 
    size_t GetAddressCount();
    bs::Address GetAddress(size_t index);
@@ -157,10 +154,6 @@ private:
    bool setup();
    void OnDataReceived(const std::string& data);
 
-   bool SubmitRequestToPB(const std::string& requestName, const std::string& data);
-
-   bool SendGetBSAddressListRequest();
-
    void ProcessBSAddressListResponse(const std::string& response, bool sigVerified);
 
    bool HaveBSAddressList() const;
@@ -183,15 +176,10 @@ private:
 protected:
    std::shared_ptr<spdlog::logger>        logger_;
    std::shared_ptr<ArmoryConnection>      armory_;
-   ZmqBipNewKeyCb      cbApproveConn_ = nullptr;
    std::shared_ptr<ApplicationSettings>   settings_;
    std::shared_ptr<bs::sync::WalletsManager> walletsManager_;
-   std::shared_ptr<ConnectionManager>     connectionManager_;
    std::shared_ptr<BaseCelerClient>       celerClient_;
    std::shared_ptr<AddressVerificator>    addressVerificator_;
-
-   std::map<int, std::unique_ptr<RequestReplyCommand>>  activeCommands_;
-   int requestId_{};
 
    mutable std::atomic_flag                  lockList_ = ATOMIC_FLAG_INIT;
    std::vector<bs::Address>                  addresses_;

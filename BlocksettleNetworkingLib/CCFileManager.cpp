@@ -42,10 +42,8 @@ namespace {
 } // namespace
 
 CCFileManager::CCFileManager(const std::shared_ptr<spdlog::logger> &logger
-   , const std::shared_ptr<ApplicationSettings> &appSettings
-   , const std::shared_ptr<ConnectionManager>& connectionManager
-   , const ZmqBipNewKeyCb &cb)
-   : CCPubConnection(logger, connectionManager, cb)
+   , const std::shared_ptr<ApplicationSettings> &appSettings)
+   : CCPubConnection(logger)
    , appSettings_(appSettings)
 {
    const auto &cbSecLoaded = [this](const bs::network::CCSecurityDef &ccSecDef) {
@@ -211,21 +209,6 @@ bool CCFileManager::submitAddress(const bs::Address &address, uint32_t seed, con
    });
 
    return true;
-}
-
-std::string CCFileManager::GetPuBHost() const
-{
-   return appSettings_->pubBridgeHost();
-}
-
-std::string CCFileManager::GetPuBPort() const
-{
-   return appSettings_->pubBridgePort();
-}
-
-std::string CCFileManager::GetPuBKey() const
-{
-   return appSettings_->get<std::string>(ApplicationSettings::pubBridgePubKey);
 }
 
 bool CCFileManager::IsTestNet() const

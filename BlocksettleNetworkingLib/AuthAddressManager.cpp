@@ -19,7 +19,6 @@
 #include "CelerClient.h"
 #include "CheckRecipSigner.h"
 #include "ClientClasses.h"
-#include "ConnectionManager.h"
 #include "FastLock.h"
 #include "RequestReplyCommand.h"
 #include "SignContainer.h"
@@ -31,9 +30,8 @@ using namespace Blocksettle::Communication;
 
 
 AuthAddressManager::AuthAddressManager(const std::shared_ptr<spdlog::logger> &logger
-   , const std::shared_ptr<ArmoryConnection> &armory
-   , const ZmqBipNewKeyCb &cb)
-   : QObject(nullptr), logger_(logger), armory_(armory), cbApproveConn_(cb)
+   , const std::shared_ptr<ArmoryConnection> &armory)
+   : QObject(nullptr), logger_(logger), armory_(armory)
 {}
 
 void AuthAddressManager::init(const std::shared_ptr<ApplicationSettings>& appSettings
@@ -60,13 +58,9 @@ void AuthAddressManager::init(const std::shared_ptr<ApplicationSettings>& appSet
    ArmoryCallbackTarget::init(armory_.get());
 }
 
-void AuthAddressManager::ConnectToPublicBridge(const std::shared_ptr<ConnectionManager> &connMgr
-   , const std::shared_ptr<BaseCelerClient>& celerClient)
+void AuthAddressManager::setCelerClient(const std::shared_ptr<BaseCelerClient>& celerClient)
 {
-   connectionManager_ = connMgr;
    celerClient_ = celerClient;
-
-   QtConcurrent::run(this, &AuthAddressManager::SendGetBSAddressListRequest);
 }
 
 void AuthAddressManager::SetAuthWallet()
@@ -515,61 +509,6 @@ std::string AuthAddressManager::readyErrorStr(AuthAddressManager::ReadyError err
       case ReadyError::ArmoryOffline:        return "ArmoryOffline";
    }
    return "Unknown";
-}
-
-bool AuthAddressManager::SendGetBSAddressListRequest()
-{
-   GetBSFundingAddressListRequest addressRequest;
-   RequestPacket  request;
-
-   addressRequest.set_addresslisttype(BitcoinsAddressType);
-
-   request.set_requesttype(GetBSFundingAddressListType);
-   request.set_requestdata(addressRequest.SerializeAsString());
-
-   return SubmitRequestToPB("get_bs_list", request.SerializeAsString());
-}
-
-bool AuthAddressManager::SubmitRequestToPB(const std::string& name, const std::string& data)
-{
-   QMetaObject::invokeMethod(this, [this, name, data] {
-      auto connection = connectionManager_->CreateZMQBIP15XDataConnection();
-      connection->setCBs(cbApproveConn_);
-
-      requestId_ += 1;
-      int requestId = requestId_;
-
-      auto command = std::make_unique<RequestReplyCommand>(name, connection, logger_);
-
-      command->SetReplyCallback([requestId, this](const std::string& data) {
-         OnDataReceived(data);
-
-         QMetaObject::invokeMethod(this, [this, requestId] {
-            activeCommands_.erase(requestId);
-         });
-         return true;
-      });
-
-      command->SetErrorCallback([requestId, this](const std::string& message) {
-         QMetaObject::invokeMethod(this, [this, requestId, message] {
-            auto it = activeCommands_.find(requestId);
-            if (it != activeCommands_.end()) {
-               logger_->error("[AuthAddressManager::{}] error callback: {}", it->second->GetName(), message);
-               activeCommands_.erase(it);
-            }
-         });
-      });
-
-      if (!command->ExecuteRequest(settings_->pubBridgeHost(), settings_->pubBridgePort()
-            , data, true)) {
-         logger_->error("[AuthAddressManager::SubmitRequestToPB] failed to send request {}", name);
-         return;
-      }
-
-      activeCommands_.emplace(requestId, std::move(command));
-   });
-
-   return true;
 }
 
 void AuthAddressManager::ProcessBSAddressListResponse(const std::string& response, bool sigVerified)

@@ -73,8 +73,7 @@ class CCFileManager : public CCPubConnection
 {
 Q_OBJECT
 public:
-   CCFileManager(const std::shared_ptr<spdlog::logger> &logger, const std::shared_ptr<ApplicationSettings> &appSettings
-      , const std::shared_ptr<ConnectionManager> &, const ZmqBipNewKeyCb &cb = nullptr);
+   CCFileManager(const std::shared_ptr<spdlog::logger> &logger, const std::shared_ptr<ApplicationSettings> &appSettings);
    ~CCFileManager() noexcept override = default;
 
    CCFileManager(const CCFileManager&) = delete;
@@ -113,10 +112,6 @@ protected:
    void ProcessGenAddressesResponse(const std::string& response, const std::string &sig) override;
 
    bool IsTestNet() const override;
-
-   std::string GetPuBHost() const override;
-   std::string GetPuBPort() const override;
-   std::string GetPuBKey() const override;
 
 private:
    std::shared_ptr<ApplicationSettings>   appSettings_;
