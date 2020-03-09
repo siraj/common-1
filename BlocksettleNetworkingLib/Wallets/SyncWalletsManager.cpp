@@ -772,7 +772,7 @@ bool WalletsManager::getTransactionDirection(Tx tx, const std::string &walletId
    }
 
    const auto &cbProcess = [this, wallet, group, tx, txKey, txOutIndices, cb]
-      (const std::vector<Tx> &txs, std::exception_ptr)
+      (const AsyncClient::TxBatchResult &txs, std::exception_ptr)
    {
       bool ourOuts = false;
       bool otherOuts = false;
@@ -786,12 +786,15 @@ bool WalletsManager::getTransactionDirection(Tx tx, const std::string &walletId
       inAddrs.reserve(tx.getNumTxIn());
 
       for (const auto &prevTx : txs) {
-         const auto &itIdx = txOutIndices.find(prevTx.getThisHash());
+         if (!prevTx.second) {
+            continue;
+         }
+         const auto &itIdx = txOutIndices.find(prevTx.first);
          if (itIdx == txOutIndices.end()) {
             continue;
          }
          for (const auto idx : itIdx->second) {
-            TxOut prevOut = prevTx.getTxOutCopy((int)idx);
+            TxOut prevOut = prevTx.second->getTxOutCopy((int)idx);
             const auto addr = bs::Address::fromTxOut(prevOut);
             const auto addrWallet = getWalletByAddress(addr);
             const auto addrGroup = addrWallet ? getGroupByWalletId(addrWallet->walletId()) : nullptr;

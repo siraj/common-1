@@ -825,7 +825,7 @@ bool ArmoryConnection::addGetTxCallback(const BinaryData &hash, const TxCb &cb)
    return false;
 }
 
-void ArmoryConnection::callGetTxCallbacks(const BinaryData &hash, const Tx &tx)
+void ArmoryConnection::callGetTxCallbacks(const BinaryData &hash, const AsyncClient::TxResult &tx)
 {
    std::vector<TxCb> callbacks;
    {
@@ -841,7 +841,7 @@ void ArmoryConnection::callGetTxCallbacks(const BinaryData &hash, const Tx &tx)
    }
    for (const auto &callback : callbacks) {
       if (callback) {
-         callback(tx);
+         callback(tx ? *tx : Tx{});
       }
    }
 }
@@ -856,7 +856,9 @@ bool ArmoryConnection::getTxByHash(const BinaryData &hash, const TxCb &cb, bool 
    if (addGetTxCallback(hash, cb)) {
       return true;
    }
-   const auto &cbWrap = [this, hash](ReturnMessage<Tx> tx)->void {
+   const auto &cbWrap = [this, hash]
+      (ReturnMessage<AsyncClient::TxResult> tx)->void
+   {
       try {
          auto retTx = tx.get();
          callGetTxCallbacks(hash, retTx);
@@ -871,8 +873,8 @@ bool ArmoryConnection::getTxByHash(const BinaryData &hash, const TxCb &cb, bool 
    return true;
 }
 
-// allowCachedResult is ignored here
-bool ArmoryConnection::getTXsByHash(const std::set<BinaryData> &hashes, const TXsCb &cb, bool /*allowCachedResult*/)
+bool ArmoryConnection::getTXsByHash(const std::set<BinaryData> &hashes
+   , const TXsCb &cb, bool /*allowCachedResult - ignored here*/)
 {
    if (!bdv_ || (state_ != ArmoryState::Ready)) {
       logger_->error("[ArmoryConnection::getTXsByHash] invalid state: {}", (int)state_.load());
@@ -883,7 +885,8 @@ bool ArmoryConnection::getTXsByHash(const std::set<BinaryData> &hashes, const TX
       return false;
    }
 
-   const auto cbWrap = [logger=logger_, cb](ReturnMessage<std::vector<Tx>> msg)->void
+   const auto cbWrap = [logger=logger_, cb]
+      (ReturnMessage<AsyncClient::TxBatchResult> msg)->void
    {
       try {
          if (cb) {

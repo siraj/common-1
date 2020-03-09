@@ -208,7 +208,7 @@ void ColoredCoinTrackerAsync::processTxBatch(
    , const ResultCb &cb)
 {
    const auto txLbd = [this, ssPtr, cb]
-      (const std::vector<Tx> &txBatch, std::exception_ptr exPtr)
+      (const AsyncClient::TxBatchResult &txBatch, std::exception_ptr exPtr)
    {
       if (exPtr != nullptr) {
          if (cb) {
@@ -222,8 +222,11 @@ void ColoredCoinTrackerAsync::processTxBatch(
 
       //process them
       for (auto& tx : txBatch) {
+         if (!tx.second) {
+            continue;
+         }
          //parse the tx
-         auto&& parsedTx = processTx(ssPtr, zcPtr, tx);
+         auto&& parsedTx = processTx(ssPtr, zcPtr, *(tx.second));
 
          //purge utxo set of all spent CC outputs
          for (auto& input : parsedTx.outpoints_) {
@@ -327,7 +330,7 @@ void ColoredCoinTrackerAsync::processZcBatch(
 {
    //grab listed tx
    const auto cbTxBatch = [this, cb, ssPtr, zcPtr]
-      (const std::vector<Tx> &txBatch, std::exception_ptr exPtr)
+      (const AsyncClient::TxBatchResult &txBatch, std::exception_ptr exPtr)
    {
       if (exPtr != nullptr) {
          if (cb) {
@@ -338,8 +341,11 @@ void ColoredCoinTrackerAsync::processZcBatch(
 
       //process the zc transactions
       for (auto& tx : txBatch) {
+         if (!tx.second) {
+            continue;
+         }
          //parse the tx
-         auto&& parsedTx = processTx(ssPtr, zcPtr, tx);
+         auto&& parsedTx = processTx(ssPtr, zcPtr, *(tx.second));
 
          //purge utxo set of all spent CC outputs
          for (auto& input : parsedTx.outpoints_) {
@@ -405,7 +411,7 @@ void ColoredCoinTrackerAsync::processRevocationBatch(
    }
    //grab listed tx
    const auto txLbd = [this, cb, ssPtr]
-      (const std::vector<Tx> &txBatch, std::exception_ptr exPtr)
+      (const AsyncClient::TxBatchResult &txBatch, std::exception_ptr exPtr)
    {
       if (exPtr != nullptr) {
          if (cb) {
@@ -416,15 +422,18 @@ void ColoredCoinTrackerAsync::processRevocationBatch(
 
       //mark all output scrAddr as revoked
       for (auto& tx : txBatch) {
-         for (unsigned i = 0; i < tx.getNumTxOut(); i++) {
-            auto&& txOut = tx.getTxOutCopy(i); //TODO: work with ref instead of copy
+         if (!tx.second) {
+            continue;
+         }
+         for (unsigned i = 0; i < tx.second->getNumTxOut(); i++) {
+            auto&& txOut = tx.second->getTxOutCopy(i); //TODO: work with ref instead of copy
             auto&& scrAddr = txOut.getScrAddressRef();
 
             auto iter = revocationAddresses_.find(scrAddr);
             if (iter != revocationAddresses_.end()) {
                continue;
             }
-            ssPtr->revokedAddresses_.insert(std::make_pair(scrAddr, tx.getTxHeight()));
+            ssPtr->revokedAddresses_.insert(std::make_pair(scrAddr, tx.second->getTxHeight()));
          }
       }
       if (cb) {
@@ -728,7 +737,7 @@ void ColoredCoinTrackerAsync::purgeZc(const ResultCb &cb)
       txHashes.insert(hashPair.first);
    }
    const auto getTxBatchLbd = [this, cb, zcPtr, currentSs]
-      (const std::vector<Tx> &txBatch, std::exception_ptr exPtr) mutable
+      (const AsyncClient::TxBatchResult &txBatch, std::exception_ptr exPtr) mutable
    {
       if (exPtr != nullptr) {
          if (cb) {
@@ -740,21 +749,21 @@ void ColoredCoinTrackerAsync::purgeZc(const ResultCb &cb)
       zcPtr = std::make_shared<ColoredCoinZCSnapshot>();
       std::set<BinaryData> txsToCheck;
       for (const auto &tx : txBatch) {
-         if (tx.getTxHeight() != UINT32_MAX) {
+         if (!tx.second || (tx.second->getTxHeight() != UINT32_MAX)) {
             continue;
          }
-         txsToCheck.insert(tx.getThisHash());
+         txsToCheck.insert(tx.first);
 
          //parse tx for origin address outputs
-         for (unsigned i = 0; i < tx.getNumTxOut(); i++) {
-            auto&& txOut = tx.getTxOutCopy(i);
+         for (unsigned i = 0; i < tx.second->getNumTxOut(); i++) {
+            auto&& txOut = tx.second->getTxOutCopy(i);
             auto& scrAddr = txOut.getScrAddressStr();
 
             if (originAddresses_.find(scrAddr) == originAddresses_.end()) {
                continue;
             }
             addZcUtxo(currentSs, zcPtr,
-               tx.getThisHash(), i, txOut.getValue(), scrAddr);
+               tx.first, i, txOut.getValue(), scrAddr);
          }
       }
 
