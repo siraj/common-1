@@ -334,6 +334,7 @@ enum GenoaType
    GenoaClientConnected          = 3;
    GenoaAccountsAvailable        = 7;
    GenoaAccounts                 = 8;
+   GenoaNewAccount               = 9;
    GenoaGetXBTReservations       = 10;
    GenoaGetCCReservations        = 11;
    GenoaCancelCCReservation      = 12;
@@ -673,6 +674,7 @@ message GenoaMessage
       GenoaTradeXbtUpdateRequest       xbt_trade_update           = 18;
       GenoaXbtCompleteTransferResponse xbt_transfer_complete      = 19;
       GenoaAccountMessage              account                    = 20;
+      CustomerAccountData              new_account                = 6;
       GenoaSendCCTokenRequest          cc_token                   = 21;
       TradeInfoCcData                  cc_reserve                 = 22;
       string                           settlement_id              = 23;
