@@ -203,7 +203,7 @@ public:
       , const std::function<void(const std::vector<UTXO> &, std::exception_ptr)>&);
 
    using TxCb = std::function<void(const Tx&)>;
-   using TXsCb = std::function<void(const std::vector<Tx> &, std::exception_ptr)>;
+   using TXsCb = std::function<void(const AsyncClient::TxBatchResult &, std::exception_ptr)>;
    using BinaryDataCb = std::function<void(const BinaryData&)>;
 
    // Is allowCachedResult is set then result could be retrieved from cache.
@@ -264,7 +264,7 @@ private:
    void stopServiceThreads();
 
    bool addGetTxCallback(const BinaryData &hash, const TxCb &);  // returns true if hash exists
-   void callGetTxCallbacks(const BinaryData &hash, const Tx &);
+   void callGetTxCallbacks(const BinaryData &hash, const AsyncClient::TxResult &);
 
    void maintenanceThreadFunc();
 

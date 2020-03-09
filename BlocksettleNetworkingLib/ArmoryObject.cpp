@@ -151,19 +151,19 @@ bool ArmoryObject::getTxByHash(const BinaryData &hash, const TxCb &cb, bool allo
 {
    if (allowCachedResult) {
       const auto tx = getFromCache(hash);
-      if (tx.isInitialized()) {
+      if (tx) {
          if (needInvokeCb()) {
             QMetaObject::invokeMethod(this, [cb, tx] {
-               cb(tx);
+               cb(*tx);
             });
          } else {
-            cb(tx);
+            cb(*tx);
          }
          return true;
       }
    }
    const auto &cbWrap = [this, cb, hash](Tx tx) {
-      putToCacheIfNeeded(tx);
+      putToCacheIfNeeded(std::make_shared<Tx>(tx));
       if (!cb) {
          return;
       }
@@ -179,14 +179,14 @@ bool ArmoryObject::getTxByHash(const BinaryData &hash, const TxCb &cb, bool allo
 
 bool ArmoryObject::getTXsByHash(const std::set<BinaryData> &hashes, const TXsCb &cb, bool allowCachedResult)
 {
-   auto result = std::make_shared<std::vector<Tx>>();
+   auto result = std::make_shared<AsyncClient::TxBatchResult>();
 
    std::set<BinaryData> missedHashes;
    if (allowCachedResult) {
       for (const auto &hash : hashes) {
          const auto tx = getFromCache(hash);
-         if (tx.isInitialized()) {
-            result->push_back(tx);
+         if (tx) {
+            (*result)[hash] = tx;
          }
          else {
             missedHashes.insert(hash);
@@ -207,15 +207,15 @@ bool ArmoryObject::getTXsByHash(const std::set<BinaryData> &hashes, const TXsCb 
       return true;
    }
    const auto &cbWrap = [this, cb, result]
-      (const std::vector<Tx> &txs, std::exception_ptr exPtr)
+      (const AsyncClient::TxBatchResult &txs, std::exception_ptr exPtr)
    {
       if (exPtr != nullptr) {
          cb({}, exPtr);
          return;
       }
       for (const auto &tx : txs) {
-         putToCacheIfNeeded(tx);
-         result->push_back(tx);
+         putToCacheIfNeeded(tx.second);
+         (*result)[tx.first] = tx.second;
       }
       if (needInvokeCb()) {
          QMetaObject::invokeMethod(this, [cb, result] { cb(*result, nullptr); });
@@ -294,14 +294,14 @@ bool ArmoryObject::getFeeSchedule(const FloatMapCb &cb)
    return ArmoryConnection::getFeeSchedule(cbWrap);
 }
 
-Tx ArmoryObject::getFromCache(const BinaryData &hash)
+std::shared_ptr<const Tx> ArmoryObject::getFromCache(const BinaryData &hash)
 {
    return txCache_.get(hash);
 }
 
-void ArmoryObject::putToCacheIfNeeded(const Tx &tx)
+void ArmoryObject::putToCacheIfNeeded(const std::shared_ptr<const Tx> &tx)
 {
-   if (!tx.isInitialized() || tx.getTxHeight() == UINT32_MAX) {
+   if (!tx || !tx->isInitialized() || tx->getTxHeight() == UINT32_MAX) {
       return;
    }
    const auto topBlock = topBlock_.load();
@@ -309,17 +309,17 @@ void ArmoryObject::putToCacheIfNeeded(const Tx &tx)
       return;
    }
 
-   if (tx.getTxHeight() > topBlock) {
+   if (tx->getTxHeight() > topBlock) {
       // should not happen
-      SPDLOG_LOGGER_ERROR(logger_, "invalid tx height: {}, topBlock: {}", tx.getTxHeight(), topBlock);
+      SPDLOG_LOGGER_ERROR(logger_, "invalid tx height: {}, topBlock: {}", tx->getTxHeight(), topBlock);
       return;
    }
-   if (topBlock - tx.getTxHeight() < kRequiredConfCountForCache) {
+   if (topBlock - tx->getTxHeight() < kRequiredConfCountForCache) {
       return;
    }
 
    try {
-      auto hash = tx.getThisHash();
+      auto hash = tx->getThisHash();
       txCache_.put(hash, tx);
    } catch (const std::exception &e) {
       SPDLOG_LOGGER_ERROR(logger_, "caching tx failed: {}", e.what());

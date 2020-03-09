@@ -127,7 +127,7 @@ void CheckRecipSigner::hasInputAddress(const bs::Address &addr, std::function<vo
    resultFound_ = false;
 
    const auto &cbTXs = [this, cb, checker, lotsize, handle = validityFlag_.handle()]
-      (const std::vector<Tx> &txs, std::exception_ptr exPtr) mutable
+      (const AsyncClient::TxBatchResult &txs, std::exception_ptr exPtr) mutable
    {
       ValidityGuard lock(handle);
       if (!handle.isValid()) {
@@ -138,7 +138,9 @@ void CheckRecipSigner::hasInputAddress(const bs::Address &addr, std::function<vo
          return;
       }
       for (const auto &tx : txs) {
-         const auto &cbContains = [this, cb, tx, checker, handle](bool contains) mutable {
+         const auto &cbContains = [this, cb, txHash=tx.first, checker, handle]
+            (bool contains) mutable
+         {
             ValidityGuard lock(handle);
             if (!handle.isValid()) {
                return;
@@ -146,7 +148,7 @@ void CheckRecipSigner::hasInputAddress(const bs::Address &addr, std::function<vo
             if (resultFound_) {
                return;
             }
-            txHashSet_.erase(tx.getThisHash());
+            txHashSet_.erase(txHash);
             if (contains) {
                resultFound_ = true;
                cb(true);
@@ -158,7 +160,13 @@ void CheckRecipSigner::hasInputAddress(const bs::Address &addr, std::function<vo
             }
          };
          if (!resultFound_) {
-            checker->containsInputAddress(tx, cbContains, lotsize);
+            if (tx.second) {
+               checker->containsInputAddress(*tx.second, cbContains, lotsize);
+            }
+            else {
+               cb(false);
+               continue;
+            }
          }
       }
    };
@@ -254,7 +262,7 @@ bool CheckRecipSigner::GetInputAddressList(const std::shared_ptr<spdlog::logger>
    }
 
    const auto &cbTXs = [this, result, cb, handle = validityFlag_.handle()]
-      (const std::vector<Tx> &txs, std::exception_ptr exPtr) mutable
+      (const AsyncClient::TxBatchResult &txs, std::exception_ptr exPtr) mutable
    {
       ValidityGuard lock(handle);
       if (!handle.isValid()) {
@@ -270,11 +278,12 @@ bool CheckRecipSigner::GetInputAddressList(const std::shared_ptr<spdlog::logger>
          if (!result) {
             return;
          }
-         const auto &txHash = tx.getThisHash();
-         txHashSet_.erase(txHash);
-         for (const auto &txOutIdx : txOutIdx_[txHash]) {
-            const TxOut prevOut = tx.getTxOutCopy(txOutIdx);
-            result->emplace_back(bs::Address::fromHash(prevOut.getScrAddressStr()));
+         txHashSet_.erase(tx.first);
+         if (tx.second) {
+            for (const auto &txOutIdx : txOutIdx_[tx.first]) {
+               const TxOut prevOut = tx.second->getTxOutCopy(txOutIdx);
+               result->emplace_back(bs::Address::fromHash(prevOut.getScrAddressStr()));
+            }
          }
          if (txHashSet_.empty()) {
             txOutIdx_.clear();
@@ -283,7 +292,7 @@ bool CheckRecipSigner::GetInputAddressList(const std::shared_ptr<spdlog::logger>
       }
    };
    const auto &cbOutputTXs = [this, cbTXs, cb, handle = validityFlag_.handle()]
-      (const std::vector<Tx> &txs, std::exception_ptr exPtr) mutable
+      (const AsyncClient::TxBatchResult &txs, std::exception_ptr exPtr) mutable
    {
       ValidityGuard lock(handle);
       if (!handle.isValid()) {
@@ -294,8 +303,11 @@ bool CheckRecipSigner::GetInputAddressList(const std::shared_ptr<spdlog::logger>
          return;
       }
       for (const auto &tx : txs) {
-         for (size_t i = 0; i < tx.getNumTxIn(); ++i) {
-            TxIn in = tx.getTxInCopy((int)i);
+         if (!tx.second) {
+            continue;
+         }
+         for (size_t i = 0; i < tx.second->getNumTxIn(); ++i) {
+            TxIn in = tx.second->getTxInCopy((int)i);
             OutPoint op = in.getOutPoint();
             txHashSet_.insert(op.getTxHash());
             txOutIdx_[op.getTxHash()].insert(op.getTxOutIndex());
@@ -381,11 +393,14 @@ void TxChecker::hasSpender(const bs::Address &addr, const std::shared_ptr<Armory
    auto result = std::make_shared<Result>();
 
    const auto &cbTXs = [result, addr, cb]
-      (const std::vector<Tx> &txs, std::exception_ptr)
+      (const AsyncClient::TxBatchResult &txs, std::exception_ptr)
    {
       for (const auto &tx : txs) {
-         for (const auto &txOutIdx : result->txOutIdx[tx.getThisHash()]) {
-            const TxOut prevOut = tx.getTxOutCopy(txOutIdx);
+         if (!tx.second) {
+            continue;
+         }
+         for (const auto &txOutIdx : result->txOutIdx[tx.first]) {
+            const TxOut prevOut = tx.second->getTxOutCopy(txOutIdx);
             const bs::Address &txAddr = bs::Address::fromTxOut(prevOut);
             if (txAddr.id() == addr.id()) {
                 cb(true);

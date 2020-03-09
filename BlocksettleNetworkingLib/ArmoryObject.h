@@ -45,9 +45,9 @@ private:
 
    bool needInvokeCb() const;
 
-   Tx getFromCache(const BinaryData &hash);
+   std::shared_ptr<const Tx> getFromCache(const BinaryData &hash);
    // Will store only transactions with >= 6 confirmations
-   void putToCacheIfNeeded(const Tx &tx);
+   void putToCacheIfNeeded(const std::shared_ptr<const Tx> &tx);
 
 private:
    const bool     cbInMainThread_;

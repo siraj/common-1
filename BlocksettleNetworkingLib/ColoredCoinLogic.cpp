@@ -361,13 +361,21 @@ std::vector<Tx> ColoredCoinTracker::grabTxBatch(
    }
    auto txProm = std::make_shared<std::promise<std::vector<Tx>>>();
    auto txFut = txProm->get_future();
-   auto txLbd = [txProm, hashes](const std::vector<Tx> &batch, std::exception_ptr exPtr)
+   auto txLbd = [txProm, hashes]
+      (const AsyncClient::TxBatchResult &batch, std::exception_ptr exPtr)
    {
       if (exPtr != nullptr) {
          txProm->set_exception(exPtr);
       }
       else {
-         auto sortedBatch = batch;
+         std::vector<Tx> sortedBatch;
+         sortedBatch.reserve(batch.size());
+         for (const auto &tx : batch) {
+            if (!tx.second) {
+               continue;
+            }
+            sortedBatch.emplace_back(std::move(*tx.second));
+         }
          std::sort(sortedBatch.begin(), sortedBatch.end(), TxComparator());
          txProm->set_value(sortedBatch);
       }
@@ -653,9 +661,10 @@ void ColoredCoinTracker::processRevocationBatch(
       return;
    }
    //grab listed tx
-   auto txProm = std::make_shared<std::promise<std::vector<Tx>>>();
+   auto txProm = std::make_shared<std::promise<AsyncClient::TxBatchResult>>();
    auto txFut = txProm->get_future();
-   auto txLbd = [txProm](const std::vector<Tx> &batch, std::exception_ptr exPtr)
+   auto txLbd = [txProm]
+      (const AsyncClient::TxBatchResult &batch, std::exception_ptr exPtr)
    {
       if (exPtr != nullptr) {
          txProm->set_exception(exPtr);
@@ -670,16 +679,16 @@ void ColoredCoinTracker::processRevocationBatch(
    const auto &txBatch = txFut.get();
 
    //mark all output scrAddr as revoked
-   for (auto& tx : txBatch) {
-      for (unsigned i = 0; i < tx.getNumTxOut(); i++) {
-         auto&& txOut = tx.getTxOutCopy(i); //TODO: work with ref instead of copy
+   for (const auto &tx : txBatch) {
+      for (unsigned i = 0; i < tx.second->getNumTxOut(); i++) {
+         auto&& txOut = tx.second->getTxOutCopy(i); //TODO: work with ref instead of copy
          auto&& scrAddr = txOut.getScrAddressRef();
 
          auto iter = revocationAddresses_.find(scrAddr);
          if (iter != revocationAddresses_.end()) {
             continue;
          }
-         ssPtr->revokedAddresses_.insert(std::make_pair(scrAddr, tx.getTxHeight()));
+         ssPtr->revokedAddresses_.insert(std::make_pair(scrAddr, tx.second->getTxHeight()));
       }
    }
 }
@@ -1029,10 +1038,10 @@ void ColoredCoinTracker::purgeZc()
          txHashes.insert(hashPair.first);
    }
 
-   auto promPtr = std::make_shared<std::promise<std::vector<Tx>>>();
+   auto promPtr = std::make_shared<std::promise<AsyncClient::TxBatchResult>>();
    auto fut = promPtr->get_future();
    const auto &getTxBatchLbd = [promPtr]
-      (const std::vector<Tx> &batch, std::exception_ptr exPtr)
+      (const AsyncClient::TxBatchResult &batch, std::exception_ptr exPtr)
    {
       if (exPtr != nullptr) {
          promPtr->set_exception(exPtr);
@@ -1052,22 +1061,22 @@ void ColoredCoinTracker::purgeZc()
 
    auto zcPtr = std::make_shared<ColoredCoinZCSnapshot>();
    std::set<BinaryData> txsToCheck;
-   for (auto& tx : txBatch) {
-      if (tx.getTxHeight() != UINT32_MAX) {
+   for (const auto &tx : txBatch) {
+      if (!tx.second || (tx.second->getTxHeight() != UINT32_MAX)) {
          continue;
       }
-      txsToCheck.insert(tx.getThisHash());
+      txsToCheck.insert(tx.first);
 
       //parse tx for origin address outputs
-      for (unsigned i = 0; i < tx.getNumTxOut(); i++) {
-         auto&& txOut = tx.getTxOutCopy(i);
+      for (unsigned i = 0; i < tx.second->getNumTxOut(); i++) {
+         auto&& txOut = tx.second->getTxOutCopy(i);
          auto& scrAddr = txOut.getScrAddressStr();
          
          if (originAddresses_.find(scrAddr) == originAddresses_.end()) {
             continue;
          }
          addZcUtxo(currentSs, zcPtr, 
-            tx.getThisHash(), i, txOut.getValue(), scrAddr);
+            tx.first, i, txOut.getValue(), scrAddr);
       }
    }
 

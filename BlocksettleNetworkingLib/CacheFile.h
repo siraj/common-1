@@ -20,6 +20,7 @@
 #include <QThreadPool>
 #include <QTimer>
 #include <lmdbpp.h>
+#include "AsyncClient.h"
 #include "BinaryData.h"
 #include "TxClasses.h"
 
@@ -63,21 +64,31 @@ public:
    TxCacheFile(const std::string &filename, size_t nbElemLimit = 10000)
       : CacheFile(filename, nbElemLimit) {}
 
-   void put(const BinaryData &key, const Tx &tx) {
-      if (!tx.isInitialized()) {
+   void put(const BinaryData &key, const std::shared_ptr<const Tx> &tx) {
+      txMap_[key] = tx;
+      if (!tx || !tx->isInitialized()) {
          return;
       }
-      CacheFile::put(key, tx.serialize());
+      CacheFile::put(key, tx->serialize());
    }
-   Tx get(const BinaryData &key) {
+   std::shared_ptr<const Tx> get(const BinaryData &key) {
+      const auto &itTx = txMap_.find(key);
+      if (itTx != txMap_.end()) {
+         return itTx->second;
+      }
       const auto &data = CacheFile::get(key);
       if (data.isNull()) {
-         return Tx{};
+         return nullptr;
       }
-      return Tx(data);
+      const auto tx = std::make_shared<Tx>(data);
+      txMap_[key] = tx;
+      return tx;
    }
 
    void stop() { CacheFile::stop(); }
+
+private:
+   AsyncClient::TxBatchResult txMap_;
 };
 
 #endif // __CACHE_FILE_H__
