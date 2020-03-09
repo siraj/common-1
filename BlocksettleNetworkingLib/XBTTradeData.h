@@ -76,6 +76,8 @@ struct XBTTradeData
    std::string lastStatus;
 
    std::map<std::string, BinaryData> preimageData;
+
+   bool savedInHistory = false;
 };
 
 using XBTTradePtr = std::shared_ptr<XBTTradeData>;

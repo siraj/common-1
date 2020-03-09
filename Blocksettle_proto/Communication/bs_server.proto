@@ -993,6 +993,7 @@ message TradeDataXbtMessage
    bool   loaded_from_genoa = 24;
    string last_status = 25;
    repeated AddressPreimageData preimage_data = 26;
+   bool   saved_in_history = 27;
 }
 
 message TradeInfoCcData
@@ -1011,6 +1012,7 @@ message TradeInfoCcData
    int32  validation_score = 12;
    string scorechain_url = 13;
    uint64 timestamp = 14;
+   bool   saved_in_history = 15;
 }
 
 message OutPointData
