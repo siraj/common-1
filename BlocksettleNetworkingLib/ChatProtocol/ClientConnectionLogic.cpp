@@ -32,7 +32,7 @@ ClientConnectionLogic::ClientConnectionLogic(ClientPartyLogicPtr clientPartyLogi
                                              Chat::CryptManagerPtr cryptManagerPtr,
                                              SessionKeyHolderPtr sessionKeyHolderPtr, QObject* parent /* = nullptr */)
    : QObject(parent), loggerPtr_(std::move(loggerPtr)), clientPartyLogicPtr_(
-        std::move(clientPartyLogicPtr)), 
+        std::move(clientPartyLogicPtr)),
    clientDBServicePtr_(std::move(clientDBServicePtr)), sessionKeyHolderPtr_(std::move(sessionKeyHolderPtr)), cryptManagerPtr_(
       std::move(cryptManagerPtr))
 {
@@ -147,7 +147,6 @@ void ClientConnectionLogic::onConnected()
    WelcomeRequest welcomeRequest;
    welcomeRequest.set_user_hash(currentUserPtr()->userHash());
    welcomeRequest.set_client_public_key(currentUserPtr()->publicKey().toBinStr());
-   welcomeRequest.set_celer_type(static_cast<int>(currentUserPtr()->celerUserType()));
    welcomeRequest.set_chat_token_data(token_.toBinStr());
    welcomeRequest.set_chat_token_sign(tokenSign_.toBinStr());
 
@@ -656,16 +655,16 @@ void ClientConnectionLogic::messageLoaded(const std::string& partyId, const std:
          {
             /*
              * 13.11.2019
-             * This could happen only in rare occasions. 
-             * We need to break here and no error message is needed. 
-             * Process of sending unsent messages will be repeated when sender will send next new message 
+             * This could happen only in rare occasions.
+             * We need to break here and no error message is needed.
+             * Process of sending unsent messages will be repeated when sender will send next new message
              * or sender will change his status to online again
-             * or server can request unsent messages if detect that we're sending aead message to offline user 
+             * or server can request unsent messages if detect that we're sending aead message to offline user
              * or when we're trying temporary key exchange with offline user.
             */
             continue;
          }
-         
+
          // use AEAD encryption for online clients
          auto nonce = sessionKeyDataPtr->nonce();
          auto associatedData = cryptManagerPtr_->jsonAssociatedData(partyId, nonce);

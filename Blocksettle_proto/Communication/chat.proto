@@ -66,13 +66,12 @@ message WelcomeRequest
 {
    string user_hash = 1;
    bytes client_public_key = 2;
-   int32 celer_type = 3;
 
    // serialized bs.types.ChatToken
-   bytes chat_token_data = 4;
+   bytes chat_token_data = 3;
 
    // chat_token_data signed by proxy for later chat server verification
-   bytes chat_token_sign = 5;
+   bytes chat_token_sign = 4;
 }
 
 message WelcomeResponse
@@ -95,7 +94,7 @@ message StatusChanged
    string user_hash = 1;
    ClientStatus client_status = 2;
    google.protobuf.BytesValue public_key = 3;
-   google.protobuf.Int64Value timestamp_ms = 4;   
+   google.protobuf.Int64Value timestamp_ms = 4;
    int32 celer_type = 5;
 }
 
