@@ -597,7 +597,7 @@ QString AutheIDClient::getAutheIDClientRequestText(RequestType requestType)
    case CreateSettlementLeaf:
       return tr("Create settlement leaf");
    case PromoteWallet:
-      return tr("Promote to primary wallet");
+      return tr("Enable Trading");
    case EnableAutoSign:
       return tr("Enable auto signing");
    case RevokeAuthAddress:
@@ -647,7 +647,7 @@ std::string AutheIDClient::finalMessageChange(const QString &authEidMessage, Req
       return addRow("Device", knownDeviceIds[0]) + authEidMessage.toStdString();
    default:
       return authEidMessage.toStdString();
-   }   
+   }
 }
 
 void AutheIDClient::processSignatureReply(const autheid::rp::GetResultResponse_SignatureResult &reply)
