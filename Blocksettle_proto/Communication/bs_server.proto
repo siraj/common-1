@@ -100,6 +100,7 @@ enum ArmoryPushTxResult
    ArmoryPushTxMempoolFull = 3;
    ArmoryPushTxBroadcastTimeout = 4;
    ArmoryPushTxOtherError = 5;
+   ArmoryPushTxAlreadyInChain = 6;
 }
 
 message ArmoryPushTxResponse
