@@ -78,6 +78,20 @@ struct XBTTradeData
    std::map<std::string, BinaryData> preimageData;
 
    bool savedInHistory = false;
+
+   enum class TradeState : int
+   {
+      StateUndefined = 0,
+      UnsignedPayinRequested,
+      UnsignedPayinProcessing,
+      SignedPayoutRequested,
+      SignedPayoutProcessing,
+      SignedPayinRequested,
+      SignedPayinProcessing,
+      SettlementMonitoring
+   };
+
+   TradeState tradeState = TradeState::StateUndefined;
 };
 
 using XBTTradePtr = std::shared_ptr<XBTTradeData>;
