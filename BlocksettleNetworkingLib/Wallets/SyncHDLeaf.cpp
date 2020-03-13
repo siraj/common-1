@@ -72,13 +72,20 @@ void hd::Leaf::synchronize(const std::function<void()> &cbDone)
          setAddressComment(addr.address, addr.comment, false);
       }
 
-      for (const auto &addr : data.addrPool) {
-         //addPool normally won't contain comments
-         const auto path = bs::hd::Path::fromString(addr.index);
-         {
-            FastLock locker{addressPoolLock_};
+      {
+         FastLock locker{addressPoolLock_};
+         for (const auto &addr : data.addrPool) {
+            //addPool normally won't contain comments
+            const auto path = bs::hd::Path::fromString(addr.index);
+            auto type = path.get(-2);
+            auto index = path.get(-1);
             addressPool_[{ path }] = addr.address;
             poolByAddr_[addr.address] = { path };
+            if (type == addrTypeExternal) {
+               lastPoolExtIdx_ = std::max(lastPoolExtIdx_, index);
+            } else {
+               lastPoolIntIdx_ = std::max(lastPoolIntIdx_, index);
+            }
          }
       }
 
@@ -105,15 +112,6 @@ void hd::Leaf::setPath(const bs::hd::Path &path)
    if (!path.length()) {
       reset();
    }
-}
-
-std::vector<BinaryData> hd::Leaf::getRegAddresses(const std::vector<PooledAddress> &src)
-{
-   std::vector<BinaryData> result;
-   for (const auto &addr : src) {
-      result.push_back(addr.second.prefixed());
-   }
-   return result;
 }
 
 bool hd::Leaf::isOwnId(const std::string &wId) const
@@ -217,9 +215,9 @@ std::vector<std::string> hd::Leaf::setUnconfirmedTarget()
    return regIDs;
 }
 
-void hd::Leaf::postOnline()
+void hd::Leaf::postOnline(bool force)
 {
-   if (skipPostOnline_ || firstInit_) {
+   if ((skipPostOnline_ || firstInit_) && !force) {
       return;
    }
 
@@ -237,14 +235,42 @@ void hd::Leaf::postOnline()
          }
          return;
       }
-      synchronize([this] {
+      synchronize([this, handle] {
+         if (!handle.isValid()) {
+            return;
+         }
          updateBalances();
+         if (!isExtOnly_ && lastPoolIntIdx_ < lastIntIdx_ + intAddressPoolSize_) {
+            SPDLOG_LOGGER_DEBUG(logger_, "top up internal addr pool for {}, pool size: {}, used addr size: {}"
+               , walletId(), lastPoolIntIdx_ + 1, lastIntIdx_ + 1);
+            topUpAddressPool(false, [this, handle] {
+               if (!handle.isValid()) {
+                  return;
+               }
+               postOnline(true);
+            });
+            return;
+         }
+         if (lastPoolExtIdx_ < lastExtIdx_ + extAddressPoolSize_) {
+            SPDLOG_LOGGER_DEBUG(logger_, "top up external addr pool for {}, pool size: {}, used addr size: {}"
+               , walletId(), lastPoolExtIdx_ + 1, lastExtIdx_ + 1);
+            topUpAddressPool(true, [this, handle] {
+               if (!handle.isValid()) {
+                  return;
+               }
+               postOnline(true);
+            });
+            return;
+         }
          if (wct_) {
             wct_->walletReady(walletId());
          }
       });
    };
-   const bool rc = getAddressTxnCounts([this, cbTrackAddrChain] {
+   const bool rc = getAddressTxnCounts([this, cbTrackAddrChain, handle = validityFlag_.handle()] {
+      if (!handle.isValid()) {
+         return;
+      }
       trackChainAddressUse(cbTrackAddrChain);
    });
    if (!rc) {
@@ -388,33 +414,30 @@ std::vector<BinaryData> hd::Leaf::getAddrHashes() const
 
 std::vector<BinaryData> hd::Leaf::getAddrHashesExt() const
 {
-   std::vector<BinaryData> result;
-   result.insert(result.end(), addrPrefixedHashes_.external.cbegin(), addrPrefixedHashes_.external.cend());
-
+   auto result = addrPrefixedHashes_.external;
    {
       FastLock locker{addressPoolLock_};
       for (const auto &addr : addressPool_) {
          if (addr.first.path.get(-2) == addrTypeExternal) {
-            result.push_back(addr.second.id());
+            result.insert(addr.second.id());
          }
       }
    }
-   return result;
+   return std::vector<BinaryData>(result.begin(), result.end());
 }
 
 std::vector<BinaryData> hd::Leaf::getAddrHashesInt() const
 {
-   std::vector<BinaryData> result;
-   result.insert(result.end(), addrPrefixedHashes_.internal.cbegin(), addrPrefixedHashes_.internal.cend());
+   auto result = addrPrefixedHashes_.internal;
    {
       FastLock locker{addressPoolLock_};
       for (const auto &addr : addressPool_) {
          if (addr.first.path.get(-2) == addrTypeInternal) {
-            result.push_back(addr.second.id());
+            result.insert(addr.second.id());
          }
       }
    }
-   return result;
+   return std::vector<BinaryData>(result.begin(), result.end());
 }
 
 std::vector<std::string> hd::Leaf::registerWallet(
