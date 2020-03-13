@@ -423,7 +423,7 @@ void hd::AuthGroup::initLeaf(std::shared_ptr<hd::Leaf> &leaf
 
 std::shared_ptr<hd::Leaf> hd::AuthGroup::newLeaf(AddressEntryType) const
 {
-   return std::make_shared<hd::AuthLeaf>(netType_, nullptr);
+   return std::make_shared<hd::AuthLeaf>(netType_, logger_);
 }
 
 bool hd::AuthGroup::addLeaf(const std::shared_ptr<Leaf> &leaf)

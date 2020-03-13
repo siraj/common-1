@@ -26,7 +26,7 @@ namespace Chat
    {
    public:
       Party();
-      explicit Party(const PartyType& partyType, const PartySubType& partySubType = STANDARD, const PartyState& partyState = UNINITIALIZED);
+      Party(const PartyType& partyType, const PartySubType& partySubType = STANDARD, const PartyState& partyState = UNINITIALIZED);
       Party(const std::string& id, const PartyType& partyType, const PartySubType& partySubType = STANDARD, const PartyState& partyState = UNINITIALIZED);
 
       virtual ~Party() = default;
@@ -54,6 +54,8 @@ namespace Chat
       virtual bool isPrivateStandard() const { return (PRIVATE_DIRECT_MESSAGE == partyType() && STANDARD == partySubType()); }
       virtual bool isPrivateOTC() const { return (PRIVATE_DIRECT_MESSAGE == partyType() && OTC == partySubType()); }
       virtual bool isPrivate() const { return PRIVATE_DIRECT_MESSAGE == partyType(); }
+
+      virtual bool isTradingEnabledOnly() const { return false; }
 
       const std::string& partyCreatorHash() const { return partyCreatorHash_; }
       void setPartyCreatorHash(const std::string& val) { partyCreatorHash_ = val; }
