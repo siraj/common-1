@@ -88,6 +88,7 @@ struct XBTTradeData
       SignedPayoutProcessing,
       SignedPayinRequested,
       SignedPayinProcessing,
+      SettlementBroadcasting,
       SettlementMonitoring
    };
 
