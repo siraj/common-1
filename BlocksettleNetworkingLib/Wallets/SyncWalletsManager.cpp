@@ -608,7 +608,7 @@ void WalletsManager::eraseWallet(const WalletPtr &wallet)
    wallets_.erase(wallet->walletId());
 }
 
-bool WalletsManager::deleteWallet(WalletPtr wallet)
+bool WalletsManager::deleteWallet(WalletPtr wallet, bool deleteRemotely)
 {
    bool isHDLeaf = false;
    logger_->info("[WalletsManager::{}] - Removing wallet {} ({})...", __func__
@@ -619,7 +619,9 @@ bool WalletsManager::deleteWallet(WalletPtr wallet)
          for (auto group : hdWallet->getGroups()) {
             if (group->deleteLeaf(wallet)) {
                isHDLeaf = true;
-               signContainer_->DeleteHDLeaf(wallet->walletId());
+               if (deleteRemotely) {
+                  signContainer_->DeleteHDLeaf(wallet->walletId());
+               }
                eraseWallet(wallet);
                break;
             }
@@ -644,7 +646,7 @@ bool WalletsManager::deleteWallet(WalletPtr wallet)
    return true;
 }
 
-bool WalletsManager::deleteWallet(HDWalletPtr wallet)
+bool WalletsManager::deleteWallet(HDWalletPtr wallet, bool deleteRemotely)
 {
    const auto itHdWallet = std::find(hdWallets_.cbegin(), hdWallets_.cend(), wallet);
    if (itHdWallet == hdWallets_.end()) {
@@ -666,9 +668,12 @@ bool WalletsManager::deleteWallet(HDWalletPtr wallet)
    hdWallets_.erase(itHdWallet);
    walletNames_.erase(wallet->name());
 
-   const bool result = wallet->deleteRemotely();
-   logger_->info("[WalletsManager::{}] - Wallet {} ({}) removed: {}", __func__
-      , wallet->name(), wallet->walletId(), result);
+   bool result = true;
+   if (deleteRemotely) {
+      result = wallet->deleteRemotely();
+      logger_->info("[WalletsManager::{}] - Wallet {} ({}) removed: {}", __func__
+         , wallet->name(), wallet->walletId(), result);
+   }
 
    if (!getPrimaryWallet()) {
       authAddressWallet_.reset();
@@ -1103,7 +1108,7 @@ void WalletsManager::onWalletsListUpdated()
       }
       for (const auto &hdWalletId : hdWalletsId) {
          if (hdWallets.find(hdWalletId) == hdWallets.end()) {
-            deleteWallet(getHDWalletById(hdWalletId));
+            deleteWallet(getHDWalletById(hdWalletId), false);
          }
       }
    };
@@ -1115,7 +1120,7 @@ void WalletsManager::onAuthLeafAdded(const std::string &walletId)
    if (walletId.empty()) {
       if (authAddressWallet_) {
          logger_->debug("[WalletsManager::onAuthLeafAdded] auth wallet {} unset", authAddressWallet_->walletId());
-         deleteWallet(authAddressWallet_);
+         deleteWallet(authAddressWallet_, false);
       }
       emit AuthLeafNotCreated();
       return;

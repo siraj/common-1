@@ -628,38 +628,14 @@ bool HeadlessContainer::promoteHDWallet(const std::string& rootWalletId
 
 bs::signer::RequestId HeadlessContainer::DeleteHDRoot(const std::string &rootWalletId)
 {
-   if (rootWalletId.empty()) {
-      return 0;
-   }
-   return SendDeleteHDRequest(rootWalletId, {});
+   SPDLOG_LOGGER_ERROR(logger_, "unimplemented");
+   return 0;
 }
 
 bs::signer::RequestId HeadlessContainer::DeleteHDLeaf(const std::string &leafWalletId)
 {
-   if (leafWalletId.empty()) {
-      return 0;
-   }
-   return SendDeleteHDRequest({}, leafWalletId);
-}
-
-bs::signer::RequestId HeadlessContainer::SendDeleteHDRequest(const std::string &rootWalletId, const std::string &leafId)
-{
-   headless::DeleteHDWalletRequest request;
-   if (!rootWalletId.empty()) {
-      request.set_rootwalletid(rootWalletId);
-   }
-   else if (!leafId.empty()) {
-      request.set_leafwalletid(leafId);
-   }
-   else {
-      logger_->error("[HeadlessContainer::SendDeleteHDRequest] can't send delete request - both IDs are empty");
-      return 0;
-   }
-
-   headless::RequestPacket packet;
-   packet.set_type(headless::DeleteHDWalletRequestType);
-   packet.set_data(request.SerializeAsString());
-   return Send(packet);
+   SPDLOG_LOGGER_ERROR(logger_, "unimplemented");
+   return 0;
 }
 
 //void HeadlessContainer::setLimits(const std::string &walletId, const SecureBinaryData &pass
