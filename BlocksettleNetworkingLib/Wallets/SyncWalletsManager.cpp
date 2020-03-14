@@ -1653,7 +1653,7 @@ bool WalletsManager::PromoteHDWallet(const std::string& walletId
    , const std::function<void(bs::error::ErrorCode result)> &cb)
 {
    bs::sync::PasswordDialogData dialogData;
-   dialogData.setValue(PasswordDialogData::Title, tr("Promote To Primary Wallet"));
+   dialogData.setValue(PasswordDialogData::Title, tr("Enable Trading"));
    dialogData.setValue(PasswordDialogData::XBT, tr("Authentification Addresses"));
 
    const auto& promoteHDWalletCb = [this, cb](bs::error::ErrorCode result

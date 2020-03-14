@@ -47,7 +47,11 @@ namespace bs {
 
          // Chat only access (account is not registered on Genoa)
          Chat,
+
+         LastValue = Chat
       };
+
+      static_assert(static_cast<int>(UserType::Undefined) == 0, "First value should be 0");
 
       struct Side {
          enum Type {

@@ -1048,6 +1048,7 @@ void Wallet::trackChainAddressUse(const std::function<void(bs::sync::SyncState)>
          usedAddrSet.insert(addrPair.first);
       }
    }
+
    for (auto& addrPair : balanceData_->addressBalanceMap) {
       if (usedAddrSet.find(addrPair.first) != usedAddrSet.end()) {
          continue;   // skip already added addresses
