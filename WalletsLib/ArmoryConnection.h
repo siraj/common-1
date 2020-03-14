@@ -68,7 +68,8 @@ enum DBNotificationStruct_Enum
    DBNS_Refresh,
    DBNS_ZC,
    DBNS_NewBlock,
-   DBNS_Offline
+   DBNS_Offline,
+   DBNS_TxBroadcastError
 };
 
 struct DBNotificationStruct
@@ -82,6 +83,7 @@ struct DBNotificationStruct
 
    unsigned int block_;
    unsigned int branchHeight_;
+   unsigned int errCode_;
 
    DBNotificationStruct(DBNotificationStruct_Enum type) :
       type_(type)
