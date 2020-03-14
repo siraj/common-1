@@ -247,6 +247,9 @@ void hd::Leaf::postOnline(bool force)
                if (!handle.isValid()) {
                   return;
                }
+               if (wct_) {
+                  wct_->balanceUpdated(walletId());
+               }
                postOnline(true);
             });
             return;
@@ -257,6 +260,9 @@ void hd::Leaf::postOnline(bool force)
             topUpAddressPool(true, [this, handle] {
                if (!handle.isValid()) {
                   return;
+               }
+               if (wct_) {
+                  wct_->balanceUpdated(walletId());
                }
                postOnline(true);
             });
