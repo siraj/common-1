@@ -464,11 +464,13 @@ std::vector<std::string> hd::Leaf::registerWallet(
          return {};
       }
       regIdExt_ = btcWallet_->registerAddresses(addrsExt, asNew);
+      registeredAddresses_.insert(addrsExt.begin(), addrsExt.end());
       regIds.push_back(regIdExt_);
 
       if (!isExtOnly_) {
          btcWalletInt_ = armory_->instantiateWallet(walletIdInt());
          regIdInt_ = btcWalletInt_->registerAddresses(addrsInt, asNew);
+         registeredAddresses_.insert(addrsInt.begin(), addrsInt.end());
          regIds.push_back(regIdInt_);
       }
       logger_->debug("[sync::hd::Leaf::registerWallet] registered {}+{} addresses in {}, {} regIds {} {}"
@@ -593,6 +595,7 @@ void hd::Leaf::topUpAddressPool(bool extInt, const std::function<void()> &cb)
             const auto regId = btcWalletInt_->registerAddresses(addrHashes, true);
             refreshCallbacks_[regId] = cb;
          }
+         registeredAddresses_.insert(addrHashes.begin(), addrHashes.end());
          return;
       }
 
