@@ -214,7 +214,6 @@ void WalletsManager::saveWallet(const WalletPtr &newWallet)
    addWallet(newWallet);
 }
 
-// XXX should it start rescan ?
 void WalletsManager::addWallet(const WalletPtr &wallet, bool isHDLeaf)
 {
 /*   if (!isHDLeaf && hdDummyWallet_)
@@ -551,8 +550,6 @@ void WalletsManager::walletReady(const std::string &walletId)
    if (rootWallet) {
       const auto &itWallet = newWallets_.find(rootWallet->walletId());
       if (itWallet != newWallets_.end()) {
-         logger_->debug("[{}] found new wallet {} - starting rescan", __func__, rootWallet->walletId());
-         rootWallet->startRescan();
          newWallets_.erase(itWallet);
          rootWallet->synchronize([this, rootWallet] {
             QMetaObject::invokeMethod(this, [this, rootWallet] {
@@ -1053,9 +1050,6 @@ void WalletsManager::onWalletsListUpdated()
          if (itHdWallet == hdWallets_.end()) {
             syncWallet(hdWallet.second, [this, hdWalletId=hdWallet.first] {
                const auto hdWallet = getHDWalletById(hdWalletId);
-               if (hdWallet) {
-                  hdWallet->registerWallet(armoryPtr_);
-               }
             });
             newWallets_.insert(hdWallet.first);
          }
@@ -1081,7 +1075,6 @@ void WalletsManager::onWalletsListUpdated()
                logger_->debug("[WalletsManager::onWalletsListUpdated] wallet {} has changed - resyncing"
                   , wallet->walletId());
                wallet->synchronize([this, wallet] {
-                  wallet->registerWallet(armoryPtr_);
                   for (const auto &leaf : wallet->getLeaves()) {
                      if (!getWalletById(leaf->walletId())) {
                         logger_->debug("[WalletsManager::onWalletsListUpdated] adding new leaf {}"
@@ -1157,7 +1150,6 @@ void WalletsManager::onAuthLeafAdded(const std::string &walletId)
    }
    leaf->synchronize([this, leaf] {
       logger_->debug("[WalletsManager::onAuthLeafAdded sync cb] Synchronized auth leaf has {} address[es]", leaf->getUsedAddressCount());
-      leaf->registerWallet(armoryPtr_);
       addWallet(leaf, true);
       authAddressWallet_ = leaf;
       QMetaObject::invokeMethod(this, [this, walletId=leaf->walletId()] {
@@ -1169,9 +1161,6 @@ void WalletsManager::onAuthLeafAdded(const std::string &walletId)
 void WalletsManager::adoptNewWallet(const HDWalletPtr &wallet)
 {
    saveWallet(wallet);
-   if (armoryPtr_) {
-      wallet->registerWallet(armoryPtr_);
-   }
    emit newWalletAdded(wallet->walletId());
    emit walletsReady();
 }
@@ -1643,8 +1632,6 @@ void WalletsManager::processCreatedCCLeaf(const std::string &ccName, bs::error::
 
       leaf->synchronize([this, leaf, ccName] {
          logger_->debug("CC leaf {} synchronized", ccName);
-         leaf->registerWallet(armoryPtr_, true);
-
          emit CCLeafCreated(ccName);
       });
    } else {
@@ -1795,7 +1782,6 @@ bool WalletsManager::createAuthLeaf(const std::function<void()> &cb)
          return;
       }
       leaf->synchronize([this, cb, leaf] {
-         leaf->registerWallet(armoryPtr_);
          authAddressWallet_ = leaf;
          addWallet(leaf, true);
          emit AuthLeafCreated();
