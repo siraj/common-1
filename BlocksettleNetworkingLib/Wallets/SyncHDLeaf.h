@@ -117,15 +117,13 @@ namespace bs {
                }
             };
 
-            using PooledAddress = std::pair<AddrPoolKey, bs::Address>;
-
          protected:
             void onRefresh(const std::vector<BinaryData> &ids, bool online) override;
             virtual void createAddress(const CbAddress &cb, const AddrPoolKey &);
             void reset();
             bs::hd::Path getPathForAddress(const bs::Address &) const;
             virtual void topUpAddressPool(bool extInt, const std::function<void()> &cb = nullptr);
-            void postOnline();
+            void postOnline(bool force = false);
             bool isOwnId(const std::string &) const override;
 
             virtual void onRegistrationCompleted() {};
@@ -149,6 +147,8 @@ namespace bs {
 
             bs::hd::Path::Elem  lastIntIdx_ = 0;
             bs::hd::Path::Elem  lastExtIdx_ = 0;
+            bs::hd::Path::Elem  lastPoolIntIdx_ = 0;
+            bs::hd::Path::Elem  lastPoolExtIdx_ = 0;
 
             size_t intAddressPoolSize_ = 100;
             size_t extAddressPoolSize_ = 100;
@@ -193,8 +193,6 @@ namespace bs {
             AddrPoolKey getAddressIndexForAddr(const BinaryData &addr) const;
             AddrPoolKey addressIndex(const bs::Address &) const;
             void resumeScan(const std::string &refreshId);
-
-            static std::vector<BinaryData> getRegAddresses(const std::vector<PooledAddress> &src);
          };
 
 
