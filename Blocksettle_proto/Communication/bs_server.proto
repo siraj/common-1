@@ -356,6 +356,7 @@ enum GenoaType
    GenoaGetUserAccounts          = 29;
    GenoaGetAccountBalance        = 30;
    GenoEODUpdate                 = 31;
+   GenoaUpdateUserScore          = 32;
 }
 
 message GenoaConnectedBroadcast
@@ -653,6 +654,29 @@ message GenoaEODUpdateMessage
    repeated GenoaPrice  prices   = 2;
 }
 
+message GenoaUpdateUserScoreRequest
+{
+   enum ScoreUpdateEventType
+   {
+      UnsignedPayinSentBeforeRequested = 0;
+      DuplicateUnsignedPayinDelivery   = 1;
+      UnsignedPayinFromUnexpectedUser  = 2;
+
+      SignedPayoutSentToAMissingTrade  = 3;
+      SignedPayoutSentBeforeRequested  = 4;
+      DuplicateSignedPayoutDelivery    = 5;
+      SignedPayoutFromUnexpectedUser   = 6;
+
+      SignedPayinSentToAMissingTrade   = 7;
+      SignedPayinSentBeforeRequested   = 8;
+      DuplicateSignedPayinDelivery     = 9;
+      SignedPayinFromUnexpectedUser    = 10;
+   };
+
+   string               user_email  = 1;
+   ScoreUpdateEventType reason      = 2;
+};
+
 message GenoaMessage
 {
    GenoaType type = 1;
@@ -688,6 +712,7 @@ message GenoaMessage
       GenoaAccountBalanceRequest       acc_balance_request        = 30;
       GenoaAccountBalanceResponse      acc_balance_response       = 31;
       GenoaEODUpdateMessage            eod_update                 = 32;
+      GenoaUpdateUserScoreRequest      update_user_score          = 33;
    }
 }
 
@@ -997,6 +1022,7 @@ message TradeDataXbtMessage
    string last_status = 25;
    repeated AddressPreimageData preimage_data = 26;
    bool   saved_in_history = 27;
+   int32  trade_state = 28;
 }
 
 message TradeInfoCcData
