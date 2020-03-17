@@ -1213,6 +1213,12 @@ message TerminalOtcStartRequest
    int32 request_id = 1;
 }
 
+message TerminalOtcStartResponse
+{
+   int32  request_id = 1;
+   string settlement_id = 2;
+}
+
 message TerminalOtcVerifyRequest
 {
    bool   is_sell = 1;
@@ -1250,9 +1256,10 @@ message TerminalMessage
       TerminalSignPayinRequest sign_payin_request = 5;
       TerminalSignedData signed_data = 6;
       TerminalOtcStartRequest  otc_start = 10;
-      TerminalOtcVerifyRequest otc_verify = 11;
-      TerminalOtcUpdateMessage otc_update = 12;
-      TerminalOtcTxMessage     otc_tx = 13;
+      TerminalOtcStartResponse otc_response = 11;
+      TerminalOtcVerifyRequest otc_verify = 12;
+      TerminalOtcUpdateMessage otc_update = 13;
+      TerminalOtcTxMessage     otc_tx = 14;
    }
 }
 

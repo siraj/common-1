@@ -711,7 +711,9 @@ std::vector<std::string> Wallet::registerWallet(const std::shared_ptr<ArmoryConn
 
    if (armory_) {
       const auto wallet = armory_->instantiateWallet(walletId());
-      regId_ = wallet->registerAddresses(getAddrHashes(), asNew);
+      const auto &addrHashes = getAddrHashes();
+      regId_ = wallet->registerAddresses(addrHashes, asNew);
+      registeredAddresses_.insert(addrHashes.begin(), addrHashes.end());
       logger_->debug("[bs::sync::Wallet::registerWallet] register wallet {}, {} addresses = {}"
          , walletId(), getAddrHashes().size(), regId_);
       return { regId_ };
@@ -1067,9 +1069,16 @@ void Wallet::trackChainAddressUse(const std::function<void(bs::sync::SyncState)>
       }
    }
 
-   logger_->debug("[bs::sync::Wallet::trackChainAddressUse] {}: {} used address[es]", walletId(), usedAddrSet.size());
+   // Workaround for case when wallet removed and added again without restart
+   // and ArmoryDB reports details for old addresses.
+   // Could be safely removed when unregister wallet method is added for ArmoryDB.
+   std::set<BinaryData> usedAndRegAddrs;
+   std::set_intersection(registeredAddresses_.begin(), registeredAddresses_.end()
+      , usedAddrSet.begin(), usedAddrSet.end(), std::inserter(usedAndRegAddrs, usedAndRegAddrs.end()));
+
+   logger_->debug("[bs::sync::Wallet::trackChainAddressUse] {}: {} used address[es]", walletId(), usedAndRegAddrs.size());
    //2) send to armory wallet for processing
-   signContainer_->syncAddressBatch(walletId(), usedAddrSet, cb);
+   signContainer_->syncAddressBatch(walletId(), usedAndRegAddrs, cb);
 }
 
 size_t Wallet::getActiveAddressCount()

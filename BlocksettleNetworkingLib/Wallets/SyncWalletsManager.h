@@ -110,8 +110,8 @@ namespace bs {
          bool isWatchingOnly(const std::string &walletId) const;
 
          // Do not use references here (could crash when underlying pointers are cleared)
-         bool deleteWallet(WalletPtr);
-         bool deleteWallet(HDWalletPtr);
+         bool deleteWallet(WalletPtr, bool deleteRemotely);
+         bool deleteWallet(HDWalletPtr, bool deleteRemotely);
 
          void setUserId(const BinaryData &userId);
          bool isUserIdSet() const { return !userId_.isNull(); }

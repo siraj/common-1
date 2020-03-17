@@ -214,7 +214,6 @@ void WalletsManager::saveWallet(const WalletPtr &newWallet)
    addWallet(newWallet);
 }
 
-// XXX should it start rescan ?
 void WalletsManager::addWallet(const WalletPtr &wallet, bool isHDLeaf)
 {
 /*   if (!isHDLeaf && hdDummyWallet_)
@@ -551,8 +550,6 @@ void WalletsManager::walletReady(const std::string &walletId)
    if (rootWallet) {
       const auto &itWallet = newWallets_.find(rootWallet->walletId());
       if (itWallet != newWallets_.end()) {
-         logger_->debug("[{}] found new wallet {} - starting rescan", __func__, rootWallet->walletId());
-         rootWallet->startRescan();
          newWallets_.erase(itWallet);
          rootWallet->synchronize([this, rootWallet] {
             QMetaObject::invokeMethod(this, [this, rootWallet] {
@@ -608,7 +605,7 @@ void WalletsManager::eraseWallet(const WalletPtr &wallet)
    wallets_.erase(wallet->walletId());
 }
 
-bool WalletsManager::deleteWallet(WalletPtr wallet)
+bool WalletsManager::deleteWallet(WalletPtr wallet, bool deleteRemotely)
 {
    bool isHDLeaf = false;
    logger_->info("[WalletsManager::{}] - Removing wallet {} ({})...", __func__
@@ -619,7 +616,9 @@ bool WalletsManager::deleteWallet(WalletPtr wallet)
          for (auto group : hdWallet->getGroups()) {
             if (group->deleteLeaf(wallet)) {
                isHDLeaf = true;
-               signContainer_->DeleteHDLeaf(wallet->walletId());
+               if (deleteRemotely) {
+                  signContainer_->DeleteHDLeaf(wallet->walletId());
+               }
                eraseWallet(wallet);
                break;
             }
@@ -644,7 +643,7 @@ bool WalletsManager::deleteWallet(WalletPtr wallet)
    return true;
 }
 
-bool WalletsManager::deleteWallet(HDWalletPtr wallet)
+bool WalletsManager::deleteWallet(HDWalletPtr wallet, bool deleteRemotely)
 {
    const auto itHdWallet = std::find(hdWallets_.cbegin(), hdWallets_.cend(), wallet);
    if (itHdWallet == hdWallets_.end()) {
@@ -666,9 +665,12 @@ bool WalletsManager::deleteWallet(HDWalletPtr wallet)
    hdWallets_.erase(itHdWallet);
    walletNames_.erase(wallet->name());
 
-   const bool result = wallet->deleteRemotely();
-   logger_->info("[WalletsManager::{}] - Wallet {} ({}) removed: {}", __func__
-      , wallet->name(), wallet->walletId(), result);
+   bool result = true;
+   if (deleteRemotely) {
+      result = wallet->deleteRemotely();
+      logger_->info("[WalletsManager::{}] - Wallet {} ({}) removed: {}", __func__
+         , wallet->name(), wallet->walletId(), result);
+   }
 
    if (!getPrimaryWallet()) {
       authAddressWallet_.reset();
@@ -1048,9 +1050,6 @@ void WalletsManager::onWalletsListUpdated()
          if (itHdWallet == hdWallets_.end()) {
             syncWallet(hdWallet.second, [this, hdWalletId=hdWallet.first] {
                const auto hdWallet = getHDWalletById(hdWalletId);
-               if (hdWallet) {
-                  hdWallet->registerWallet(armoryPtr_);
-               }
             });
             newWallets_.insert(hdWallet.first);
          }
@@ -1076,7 +1075,6 @@ void WalletsManager::onWalletsListUpdated()
                logger_->debug("[WalletsManager::onWalletsListUpdated] wallet {} has changed - resyncing"
                   , wallet->walletId());
                wallet->synchronize([this, wallet] {
-                  wallet->registerWallet(armoryPtr_);
                   for (const auto &leaf : wallet->getLeaves()) {
                      if (!getWalletById(leaf->walletId())) {
                         logger_->debug("[WalletsManager::onWalletsListUpdated] adding new leaf {}"
@@ -1103,7 +1101,7 @@ void WalletsManager::onWalletsListUpdated()
       }
       for (const auto &hdWalletId : hdWalletsId) {
          if (hdWallets.find(hdWalletId) == hdWallets.end()) {
-            deleteWallet(getHDWalletById(hdWalletId));
+            deleteWallet(getHDWalletById(hdWalletId), false);
          }
       }
    };
@@ -1115,7 +1113,7 @@ void WalletsManager::onAuthLeafAdded(const std::string &walletId)
    if (walletId.empty()) {
       if (authAddressWallet_) {
          logger_->debug("[WalletsManager::onAuthLeafAdded] auth wallet {} unset", authAddressWallet_->walletId());
-         deleteWallet(authAddressWallet_);
+         deleteWallet(authAddressWallet_, false);
       }
       emit AuthLeafNotCreated();
       return;
@@ -1152,7 +1150,6 @@ void WalletsManager::onAuthLeafAdded(const std::string &walletId)
    }
    leaf->synchronize([this, leaf] {
       logger_->debug("[WalletsManager::onAuthLeafAdded sync cb] Synchronized auth leaf has {} address[es]", leaf->getUsedAddressCount());
-      leaf->registerWallet(armoryPtr_);
       addWallet(leaf, true);
       authAddressWallet_ = leaf;
       QMetaObject::invokeMethod(this, [this, walletId=leaf->walletId()] {
@@ -1164,9 +1161,6 @@ void WalletsManager::onAuthLeafAdded(const std::string &walletId)
 void WalletsManager::adoptNewWallet(const HDWalletPtr &wallet)
 {
    saveWallet(wallet);
-   if (armoryPtr_) {
-      wallet->registerWallet(armoryPtr_);
-   }
    emit newWalletAdded(wallet->walletId());
    emit walletsReady();
 }
@@ -1638,8 +1632,6 @@ void WalletsManager::processCreatedCCLeaf(const std::string &ccName, bs::error::
 
       leaf->synchronize([this, leaf, ccName] {
          logger_->debug("CC leaf {} synchronized", ccName);
-         leaf->registerWallet(armoryPtr_, true);
-
          emit CCLeafCreated(ccName);
       });
    } else {
@@ -1790,7 +1782,6 @@ bool WalletsManager::createAuthLeaf(const std::function<void()> &cb)
          return;
       }
       leaf->synchronize([this, cb, leaf] {
-         leaf->registerWallet(armoryPtr_);
          authAddressWallet_ = leaf;
          addWallet(leaf, true);
          emit AuthLeafCreated();
