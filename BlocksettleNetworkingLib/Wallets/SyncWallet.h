@@ -295,6 +295,9 @@ namespace bs {
          };
          mutable std::shared_ptr<BalanceData>   balanceData_;
          std::map<bs::Address, std::function<void(const std::shared_ptr<AsyncClient::LedgerDelegate> &)>>   cbLedgerByAddr_;
+
+         // List of addresses that was actually registered in armory
+         std::set<BinaryData>                   registeredAddresses_;
       };
 
       class WalletACT : public ArmoryCallbackTarget
