@@ -223,7 +223,8 @@ void hd::Leaf::postOnline(bool force)
 
    unconfTgtRegIds_ = setUnconfirmedTarget();
 
-   const auto &cbTrackAddrChain = [this, handle = validityFlag_.handle()](bs::sync::SyncState st) {
+   const auto &cbTrackAddrChain = [this, handle = validityFlag_.handle()](bs::sync::SyncState st) mutable {
+      ValidityGuard lock(handle);
       if (!handle.isValid()) {
          return;
       }
@@ -235,7 +236,8 @@ void hd::Leaf::postOnline(bool force)
          }
          return;
       }
-      synchronize([this, handle] {
+      synchronize([this, handle] () mutable {
+         ValidityGuard lock(handle);
          if (!handle.isValid()) {
             return;
          }
@@ -243,7 +245,8 @@ void hd::Leaf::postOnline(bool force)
          if (!isExtOnly_ && lastPoolIntIdx_ < lastIntIdx_ + intAddressPoolSize_) {
             SPDLOG_LOGGER_DEBUG(logger_, "top up internal addr pool for {}, pool size: {}, used addr size: {}"
                , walletId(), lastPoolIntIdx_ + 1, lastIntIdx_ + 1);
-            topUpAddressPool(false, [this, handle] {
+            topUpAddressPool(false, [this, handle] () mutable {
+               ValidityGuard lock(handle);
                if (!handle.isValid()) {
                   return;
                }
@@ -257,7 +260,8 @@ void hd::Leaf::postOnline(bool force)
          if (lastPoolExtIdx_ < lastExtIdx_ + extAddressPoolSize_) {
             SPDLOG_LOGGER_DEBUG(logger_, "top up external addr pool for {}, pool size: {}, used addr size: {}"
                , walletId(), lastPoolExtIdx_ + 1, lastExtIdx_ + 1);
-            topUpAddressPool(true, [this, handle] {
+            topUpAddressPool(true, [this, handle] () mutable {
+               ValidityGuard lock(handle);
                if (!handle.isValid()) {
                   return;
                }
@@ -273,7 +277,8 @@ void hd::Leaf::postOnline(bool force)
          }
       });
    };
-   const bool rc = getAddressTxnCounts([this, cbTrackAddrChain, handle = validityFlag_.handle()] {
+   const bool rc = getAddressTxnCounts([this, cbTrackAddrChain, handle = validityFlag_.handle()] () mutable {
+      ValidityGuard lock(handle);
       if (!handle.isValid()) {
          return;
       }
