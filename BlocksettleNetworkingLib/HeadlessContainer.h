@@ -129,7 +129,6 @@ protected:
    void ProcessSettlementSignTXResponse(unsigned int id, const std::string &data);
    void ProcessCreateHDLeafResponse(unsigned int id, const std::string &data);
    void ProcessHDWalletPromotionResponse(unsigned int id, const std::string& data);
-   bs::signer::RequestId SendDeleteHDRequest(const std::string &rootWalletId, const std::string &leafId);
    void ProcessGetHDWalletInfoResponse(unsigned int id, const std::string &data);
    void ProcessAutoSignActEvent(unsigned int id, const std::string &data);
    void ProcessSyncWalletInfo(unsigned int id, const std::string &data);

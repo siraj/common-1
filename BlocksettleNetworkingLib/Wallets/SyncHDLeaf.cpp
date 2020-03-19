@@ -223,7 +223,8 @@ void hd::Leaf::postOnline(bool force)
 
    unconfTgtRegIds_ = setUnconfirmedTarget();
 
-   const auto &cbTrackAddrChain = [this, handle = validityFlag_.handle()](bs::sync::SyncState st) {
+   const auto &cbTrackAddrChain = [this, handle = validityFlag_.handle()](bs::sync::SyncState st) mutable {
+      ValidityGuard lock(handle);
       if (!handle.isValid()) {
          return;
       }
@@ -235,7 +236,8 @@ void hd::Leaf::postOnline(bool force)
          }
          return;
       }
-      synchronize([this, handle] {
+      synchronize([this, handle] () mutable {
+         ValidityGuard lock(handle);
          if (!handle.isValid()) {
             return;
          }
@@ -243,9 +245,13 @@ void hd::Leaf::postOnline(bool force)
          if (!isExtOnly_ && lastPoolIntIdx_ < lastIntIdx_ + intAddressPoolSize_) {
             SPDLOG_LOGGER_DEBUG(logger_, "top up internal addr pool for {}, pool size: {}, used addr size: {}"
                , walletId(), lastPoolIntIdx_ + 1, lastIntIdx_ + 1);
-            topUpAddressPool(false, [this, handle] {
+            topUpAddressPool(false, [this, handle] () mutable {
+               ValidityGuard lock(handle);
                if (!handle.isValid()) {
                   return;
+               }
+               if (wct_) {
+                  wct_->balanceUpdated(walletId());
                }
                postOnline(true);
             });
@@ -254,9 +260,13 @@ void hd::Leaf::postOnline(bool force)
          if (lastPoolExtIdx_ < lastExtIdx_ + extAddressPoolSize_) {
             SPDLOG_LOGGER_DEBUG(logger_, "top up external addr pool for {}, pool size: {}, used addr size: {}"
                , walletId(), lastPoolExtIdx_ + 1, lastExtIdx_ + 1);
-            topUpAddressPool(true, [this, handle] {
+            topUpAddressPool(true, [this, handle] () mutable {
+               ValidityGuard lock(handle);
                if (!handle.isValid()) {
                   return;
+               }
+               if (wct_) {
+                  wct_->balanceUpdated(walletId());
                }
                postOnline(true);
             });
@@ -267,7 +277,8 @@ void hd::Leaf::postOnline(bool force)
          }
       });
    };
-   const bool rc = getAddressTxnCounts([this, cbTrackAddrChain, handle = validityFlag_.handle()] {
+   const bool rc = getAddressTxnCounts([this, cbTrackAddrChain, handle = validityFlag_.handle()] () mutable {
+      ValidityGuard lock(handle);
       if (!handle.isValid()) {
          return;
       }
@@ -458,11 +469,13 @@ std::vector<std::string> hd::Leaf::registerWallet(
          return {};
       }
       regIdExt_ = btcWallet_->registerAddresses(addrsExt, asNew);
+      registeredAddresses_.insert(addrsExt.begin(), addrsExt.end());
       regIds.push_back(regIdExt_);
 
       if (!isExtOnly_) {
          btcWalletInt_ = armory_->instantiateWallet(walletIdInt());
          regIdInt_ = btcWalletInt_->registerAddresses(addrsInt, asNew);
+         registeredAddresses_.insert(addrsInt.begin(), addrsInt.end());
          regIds.push_back(regIdInt_);
       }
       logger_->debug("[sync::hd::Leaf::registerWallet] registered {}+{} addresses in {}, {} regIds {} {}"
@@ -587,6 +600,7 @@ void hd::Leaf::topUpAddressPool(bool extInt, const std::function<void()> &cb)
             const auto regId = btcWalletInt_->registerAddresses(addrHashes, true);
             refreshCallbacks_[regId] = cb;
          }
+         registeredAddresses_.insert(addrHashes.begin(), addrHashes.end());
          return;
       }
 
