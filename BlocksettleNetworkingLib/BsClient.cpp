@@ -445,6 +445,12 @@ void BsClient::OnDataReceived(const std::string &data)
          case Response::kProxyPb:
             processProxyPb(response->proxy_pb());
             return;
+         case Response::kGenAddrUpdated:
+            processGenAddrUpdated(response->gen_addr_updated());
+            return;
+         case Response::kUserStatusUpdated:
+            processUserStatusUpdated(response->user_status_updated());
+            return;
 
          case Response::kGetEmailHash:
          case Response::kSubmitAuthAddress:
@@ -532,6 +538,7 @@ void BsClient::processGetLoginResult(const Response_GetLoginResult &response)
    result.chatTokenSign = BinaryData::fromString(response.chat_token_sign());
    result.authAddressesSigned = BinaryData::fromString(response.auth_addresses_signed());
    result.ccAddressesSigned = BinaryData::fromString(response.cc_addresses_signed());
+   result.enabled = response.enabled();
    emit getLoginResultDone(result);
 }
 
@@ -555,6 +562,19 @@ void BsClient::processProxyPb(const Response_ProxyPb &response)
       return;
    }
    emit processPbMessage(message);
+}
+
+void BsClient::processGenAddrUpdated(const Response_GenAddrUpdated &response)
+{
+   SPDLOG_LOGGER_DEBUG(logger_, "new CC gen addresses updated");
+   emit ccGenAddrUpdated(BinaryData::fromString(response.cc_addresses_signed()));
+}
+
+void BsClient::processUserStatusUpdated(const Response_UserStatusUpdated &response)
+{
+   SPDLOG_LOGGER_DEBUG(logger_, "user account state changed, new user type: {}, enabled: {}"
+      , response.user_type(), response.enabled());
+   emit accountStateChanged(static_cast<bs::network::UserType>(response.user_type()), response.enabled());
 }
 
 BsClient::RequestId BsClient::newRequestId()
