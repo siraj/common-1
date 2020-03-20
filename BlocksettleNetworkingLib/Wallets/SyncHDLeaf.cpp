@@ -998,6 +998,16 @@ std::vector<std::string> hd::CCLeaf::setUnconfirmedTarget()
    return { btcWallet_->setUnconfirmedTarget(kIntConfCount) };
 }
 
+std::map<BinaryData, std::set<unsigned>> hd::CCLeaf::getOutpointMapFromTracker(bool withZC) const
+{
+   if (!tracker_) {
+      return {};
+   }
+   const auto &addrSet = collectAddresses();
+   auto outpointMap = tracker_->getCCUtxoForAddresses(addrSet, withZC);
+   return outpointMap;
+}
+
 bool hd::CCLeaf::getSpendableTxOutList(const ArmoryConnection::UTXOsCb &cb, uint64_t val, bool excludeReservation)
 {
    if (!armory_) {
@@ -1024,7 +1034,6 @@ bool hd::CCLeaf::getSpendableTxOutList(const ArmoryConnection::UTXOsCb &cb, uint
          cb(bs::selectUtxoForAmount(std::move(filteredUTXOs), val));
       }
    };
-   const auto &addrSet = collectAddresses();
 
    if (tracker_ == nullptr) {
       if (ccResolver_->genesisAddrFor(suffix_).isNull()) {
@@ -1035,8 +1044,7 @@ bool hd::CCLeaf::getSpendableTxOutList(const ArmoryConnection::UTXOsCb &cb, uint
       return false;
    }
 
-   auto outpointMap = tracker_->getCCUtxoForAddresses(addrSet, false);
-
+   const auto &outpointMap = getOutpointMapFromTracker(false);
    return armory_->getOutputsForOutpoints(outpointMap, false, cbWrap);
 }
 
@@ -1067,7 +1075,6 @@ bool hd::CCLeaf::getSpendableZCList(const ArmoryConnection::UTXOsCb &cb) const
       }
    };
 
-   const auto &addrSet = collectAddresses();
    if (tracker_ == nullptr) {
       if (ccResolver_->genesisAddrFor(suffix_).isNull()) {
          return bs::sync::hd::Leaf::getSpendableZCList(cb);
@@ -1077,8 +1084,7 @@ bool hd::CCLeaf::getSpendableZCList(const ArmoryConnection::UTXOsCb &cb) const
       return false;
    }
 
-   auto outpointMap = tracker_->getCCUtxoForAddresses(addrSet, true);
-
+   const auto &outpointMap = getOutpointMapFromTracker(true);
    return armory_->getOutputsForOutpoints(outpointMap, true, cbWrap);
 }
 

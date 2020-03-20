@@ -245,6 +245,8 @@ namespace bs {
 
             std::vector<std::string> setUnconfirmedTarget(void) override;
 
+            std::map<BinaryData, std::set<unsigned>> getOutpointMapFromTracker(bool withZC) const;
+
          private:
             std::set<BinaryData> collectAddresses() const;
 

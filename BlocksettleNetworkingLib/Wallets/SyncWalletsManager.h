@@ -246,6 +246,7 @@ namespace bs {
          void processPromoteHDWallet(bs::error::ErrorCode result, const std::string& walletId);
          void startTracker(const std::string &cc);
          void updateTracker(const std::shared_ptr<bs::sync::hd::CCLeaf> &ccLeaf);
+         void checkTrackerUpdate(const std::string &cc);
 
       private:
          std::shared_ptr<WalletSignerContainer>         signContainer_;
@@ -324,6 +325,11 @@ namespace bs {
 
          bool walletsRegistered_{};
          bool trackersStarted_{};
+
+         // Cached CC outpoint maps from CC tracker.
+         // Used to detect CC balance changes.
+         std::map<std::string, std::map<BinaryData, std::set<unsigned>>> ccOutpointMapsFromTracker_;
+         std::mutex ccOutpointMapsFromTrackerMutex_;
 
          ValidityFlag   validityFlag_;
       };
