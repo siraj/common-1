@@ -229,6 +229,10 @@ public:
    virtual std::shared_ptr<ColoredCoinSnapshot> snapshot() const = 0;
    virtual std::shared_ptr<ColoredCoinZCSnapshot> zcSnapshot() const = 0;
 
+   using SnapshotUpdatedCb = std::function<void()>;
+   virtual void setSnapshotUpdatedCb(SnapshotUpdatedCb cb) = 0;
+   virtual void setZcSnapshotUpdatedCb(SnapshotUpdatedCb cb) = 0;
+
 };
 
 ////
@@ -259,6 +263,9 @@ private:
 
    ////
    std::atomic<bool> ready_;
+
+   SnapshotUpdatedCb snapshotUpdatedCb_;
+   SnapshotUpdatedCb zcSnapshotUpdatedCb_;
 
 protected:
    std::shared_ptr<AsyncClient::BtcWallet> walletObj_;
@@ -332,8 +339,8 @@ protected:
    std::set<BinaryData> zcUpdate(void);
    void reorg(bool hard);
 
-   virtual void snapshotUpdated() {}
-   virtual void zcSnapshotUpdated() {}
+   virtual void snapshotUpdated();
+   virtual void zcSnapshotUpdated();
 
 public:
    using OutpointMap = std::map<BinaryData, std::set<unsigned>>;
@@ -356,6 +363,9 @@ public:
    ////
    std::shared_ptr<ColoredCoinSnapshot> snapshot(void) const override;
    std::shared_ptr<ColoredCoinZCSnapshot> zcSnapshot(void) const override;
+
+   void setSnapshotUpdatedCb(SnapshotUpdatedCb cb) override;
+   void setZcSnapshotUpdatedCb(SnapshotUpdatedCb cb) override;
 
    ////
    static uint64_t getCcOutputValue(

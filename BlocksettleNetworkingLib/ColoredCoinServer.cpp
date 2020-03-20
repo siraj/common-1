@@ -116,6 +116,16 @@ public:
       return std::atomic_load_explicit(&zcSnapshot_, std::memory_order_acquire);
    }
 
+   void setSnapshotUpdatedCb(SnapshotUpdatedCb cb) override
+   {
+      snapshotUpdatedCb_ = std::move(cb);
+   }
+
+   void setZcSnapshotUpdatedCb(SnapshotUpdatedCb cb) override
+   {
+      zcSnapshotUpdatedCb_ = std::move(cb);
+   }
+
    std::weak_ptr<CcTrackerClient> parent_;
    uint64_t coinsPerShare_;
    std::atomic_bool isOnline_{false};
@@ -126,6 +136,9 @@ public:
 
    std::shared_ptr<ColoredCoinSnapshot> snapshot_;
    std::shared_ptr<ColoredCoinZCSnapshot> zcSnapshot_;
+
+   SnapshotUpdatedCb snapshotUpdatedCb_;
+   SnapshotUpdatedCb zcSnapshotUpdatedCb_;
 
 };
 
@@ -415,6 +428,9 @@ void CcTrackerClient::processUpdateCcSnapshot(const bs::tracker_server::Response
    CcTrackerImpl *tracker = it->second;
    auto snapshot = deserializeColoredCoinSnapshot(response.data());
    std::atomic_store_explicit(&tracker->snapshot_, snapshot, std::memory_order_release);
+   if (tracker->snapshotUpdatedCb_) {
+      tracker->snapshotUpdatedCb_();
+   }
 }
 
 void CcTrackerClient::processUpdateCcZcSnapshot(const bs::tracker_server::Response_UpdateCcZcSnapshot &response)
@@ -427,6 +443,9 @@ void CcTrackerClient::processUpdateCcZcSnapshot(const bs::tracker_server::Respon
    CcTrackerImpl *tracker = it->second;
    auto snapshot = deserializeColoredCoinZcSnapshot(response.data());
    std::atomic_store_explicit(&tracker->zcSnapshot_, snapshot, std::memory_order_release);
+   if (tracker->zcSnapshotUpdatedCb_) {
+      tracker->zcSnapshotUpdatedCb_();
+   }
 }
 
 CcTrackerServer::CcTrackerServer(const std::shared_ptr<spdlog::logger> &logger
