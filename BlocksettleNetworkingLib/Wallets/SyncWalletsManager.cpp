@@ -1705,6 +1705,14 @@ void WalletsManager::startTracker(const std::string &cc)
       trackerSnapshots = std::make_unique<ColoredCoinTracker>(ccResolver_->lotSizeFor(cc), armoryPtr_);
    }
    trackerSnapshots->addOriginAddress(ccResolver_->genesisAddrFor(cc));
+
+   trackerSnapshots->setSnapshotUpdatedCb([this, cc] {
+      checkTrackerUpdate(cc);
+   });
+   trackerSnapshots->setZcSnapshotUpdatedCb([this, cc] {
+      checkTrackerUpdate(cc);
+   });
+
    const auto tracker = std::make_shared<ColoredCoinTrackerClient>(std::move(trackerSnapshots));
    trackers_[cc] = tracker;
    logger_->debug("[{}] added CC tracker for {}", __func__, cc);
@@ -1728,6 +1736,23 @@ void WalletsManager::updateTracker(const std::shared_ptr<hd::CCLeaf> &ccLeaf)
    const auto itTracker = trackers_.find(ccLeaf->displaySymbol().toStdString());
    if (itTracker != trackers_.end()) {
       ccLeaf->setCCTracker(itTracker->second);
+   }
+}
+
+void WalletsManager::checkTrackerUpdate(const std::string &cc)
+{
+   for (const auto &wallet : getAllWallets()) {
+      auto ccLeaf = std::dynamic_pointer_cast<bs::sync::hd::CCLeaf>(wallet);
+      if (ccLeaf && ccLeaf->displaySymbol().toStdString() == cc) {
+         auto newOutpointMap = ccLeaf->getOutpointMapFromTracker(true);
+         std::lock_guard<std::mutex> lock(ccOutpointMapsFromTrackerMutex_);
+         auto &outpointMap = ccOutpointMapsFromTracker_[ccLeaf->walletId()];
+         if (outpointMap != newOutpointMap) {
+            outpointMap = std::move(newOutpointMap);
+            emit walletBalanceUpdated(wallet->walletId());
+         }
+         break;
+      }
    }
 }
 
