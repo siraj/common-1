@@ -51,6 +51,9 @@ namespace bs {
             , const SecureBinaryData &ctrlPass = {}, const CbProgress &cb = nullptr);
          HDWalletPtr loadWoWallet(NetworkType, const std::string &walletsPath
             , const std::string &walletFileName, const SecureBinaryData &ctrlPass = {});
+         HDWalletPtr createHSMWallet(NetworkType, const std::string &xpub, const std::string &name,
+            const std::string &desc, const std::string &walletsPath, const SecureBinaryData &ctrlPass = {});
+
          void changeControlPassword(const SecureBinaryData &oldPass, const SecureBinaryData &newPass);
          void eraseControlPassword(const SecureBinaryData &oldPass);
          void backupWallet(const HDWalletPtr &, const std::string &targetDir) const;

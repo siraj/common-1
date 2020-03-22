@@ -12,6 +12,7 @@
 #include <spdlog/spdlog.h>
 #include "SystemFileUtils.h"
 #include "Wallets.h"
+#include "Assets.h"
 
 
 #define LOG(logger, method, ...) \
@@ -215,7 +216,7 @@ std::shared_ptr<hd::Group> hd::Wallet::createGroup(bs::hd::CoinType ct)
 
    default:
       result = std::make_shared<Group>(
-         walletPtr_, ct, netType_, extOnlyFlag_, logger_);
+         walletPtr_, ct, netType_, extOnlyFlag_, isHsmWallet(), logger_);
       break;
    }
    addGroup(result);
@@ -256,6 +257,16 @@ void hd::Wallet::changeControlPassword(const SecureBinaryData &oldPass, const Se
    walletPtr_->changeControlPassphrase(newPassCb, lbdControlPassphrase_);
 }
 
+void bs::core::hd::Wallet::setHsmWallet()
+{
+   hsmWallet_ = true;
+}
+
+bool bs::core::hd::Wallet::isHsmWallet() const
+{
+   return hsmWallet_;
+}
+
 void bs::core::hd::Wallet::eraseControlPassword(const SecureBinaryData &oldPass)
 {
    auto nbTries = std::make_shared<int>(0);
@@ -269,6 +280,17 @@ void bs::core::hd::Wallet::eraseControlPassword(const SecureBinaryData &oldPass)
    };
 
    walletPtr_->eraseControlPassphrase(lbdControlPassphrase_);
+}
+
+void bs::core::hd::Wallet::createHsmStructure(const std::string& xpub, unsigned lookup)
+{
+   assert(isHsmWallet());
+   const auto groupXBT = createGroup(getXBTGroupType());
+   assert(groupXBT);
+   for (const auto &aet : groupXBT->getAddressTypeSet()) {
+      groupXBT->createLeafFromXpub(xpub, aet, 0u, lookup);
+   }
+   writeToDB();
 }
 
 void hd::Wallet::createStructure(unsigned lookup)

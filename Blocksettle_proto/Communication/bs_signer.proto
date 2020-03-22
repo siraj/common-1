@@ -53,6 +53,7 @@ enum PacketType
    UpdateControlPasswordStatusType   = 33; // send message to ui if control password wrong, accepted or requested new
    ControlPasswordReceivedType       = 34;
    ChangeControlPasswordType         = 35;
+   ImportHSMWalletType  = 36;
 }
 
 enum PasswordDialogType
@@ -408,4 +409,11 @@ message TerminalEvent
 message UpdateWalletRequest
 {
   string wallet_id = 1;
+}
+
+message ImportHSMWalletRequest
+{
+   string label = 1;
+   string vendor = 2;
+   string xpub = 3;
 }

@@ -111,6 +111,32 @@ WalletsManager::HDWalletPtr WalletsManager::loadWoWallet(NetworkType netType
    return nullptr;
 }
 
+WalletsManager::HDWalletPtr WalletsManager::createHSMWallet(NetworkType netType, const std::string &xpub,
+   const std::string &name, const std::string &desc, const std::string &walletsPath, const SecureBinaryData &ctrlPass /*= {}*/)
+{
+   if (xpub.empty()) {
+      return nullptr;
+   }
+   logger_->debug("Creating HSM WO-wallet");
+
+   const auto wallet = std::make_shared<hd::Wallet>(name, desc
+      , netType, bs::wallet::PasswordData(), walletsPath, logger_);
+   wallet->setHsmWallet();
+
+   if (!ctrlPass.isNull()) {
+      wallet->changeControlPassword({}, ctrlPass);
+   }
+
+   {
+      const bs::core::WalletPasswordScoped lock(wallet, ctrlPass);
+      wallet->createHsmStructure(xpub);
+   }
+
+   saveWallet(wallet);
+
+   return wallet;
+}
+
 void WalletsManager::changeControlPassword(const SecureBinaryData &oldPass, const SecureBinaryData &newPass)
 {
    for (const auto &hdWallet : hdWallets_) {
