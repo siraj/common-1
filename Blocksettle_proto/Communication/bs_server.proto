@@ -1248,6 +1248,7 @@ enum ProxyMessageType
    ProxyLoadTrades   = 4;
    ProxyBlotterUpdates = 5;
    ProxyOnlineUsers  = 6;
+   ProxyUserStatusUpdated = 7;
 }
 
 message ProxyLoadTradesMessage
@@ -1263,12 +1264,19 @@ message ProxyOnlineUsersMessage
    int32 dealing_users = 4;
 }
 
+message ProxyUserStatusUpdatedMessage
+{
+   string email = 1;
+   bool enabled = 2;
+}
+
 message ProxyMessage
 {
    ProxyMessageType type = 1;
    oneof data {
       ProxyLoadTradesMessage  load_trades = 2;
       ProxyOnlineUsersMessage online_users = 3;
+      ProxyUserStatusUpdatedMessage user_status_updated = 4;
    }
 }
 
