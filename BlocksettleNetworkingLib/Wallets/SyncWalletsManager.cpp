@@ -424,6 +424,7 @@ const WalletsManager::HDWalletPtr WalletsManager::getHDRootForLeaf(const std::st
 
 std::vector<WalletsManager::WalletPtr> WalletsManager::getAllWallets() const
 {
+   QMutexLocker lock(&mtxWallets_);
    std::vector<WalletPtr> result;
    for (const auto &wallet : wallets_) {
       result.push_back(wallet.second);

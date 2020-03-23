@@ -1051,20 +1051,23 @@ void Wallet::trackChainAddressUse(const std::function<void(bs::sync::SyncState)>
       }
    }
 
-   for (auto& addrPair : balanceData_->addressBalanceMap) {
-      if (usedAddrSet.find(addrPair.first) != usedAddrSet.end()) {
-         continue;   // skip already added addresses
-      }
-      if (!addrPair.second.empty()) {
-         bool hasBalance = false;
-         for (int i = 0; i < 3; ++i) {
-            if (addrPair.second[i] > 0) {
-               hasBalance = true;
-               break;
-            }
+   {
+      std::unique_lock<std::mutex> lock(balanceData_->addrMapsMtx);
+      for (auto& addrPair : balanceData_->addressBalanceMap) {
+         if (usedAddrSet.find(addrPair.first) != usedAddrSet.end()) {
+            continue;   // skip already added addresses
          }
-         if (hasBalance) {
-            usedAddrSet.insert(addrPair.first);
+         if (!addrPair.second.empty()) {
+            bool hasBalance = false;
+            for (int i = 0; i < 3; ++i) {
+               if (addrPair.second[i] > 0) {
+                  hasBalance = true;
+                  break;
+               }
+            }
+            if (hasBalance) {
+               usedAddrSet.insert(addrPair.first);
+            }
          }
       }
    }
