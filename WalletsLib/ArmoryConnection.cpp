@@ -1216,6 +1216,7 @@ void ArmoryCallback::run(BdmNotification bdmNotif)
       case ArmoryErrorCodes::ZcBroadcast_AlreadyInChain:
       case ArmoryErrorCodes::ZcBatch_Timeout:
       case ArmoryErrorCodes::ZcBroadcast_AlreadyInMempool:
+      case ArmoryErrorCodes::ZcBroadcast_VerifyRejected:
          connection_->addToMaintQueue([bdvError](ArmoryCallbackTarget *tgt) {
             tgt->onTxBroadcastError(bdvError.errData_, bdvError.errCode_, bdvError.errorStr_);
          });
