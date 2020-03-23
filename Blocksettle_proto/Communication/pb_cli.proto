@@ -22,6 +22,7 @@ enum CLIRequestType
    SetInitialPMPriceType            = 17;
    DisablePMProductType             = 18;
    ExportRequestsType               = 19;
+   ChangeUserStatusType             = 20;
 }
 
 enum ArmoryConnectionState
@@ -247,4 +248,17 @@ message ExportRequestsResponse
    required uint32   requests_count = 2;
    required bool     result         = 3;
    optional string   message        = 4;
+}
+
+message ChangeUserStatusRequest
+{
+   required string   user_email     = 1;
+   required bool     status_enabled = 2;
+}
+
+message ChangeUserStatusResponse
+{
+   required string   user_email  = 1;
+   required int32    new_score   = 2;
+   required bool     processed   = 3;
 }
