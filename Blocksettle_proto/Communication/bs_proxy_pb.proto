@@ -33,9 +33,6 @@ message Request
     {
         string email = 1;
 
-        // bs::network::UserType as int
-        int32 user_type = 2;
-
         bool enabled = 3;
     }
 
