@@ -356,7 +356,7 @@ message UserScoreUpdateEvent
    ScoreUpdateEventType reason      = 2;
 }
 
-message LoadUserScoreRequest
+message UserScoreRequest
 {
    string               user_email  = 1;
 }
@@ -372,9 +372,11 @@ message StorageUserScoreMessage
 {
    oneof data {
       UserScoreUpdateEvent update_score_request    = 1;
-      LoadUserScoreRequest load_score_request      = 2;
-      UserScoreData        update_score_response   = 3;
-      UserScoreData        load_score_response     = 4;
+      UserScoreRequest     reset_score_request     = 2;
+      UserScoreRequest     load_score_request      = 3;
+      UserScoreData        update_score_response   = 4;
+      UserScoreData        reset_score_response    = 5;
+      UserScoreData        load_score_response     = 6;
    }
 }
 
