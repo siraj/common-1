@@ -63,7 +63,8 @@ namespace bs {
       static PayoutSignatureType whichSignature(const Tx &tx
          , uint64_t value
          , const bs::Address &settlAddr
-         , const BinaryData &buyAuthKey, const BinaryData &sellAuthKey, std::string *errorMsg = nullptr);
+         , const BinaryData &buyAuthKey, const BinaryData &sellAuthKey
+         , std::string *errorMsg = nullptr, const BinaryData& payinHash = {});
 
       static std::shared_ptr<Result> verifyUnsignedPayin(const BinaryData &unsignedPayin
          , const std::map<std::string, BinaryData>& preimageData
