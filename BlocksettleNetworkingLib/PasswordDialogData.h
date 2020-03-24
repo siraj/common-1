@@ -102,6 +102,7 @@ public:
    DIALOG_KEY(TxInputProduct)
    DIALOG_KEY(WalletId)
    DIALOG_KEY(XBT)
+   DIALOG_KEY(TxRequest)
 
 #ifdef QT_CORE_LIB
    Q_OBJECT
@@ -127,6 +128,8 @@ public:
    void setValue(const bs::sync::dialog::keys::Key &key, const std::string &value);
    void setValue(const bs::sync::dialog::keys::Key &key, int32_t value);
    void setValue(const bs::sync::dialog::keys::Key &key, double value);
+
+   void setValue();
 
    void remove(const bs::sync::dialog::keys::Key &key);
 

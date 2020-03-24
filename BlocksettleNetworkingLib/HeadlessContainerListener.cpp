@@ -466,6 +466,9 @@ bool HeadlessContainerListener::onSignTxRequest(const std::string &clientId, con
    };
 
    dialogData.insert(PasswordDialogData::WalletId, rootWalletId);
+   auto data = request.SerializeAsString();
+   dialogData.insert(PasswordDialogData::TxRequest, data.c_str(), data.size());
+
    return RequestPasswordIfNeeded(clientId, rootWalletId, txSignReq, reqType, dialogData, onPassword);
 }
 
