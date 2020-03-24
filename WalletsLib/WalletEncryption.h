@@ -23,7 +23,8 @@ namespace bs {
       enum EncryptionType : uint8_t {
          Unencrypted,
          Password,
-         Auth
+         Auth,
+         HSM
       };
 
       // first - required number of keys (M), second - total number of keys (N)

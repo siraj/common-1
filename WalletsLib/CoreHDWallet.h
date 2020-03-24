@@ -77,7 +77,6 @@ namespace bs {
             void setExtOnly(void);
             bool isExtOnly() const { return extOnlyFlag_; }
 
-            void setHsmWallet();
             bool isHsmWallet() const;
 
             std::shared_ptr<Group> getGroup(bs::hd::CoinType ct) const;

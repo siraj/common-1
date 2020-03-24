@@ -381,6 +381,7 @@ enum EncryptionType
    EncryptionTypeUnencrypted = 0;
    EncryptionTypePassword    = 1;
    EncryptionTypeAutheID     = 2;
+   EncryptionTypeHSM         = 3;
 }
 
 message SyncWalletResponse

@@ -257,14 +257,9 @@ void hd::Wallet::changeControlPassword(const SecureBinaryData &oldPass, const Se
    walletPtr_->changeControlPassphrase(newPassCb, lbdControlPassphrase_);
 }
 
-void bs::core::hd::Wallet::setHsmWallet()
-{
-   hsmWallet_ = true;
-}
-
 bool bs::core::hd::Wallet::isHsmWallet() const
 {
-   return hsmWallet_;
+   return !pwdMeta_.empty() && pwdMeta_[0].encType == bs::wallet::EncryptionType::HSM;
 }
 
 void bs::core::hd::Wallet::eraseControlPassword(const SecureBinaryData &oldPass)
@@ -587,7 +582,7 @@ std::shared_ptr<hd::Wallet> hd::Wallet::createWatchingOnly() const
 
 bool hd::Wallet::isWatchingOnly() const
 {
-   return walletPtr_->isWatchingOnly();
+   return isHsmWallet() || walletPtr_->isWatchingOnly();
 }
 
 static bool nextCombi(std::vector<int> &a , const int n, const int m)

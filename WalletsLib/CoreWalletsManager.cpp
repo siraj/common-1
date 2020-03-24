@@ -119,9 +119,11 @@ WalletsManager::HDWalletPtr WalletsManager::createHSMWallet(NetworkType netType,
    }
    logger_->debug("Creating HSM WO-wallet");
 
+   bs::wallet::PasswordData passData;
+   passData.metaData.encType = bs::wallet::EncryptionType::HSM;
+
    const auto wallet = std::make_shared<hd::Wallet>(name, desc
-      , netType, bs::wallet::PasswordData(), walletsPath, logger_);
-   wallet->setHsmWallet();
+      , netType, passData, walletsPath, logger_);
 
    if (!ctrlPass.isNull()) {
       wallet->changeControlPassword({}, ctrlPass);

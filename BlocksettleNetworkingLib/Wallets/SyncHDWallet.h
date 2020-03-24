@@ -55,6 +55,7 @@ namespace bs {
             bs::wallet::KeyRank encryptionRank() const { return encryptionRank_; }
             bool isPrimary() const;
             bool isOffline() const { return isOffline_; }
+            bool isHsm() const;
             NetworkType networkType() const { return netType_; }
 
             std::shared_ptr<Group> getGroup(bs::hd::CoinType ct) const;

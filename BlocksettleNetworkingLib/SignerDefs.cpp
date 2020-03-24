@@ -98,6 +98,7 @@ bs::wallet::EncryptionType bs::sync::mapFrom(headless::EncryptionType encType)
    switch (encType) {
    case headless::EncryptionTypePassword: return bs::wallet::EncryptionType::Password;
    case headless::EncryptionTypeAutheID:  return bs::wallet::EncryptionType::Auth;
+   case headless::EncryptionTypeHSM:      return bs::wallet::EncryptionType::HSM;
    case headless::EncryptionTypeUnencrypted:
    default:    return bs::wallet::EncryptionType::Unencrypted;
    }
@@ -140,6 +141,7 @@ headless::EncryptionType bs::sync::mapFrom(bs::wallet::EncryptionType encType)
    switch (encType) {
    case bs::wallet::EncryptionType::Password:   return headless::EncryptionTypePassword;
    case bs::wallet::EncryptionType::Auth:       return headless::EncryptionTypeAutheID;
+   case bs::wallet::EncryptionType::HSM:        return headless::EncryptionTypeHSM;
    case bs::wallet::EncryptionType::Unencrypted:
    default:       return headless::EncryptionTypeUnencrypted;
    }

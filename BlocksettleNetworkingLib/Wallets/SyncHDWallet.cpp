@@ -31,8 +31,11 @@ hd::Wallet::Wallet(const bs::sync::WalletInfo &info, WalletSignerContainer *cont
    , isOffline_(info.watchOnly)
 {
    netType_ = getNetworkType();  // netType_ = info.netType ???
+   const bool isHsm = std::count(info.encryptionTypes.begin(), info.encryptionTypes.end(),
+      bs::wallet::EncryptionType::HSM) != 0;
    if (info.watchOnly) {
-      encryptionTypes_ = { bs::wallet::EncryptionType::Unencrypted };
+      encryptionTypes_ = { isHsm ? bs::wallet::EncryptionType::HSM
+         : bs::wallet::EncryptionType::Unencrypted };
    } else {
       encryptionTypes_ = info.encryptionTypes;
       encryptionKeys_ = info.encryptionKeys;
@@ -440,4 +443,15 @@ void hd::Wallet::getSettlementPayinAddress(const SecureBinaryData &settlementID
    };
    signContainer_->getSettlementPayinAddress(walletId(), { settlementID
       , counterPartyPubKey, isMyKeyFirst }, cbWrap);
+}
+
+bool bs::sync::hd::Wallet::isHsm() const
+{
+   for (auto enc : encryptionTypes_) {
+      if (enc == bs::wallet::EncryptionType::HSM) {
+         return true;
+      }
+   }
+
+   return false;
 }
