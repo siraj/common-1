@@ -139,8 +139,7 @@ bool Wallet::setTransactionComment(const BinaryData &txOrHash, const std::string
 
 bool Wallet::isBalanceAvailable() const
 {
-   return (armory_ != nullptr)
-      && (armory_->state() == ArmoryState::Ready)
+   return armorySet_.load() && (armory_->state() == ArmoryState::Ready)
       // Keep balances if registration is just updating
       && (isRegistered() == Registered::Registered || isRegistered() == Registered::Updating);
 }
@@ -471,6 +470,7 @@ void Wallet::setArmory(const std::shared_ptr<ArmoryConnection> &armory)
 {
    if (!armory_ && (armory != nullptr)) {
       armory_ = armory;
+      armorySet_ = true;
 
       /*
       Do not set callback target if it is already initialized. This
