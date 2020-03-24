@@ -152,6 +152,7 @@ void WalletInfo::initFromRootWallet(const std::shared_ptr<bs::sync::hd::Wallet> 
    walletId_ = QString::fromStdString(rootWallet->walletId());
    name_ = QString::fromStdString(rootWallet->name());
    rootId_ = QString::fromStdString(rootWallet->walletId());
+   desc_ = QString::fromStdString(rootWallet->description());
    keyRank_ = rootWallet->encryptionRank();
    emit walletChanged();
 }
