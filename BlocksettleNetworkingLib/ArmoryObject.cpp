@@ -163,7 +163,7 @@ bool ArmoryObject::getTxByHash(const BinaryData &hash, const TxCb &cb, bool allo
       }
    }
    const auto &cbWrap = [this, cb, hash](Tx tx) {
-      putToCacheIfNeeded(std::make_shared<Tx>(tx));
+      putToCacheIfNeeded(hash, std::make_shared<Tx>(tx));
       if (!cb) {
          return;
       }
@@ -214,7 +214,7 @@ bool ArmoryObject::getTXsByHash(const std::set<BinaryData> &hashes, const TXsCb 
          return;
       }
       for (const auto &tx : txs) {
-         putToCacheIfNeeded(tx.second);
+         putToCacheIfNeeded(tx.first, tx.second);
          (*result)[tx.first] = tx.second;
       }
       if (needInvokeCb()) {
@@ -299,7 +299,7 @@ std::shared_ptr<const Tx> ArmoryObject::getFromCache(const BinaryData &hash)
    return txCache_.get(hash);
 }
 
-void ArmoryObject::putToCacheIfNeeded(const std::shared_ptr<const Tx> &tx)
+void ArmoryObject::putToCacheIfNeeded(const BinaryData &hash, const std::shared_ptr<const Tx> &tx)
 {
    if (!tx || !tx->isInitialized() || tx->getTxHeight() == UINT32_MAX) {
       return;
@@ -319,7 +319,6 @@ void ArmoryObject::putToCacheIfNeeded(const std::shared_ptr<const Tx> &tx)
    }
 
    try {
-      auto hash = tx->getThisHash();
       txCache_.put(hash, tx);
    } catch (const std::exception &e) {
       SPDLOG_LOGGER_ERROR(logger_, "caching tx failed: {}", e.what());
