@@ -1743,19 +1743,21 @@ void WalletsManager::updateTracker(const std::shared_ptr<hd::CCLeaf> &ccLeaf)
 
 void WalletsManager::checkTrackerUpdate(const std::string &cc)
 {
-   for (const auto &wallet : getAllWallets()) {
-      auto ccLeaf = std::dynamic_pointer_cast<bs::sync::hd::CCLeaf>(wallet);
-      if (ccLeaf && ccLeaf->displaySymbol().toStdString() == cc) {
-         auto newOutpointMap = ccLeaf->getOutpointMapFromTracker(true);
-         std::lock_guard<std::mutex> lock(ccOutpointMapsFromTrackerMutex_);
-         auto &outpointMap = ccOutpointMapsFromTracker_[ccLeaf->walletId()];
-         if (outpointMap != newOutpointMap) {
-            outpointMap = std::move(newOutpointMap);
-            emit walletBalanceUpdated(wallet->walletId());
+   QMetaObject::invokeMethod(this, [this, cc] {
+      for (const auto &wallet : getAllWallets()) {
+         auto ccLeaf = std::dynamic_pointer_cast<bs::sync::hd::CCLeaf>(wallet);
+         if (ccLeaf && ccLeaf->displaySymbol().toStdString() == cc) {
+            auto newOutpointMap = ccLeaf->getOutpointMapFromTracker(true);
+            std::lock_guard<std::mutex> lock(ccOutpointMapsFromTrackerMutex_);
+            auto &outpointMap = ccOutpointMapsFromTracker_[ccLeaf->walletId()];
+            if (outpointMap != newOutpointMap) {
+               outpointMap = std::move(newOutpointMap);
+               emit walletBalanceUpdated(wallet->walletId());
+            }
+            break;
          }
-         break;
       }
-   }
+   });
 }
 
 bool WalletsManager::createAuthLeaf(const std::function<void()> &cb)
