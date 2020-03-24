@@ -220,3 +220,29 @@ void CacheFile::put(const BinaryData &key, const BinaryData &val)
       wcModified_.wakeOne();
    }
 }
+
+void TxCacheFile::put(const BinaryData &key, const std::shared_ptr<const Tx> &tx)
+{
+   std::lock_guard<std::mutex> lock(txMapMutex_);
+   txMap_[key] = tx;
+   if (!tx || !tx->isInitialized()) {
+      return;
+   }
+   CacheFile::put(key, tx->serialize());
+}
+
+std::shared_ptr<const Tx> TxCacheFile::get(const BinaryData &key)
+{
+   std::lock_guard<std::mutex> lock(txMapMutex_);
+   const auto &itTx = txMap_.find(key);
+   if (itTx != txMap_.end()) {
+      return itTx->second;
+   }
+   const auto &data = CacheFile::get(key);
+   if (data.isNull()) {
+      return nullptr;
+   }
+   const auto tx = std::make_shared<Tx>(data);
+   txMap_[key] = tx;
+   return tx;
+}
