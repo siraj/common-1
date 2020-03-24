@@ -84,6 +84,7 @@ void WalletsManager::setSignContainer(const std::shared_ptr<WalletSignerContaine
 
 void WalletsManager::reset()
 {
+   QMutexLocker lock(&mtxWallets_);
    wallets_.clear();
    hdWallets_.clear();
 //   hdDummyWallet_.reset();
