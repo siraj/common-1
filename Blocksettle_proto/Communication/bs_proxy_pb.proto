@@ -26,8 +26,21 @@ message Request
         // bs::network::UserType as int
         int32 user_type = 3;
 
-        bytes auth_addresses_signed = 4;
-        bytes cc_addresses_signed = 5;
+        bool enabled = 4;
+    }
+
+    message UserStatusUpdated
+    {
+        string email = 1;
+
+        bool enabled = 3;
+    }
+
+    // PB should send when proxy is connected first time or when CC gen is updated (new product is added)
+    message GenAddrUpdated
+    {
+        bytes auth_addresses_signed = 1;
+        bytes cc_addresses_signed = 2;
     }
 
     message TermRep
@@ -54,6 +67,8 @@ message Request
         TermRep confirm_auth_address = 33;
         TermRep submit_cc_address = 34;
         TermRep confirm_cc_address = 35;
+        UserStatusUpdated user_status_updated = 36;
+        GenAddrUpdated gen_addr_updated = 37;
     }
 }
 

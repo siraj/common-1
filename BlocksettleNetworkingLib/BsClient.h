@@ -40,6 +40,8 @@ namespace Blocksettle {
          class Response_GetLoginResult;
          class Response_Celer;
          class Response_ProxyPb;
+         class Response_GenAddrUpdated;
+         class Response_UserStatusUpdated;
       }
    }
 }
@@ -83,6 +85,7 @@ struct BsClientLoginResult
    BinaryData chatTokenSign;
    BinaryData authAddressesSigned;
    BinaryData ccAddressesSigned;
+   bool enabled{};
 };
 
 class BsClient : public QObject, public DataConnectionListener
@@ -176,6 +179,10 @@ signals:
 
    void emailHashReceived(const std::string &email, const std::string &hash);
 
+   void ccGenAddrUpdated(const BinaryData &ccGenAddrData);
+
+   void accountStateChanged(bs::network::UserType userType, bool enabled);
+
 private:
    using ProcessCb = std::function<void(const Blocksettle::Communication::ProxyTerminal::Response &response)>;
    using TimeoutCb = std::function<void()>;
@@ -200,6 +207,8 @@ private:
    void processGetLoginResult(const Blocksettle::Communication::ProxyTerminal::Response_GetLoginResult &response);
    void processCeler(const Blocksettle::Communication::ProxyTerminal::Response_Celer &response);
    void processProxyPb(const Blocksettle::Communication::ProxyTerminal::Response_ProxyPb &response);
+   void processGenAddrUpdated(const Blocksettle::Communication::ProxyTerminal::Response_GenAddrUpdated &response);
+   void processUserStatusUpdated(const Blocksettle::Communication::ProxyTerminal::Response_UserStatusUpdated &response);
 
    RequestId newRequestId();
 

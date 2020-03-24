@@ -18,10 +18,10 @@ enum CLIRequestType
    FundCCGATransactionType          = 13;
    GetRequestsStatType              = 14;
    GetPendingSettlementsInfo        = 15;
-   CreateCelerUserType              = 16;
    SetInitialPMPriceType            = 17;
    DisablePMProductType             = 18;
    ExportRequestsType               = 19;
+   ChangeUserStatusType             = 20;
 }
 
 enum ArmoryConnectionState
@@ -199,18 +199,6 @@ message GetPendingSettlementsResponse
    repeated ProductStatistics xbt_trades = 3;
 }
 
-message CreateCelerUserRequest
-{
-   required string user_email = 1;
-}
-
-message CreateCelerUserResponse
-{
-   required bool     create_user_result = 1;
-   required string   user_email = 2;
-   optional string   error_message = 3;
-}
-
 message SetInitialPMPriceRequest
 {
    required string product       = 1;
@@ -247,4 +235,17 @@ message ExportRequestsResponse
    required uint32   requests_count = 2;
    required bool     result         = 3;
    optional string   message        = 4;
+}
+
+message ChangeUserStatusRequest
+{
+   required string   user_email     = 1;
+   required bool     status_enabled = 2;
+}
+
+message ChangeUserStatusResponse
+{
+   required string   user_email  = 1;
+   required int32    new_score   = 2;
+   required bool     processed   = 3;
 }

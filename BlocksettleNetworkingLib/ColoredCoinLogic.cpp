@@ -157,6 +157,16 @@ std::shared_ptr<ColoredCoinZCSnapshot> ColoredCoinTracker::zcSnapshot() const
    return std::atomic_load_explicit(&zcSnapshot_, std::memory_order_acquire);
 }
 
+void ColoredCoinTracker::setSnapshotUpdatedCb(ColoredCoinTrackerInterface::SnapshotUpdatedCb cb)
+{
+   snapshotUpdatedCb_ = std::move(cb);
+}
+
+void ColoredCoinTracker::setZcSnapshotUpdatedCb(ColoredCoinTrackerInterface::SnapshotUpdatedCb cb)
+{
+   zcSnapshotUpdatedCb_ = std::move(cb);
+}
+
 ////
 const std::shared_ptr<BinaryData> ColoredCoinTracker::getScrAddrPtr(
    const std::map<BinaryData, OpPtrSet>& addrMap
@@ -1382,6 +1392,20 @@ void ColoredCoinTracker::reorg(bool hard)
 
    snapshotUpdated();
    zcSnapshotUpdated();
+}
+
+void ColoredCoinTracker::snapshotUpdated()
+{
+   if (snapshotUpdatedCb_) {
+      snapshotUpdatedCb_();
+   }
+}
+
+void ColoredCoinTracker::zcSnapshotUpdated()
+{
+   if (zcSnapshotUpdatedCb_) {
+      zcSnapshotUpdatedCb_();
+   }
 }
 
 ////

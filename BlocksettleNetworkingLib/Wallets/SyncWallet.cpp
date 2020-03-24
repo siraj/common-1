@@ -139,8 +139,7 @@ bool Wallet::setTransactionComment(const BinaryData &txOrHash, const std::string
 
 bool Wallet::isBalanceAvailable() const
 {
-   return (armory_ != nullptr)
-      && (armory_->state() == ArmoryState::Ready)
+   return armorySet_.load() && (armory_->state() == ArmoryState::Ready)
       // Keep balances if registration is just updating
       && (isRegistered() == Registered::Registered || isRegistered() == Registered::Updating);
 }
@@ -471,6 +470,7 @@ void Wallet::setArmory(const std::shared_ptr<ArmoryConnection> &armory)
 {
    if (!armory_ && (armory != nullptr)) {
       armory_ = armory;
+      armorySet_ = true;
 
       /*
       Do not set callback target if it is already initialized. This
@@ -1051,20 +1051,23 @@ void Wallet::trackChainAddressUse(const std::function<void(bs::sync::SyncState)>
       }
    }
 
-   for (auto& addrPair : balanceData_->addressBalanceMap) {
-      if (usedAddrSet.find(addrPair.first) != usedAddrSet.end()) {
-         continue;   // skip already added addresses
-      }
-      if (!addrPair.second.empty()) {
-         bool hasBalance = false;
-         for (int i = 0; i < 3; ++i) {
-            if (addrPair.second[i] > 0) {
-               hasBalance = true;
-               break;
-            }
+   {
+      std::unique_lock<std::mutex> lock(balanceData_->addrMapsMtx);
+      for (auto& addrPair : balanceData_->addressBalanceMap) {
+         if (usedAddrSet.find(addrPair.first) != usedAddrSet.end()) {
+            continue;   // skip already added addresses
          }
-         if (hasBalance) {
-            usedAddrSet.insert(addrPair.first);
+         if (!addrPair.second.empty()) {
+            bool hasBalance = false;
+            for (int i = 0; i < 3; ++i) {
+               if (addrPair.second[i] > 0) {
+                  hasBalance = true;
+                  break;
+               }
+            }
+            if (hasBalance) {
+               usedAddrSet.insert(addrPair.first);
+            }
          }
       }
    }
