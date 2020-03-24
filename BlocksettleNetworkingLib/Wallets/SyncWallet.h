@@ -252,6 +252,7 @@ namespace bs {
          std::string                walletName_;
          WalletSignerContainer*     signContainer_;
          std::shared_ptr<ArmoryConnection>   armory_;
+         std::atomic_bool                    armorySet_{};
          std::shared_ptr<spdlog::logger>     logger_; // May need to be set manually.
          mutable std::vector<bs::Address>    usedAddresses_;
 
