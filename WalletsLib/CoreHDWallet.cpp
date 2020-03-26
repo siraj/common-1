@@ -216,7 +216,7 @@ std::shared_ptr<hd::Group> hd::Wallet::createGroup(bs::hd::CoinType ct)
 
    default:
       result = std::make_shared<Group>(
-         walletPtr_, ct, netType_, extOnlyFlag_, isHsmWallet(), logger_);
+         walletPtr_, ct, netType_, extOnlyFlag_, logger_);
       break;
    }
    addGroup(result);
@@ -277,13 +277,19 @@ void bs::core::hd::Wallet::eraseControlPassword(const SecureBinaryData &oldPass)
    walletPtr_->eraseControlPassphrase(lbdControlPassphrase_);
 }
 
-void bs::core::hd::Wallet::createHsmStructure(const std::string& xpub, unsigned lookup)
+void bs::core::hd::Wallet::createHsmStructure(const std::string& xpubNested, const std::string& xpubNative, unsigned lookup)
 {
    assert(isHsmWallet());
    const auto groupXBT = createGroup(getXBTGroupType());
    assert(groupXBT);
+
+   std::map<AddressEntryType, std::string> xpubs = {
+      {static_cast<AddressEntryType>(AddressEntryType_P2SH | AddressEntryType_P2WPKH), xpubNested},
+      {AddressEntryType_P2WPKH, xpubNative},
+   };
+
    for (const auto &aet : groupXBT->getAddressTypeSet()) {
-      groupXBT->createLeafFromXpub(xpub, aet, 0u, lookup);
+      groupXBT->createLeafFromXpub(xpubs[aet], aet, 0u, lookup);
    }
    writeToDB();
 }

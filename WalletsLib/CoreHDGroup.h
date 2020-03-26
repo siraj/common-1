@@ -35,7 +35,7 @@ namespace bs {
 
          public:
             Group(const std::shared_ptr<AssetWallet_Single> &, bs::hd::Path::Elem, NetworkType netType
-               , bool isExtOnly, bool isHsm = false, const std::shared_ptr<spdlog::logger> &logger = nullptr);
+               , bool isExtOnly, const std::shared_ptr<spdlog::logger> &logger = nullptr);
 
             ~Group(void);
 
@@ -90,7 +90,6 @@ namespace bs {
             bool        needsCommit_ = true;
             NetworkType netType_;
             bool isExtOnly_ = false;
-            bool isHsm_ = false;
             std::map<bs::hd::Path, std::shared_ptr<hd::Leaf>> leaves_;
 
             std::shared_ptr<AssetWallet_Single> walletPtr_;
@@ -148,7 +147,7 @@ namespace bs {
          public:
             CCGroup(std::shared_ptr<AssetWallet_Single> walletPtr
                , NetworkType netType, const std::shared_ptr<spdlog::logger> &logger)
-               : Group(walletPtr, bs::hd::CoinType::BlockSettle_CC, netType, true, false, logger)
+               : Group(walletPtr, bs::hd::CoinType::BlockSettle_CC, netType, true, logger)
             {} //CC groups are always ext only
 
             wallet::Type type() const override { return wallet::Type::ColorCoin; }
@@ -167,7 +166,7 @@ namespace bs {
             SettlementGroup(std::shared_ptr<AssetWallet_Single> walletPtr
                , NetworkType netType, const std::shared_ptr<spdlog::logger> &logger)
                : Group(walletPtr, bs::hd::CoinType::BlockSettle_Settlement
-                  , netType, true, false, logger)
+                  , netType, true, logger)
             {} //Settlement groups are always ext only
 
             wallet::Type type() const override { return wallet::Type::ColorCoin; }

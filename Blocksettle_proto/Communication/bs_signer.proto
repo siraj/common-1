@@ -415,5 +415,6 @@ message ImportHSMWalletRequest
 {
    string label = 1;
    string vendor = 2;
-   string xpub = 3;
+   string xpubNested = 3;
+   string xpubNative = 4;
 }

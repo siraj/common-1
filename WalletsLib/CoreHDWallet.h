@@ -95,7 +95,7 @@ namespace bs {
             void changeControlPassword(const SecureBinaryData &oldPass, const SecureBinaryData &newPass);
             void eraseControlPassword(const SecureBinaryData &oldPass);
             void createStructure(unsigned lookup = UINT32_MAX);
-            void createHsmStructure(const std::string& xpub, unsigned lookup = UINT32_MAX);
+            void createHsmStructure(const std::string& xpubNested, const std::string& xpubNative, unsigned lookup = UINT32_MAX);
             void createChatPrivKey();
 
             void shutdown();

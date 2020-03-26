@@ -17,11 +17,10 @@ using namespace bs::core;
 
 
 hd::Group::Group(const std::shared_ptr<AssetWallet_Single> &walletPtr
-   , bs::hd::Path::Elem index, NetworkType netType, bool isExtOnly, bool isHsm
+   , bs::hd::Path::Elem index, NetworkType netType, bool isExtOnly
    , const std::shared_ptr<spdlog::logger> &logger)
    : walletPtr_(walletPtr), index_(index & ~bs::hd::hardFlag)
    , netType_(netType), isExtOnly_(isExtOnly)
-   , isHsm_(isHsm)
    , logger_(logger)
 {
    if (walletPtr_ == nullptr) {
@@ -234,7 +233,7 @@ std::shared_ptr<hd::Group> hd::Group::deserialize(
       //use a place holder for isExtOnly (false), set it 
       //while deserializing db value
       group = std::make_shared<hd::Group>(
-         walletPtr, UINT32_MAX, netType, false, false, logger);
+         walletPtr, UINT32_MAX, netType, false, logger);
       break;
 
    case bs::hd::CoinType::BlockSettle_CC:
@@ -342,8 +341,8 @@ void bs::core::hd::Group::initLeafXpub(const std::string& xpub, std::shared_ptr<
 
    std::set<unsigned> nodes = { BIP32_LEGACY_OUTER_ACCOUNT_DERIVATIONID, BIP32_LEGACY_INNER_ACCOUNT_DERIVATIONID };
    accTypePtr->setNodes(nodes);
-   accTypePtr->setAddressTypes({ static_cast<AddressEntryType>(AddressEntryType_P2SH | AddressEntryType_P2WPKH) });
-   accTypePtr->setDefaultAddressType(static_cast<AddressEntryType>(AddressEntryType_P2SH | AddressEntryType_P2WPKH));
+   accTypePtr->setAddressTypes({ leaf->addressType() });
+   accTypePtr->setDefaultAddressType(leaf->addressType());
    accTypePtr->setAddressLookup(10);
    accTypePtr->setOuterAccountID(WRITE_UINT32_BE(*nodes.begin()));
    accTypePtr->setInnerAccountID(WRITE_UINT32_BE(*nodes.rbegin()));
@@ -396,12 +395,6 @@ void hd::Group::shutdown()
 
 std::set<AddressEntryType> hd::Group::getAddressTypeSet(void) const
 {
-   // #TREZOR_INTEGRATION: we should send xpub for native segwit as well
-   // for now it will be only nested
-   if (isHsm_) {
-      return { static_cast<AddressEntryType>(AddressEntryType_P2SH | AddressEntryType_P2WPKH) };
-   }
-
    // disabled for now
    return { /*AddressEntryType_P2PKH,*/ AddressEntryType_P2WPKH,
       AddressEntryType(AddressEntryType_P2SH | AddressEntryType_P2WPKH)
@@ -429,7 +422,7 @@ std::shared_ptr<hd::Group> hd::Group::getCopy(
       throw AccountException("empty wlt ptr");
    }
    auto grpCopy = std::make_shared<hd::Group>(wltPtr
-      , index_, netType_, isExtOnly_, isHsm_, logger_);
+      , index_, netType_, isExtOnly_, logger_);
 
    for (auto& leafPair : leaves_) {
       auto leafCopy = leafPair.second->getCopy(wltPtr);
@@ -444,7 +437,7 @@ std::shared_ptr<hd::Group> hd::Group::getCopy(
 
 hd::AuthGroup::AuthGroup(std::shared_ptr<AssetWallet_Single> walletPtr
    , NetworkType netType, const std::shared_ptr<spdlog::logger>& logger) :
-   Group(walletPtr, bs::hd::CoinType::BlockSettle_Auth, netType, true, false, logger)
+   Group(walletPtr, bs::hd::CoinType::BlockSettle_Auth, netType, true, logger)
 {}    //auth wallets are always ext only
 
 void hd::AuthGroup::initLeaf(std::shared_ptr<hd::Leaf> &leaf
