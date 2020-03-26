@@ -35,6 +35,7 @@ enum StorageType
    StorageRequests      = 3;
    StorageCCDefinitions = 4;
    StorageTradeHist     = 5;
+   StorageUserScore     = 6;
 }
 
 
@@ -332,16 +333,64 @@ message StorageTradeHistMessage
    }
 }
 
+message UserScoreUpdateEvent
+{
+   enum ScoreUpdateEventType
+   {
+      UnsignedPayinSentBeforeRequested = 0;
+      DuplicateUnsignedPayinDelivery   = 1;
+      UnsignedPayinFromUnexpectedUser  = 2;
+
+      SignedPayoutSentToAMissingTrade  = 3;
+      SignedPayoutSentBeforeRequested  = 4;
+      DuplicateSignedPayoutDelivery    = 5;
+      SignedPayoutFromUnexpectedUser   = 6;
+
+      SignedPayinSentToAMissingTrade   = 7;
+      SignedPayinSentBeforeRequested   = 8;
+      DuplicateSignedPayinDelivery     = 9;
+      SignedPayinFromUnexpectedUser    = 10;
+   };
+
+   string               user_email  = 1;
+   ScoreUpdateEventType reason      = 2;
+}
+
+message UserScoreRequest
+{
+   string               user_email  = 1;
+}
+
+message UserScoreData
+{
+   string               user_email  = 1;
+   uint64               score       = 2;
+   bool                 loaded      = 3;
+}
+
+message StorageUserScoreMessage
+{
+   oneof data {
+      UserScoreUpdateEvent update_score_request    = 1;
+      UserScoreRequest     reset_score_request     = 2;
+      UserScoreRequest     load_score_request      = 3;
+      UserScoreData        update_score_response   = 4;
+      UserScoreData        reset_score_response    = 5;
+      UserScoreData        load_score_response     = 6;
+   }
+}
+
 
 message StorageMessage
 {
-   StorageMessageType type = 1;
-   StorageType domain = 2;
+   StorageMessageType   type     = 1;
+   StorageType          domain   = 2;
    oneof data {
       StorageAddressMessage         address        = 3;
       StorageCCMessage              cc             = 4;
       StorageRequestsMessage        requests       = 5;
       StorageCCDefinitionsMessage   cc_definitions = 6;
       StorageTradeHistMessage       trade_hist     = 7;
+      StorageUserScoreMessage       user_score     = 8;
    }
 }
