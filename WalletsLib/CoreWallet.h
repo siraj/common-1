@@ -97,6 +97,16 @@ namespace bs {
             bool deserialize(BinaryRefReader brr) override;
          };
 
+         struct HSMWalletInfo {
+            std::string vendor_;
+            std::string label_;
+            std::string deviceId_;
+
+            std::string xpubRoot_;
+            std::string xpubNestedSegwit_;
+            std::string xpubNativeSegwit_;
+         };
+
          class MetaData
          {
             std::map<BinaryData, std::shared_ptr<AssetEntryMeta>>   data_;

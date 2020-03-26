@@ -33,10 +33,10 @@ hd::Wallet::Wallet(const bs::sync::WalletInfo &info, WalletSignerContainer *cont
    netType_ = getNetworkType();  // netType_ = info.netType ???
    const bool isHsm = std::count(info.encryptionTypes.begin(), info.encryptionTypes.end(),
       bs::wallet::EncryptionType::HSM) != 0;
-   if (info.watchOnly) {
-      encryptionTypes_ = { isHsm ? bs::wallet::EncryptionType::HSM
-         : bs::wallet::EncryptionType::Unencrypted };
-   } else {
+    if (info.watchOnly && !isHsm) {
+      encryptionTypes_ = { bs::wallet::EncryptionType::Unencrypted };
+   }
+   else {
       encryptionTypes_ = info.encryptionTypes;
       encryptionKeys_ = info.encryptionKeys;
       encryptionRank_ = info.encryptionRank;

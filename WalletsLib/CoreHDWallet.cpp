@@ -55,6 +55,30 @@ hd::Wallet::Wallet(const std::string &name, const std::string &desc
    initNew(seed, pd, folder);
 }
 
+bs::core::hd::Wallet::Wallet(const std::string &name, const std::string &desc,
+   const std::string& walletID, NetworkType netType, const bs::wallet::PasswordData & pd,
+   const std::string& folder, const std::shared_ptr<spdlog::logger> &logger /*= nullptr*/)
+   : name_(name), desc_(desc)
+   , netType_(netType)
+   , logger_(logger)
+{
+   walletPtr_ = AssetWallet_Single::createSeedless_WatchingOnly(
+      folder, walletID, pd.controlPassword);
+   filePathName_ = folder;
+   DBUtils::appendPath(filePathName_, walletPtr_->getDbFilename());
+
+   lbdControlPassphrase_ = [controlPassphrase = pd.controlPassword]
+   (const std::set<BinaryData>&)->SecureBinaryData
+   {
+      return controlPassphrase;
+   };
+
+   pwdMeta_.push_back(pd.metaData);
+
+   initializeDB();
+   writeToDB();
+}
+
 hd::Wallet::~Wallet()
 {
    shutdown();
@@ -277,15 +301,15 @@ void bs::core::hd::Wallet::eraseControlPassword(const SecureBinaryData &oldPass)
    walletPtr_->eraseControlPassphrase(lbdControlPassphrase_);
 }
 
-void bs::core::hd::Wallet::createHsmStructure(const std::string& xpubNested, const std::string& xpubNative, unsigned lookup)
+void bs::core::hd::Wallet::createHsmStructure(const bs::core::wallet::HSMWalletInfo &walletInfo, unsigned lookup)
 {
    assert(isHsmWallet());
    const auto groupXBT = createGroup(getXBTGroupType());
    assert(groupXBT);
 
    std::map<AddressEntryType, std::string> xpubs = {
-      {static_cast<AddressEntryType>(AddressEntryType_P2SH | AddressEntryType_P2WPKH), xpubNested},
-      {AddressEntryType_P2WPKH, xpubNative},
+      { static_cast<AddressEntryType>(AddressEntryType_P2SH | AddressEntryType_P2WPKH), walletInfo.xpubNestedSegwit_ },
+      { AddressEntryType_P2WPKH, walletInfo.xpubNativeSegwit_ }
    };
 
    for (const auto &aet : groupXBT->getAddressTypeSet()) {

@@ -111,19 +111,18 @@ WalletsManager::HDWalletPtr WalletsManager::loadWoWallet(NetworkType netType
    return nullptr;
 }
 
-WalletsManager::HDWalletPtr WalletsManager::createHSMWallet(NetworkType netType, const std::string &xpubNested, const std::string &xpubNative,
-   const std::string &name, const std::string &desc, const std::string &walletsPath, const SecureBinaryData &ctrlPass /*= {}*/)
+WalletsManager::HDWalletPtr WalletsManager::createHSMWallet(NetworkType netType, const bs::core::wallet::HSMWalletInfo &walletInfo, 
+   const std::string &walletsPath, const SecureBinaryData &ctrlPass /*= {}*/)
 {
-   if (xpubNested.empty() || xpubNative.empty()) {
-      return nullptr;
-   }
    logger_->debug("Creating HSM WO-wallet");
 
    bs::wallet::PasswordData passData;
    passData.metaData.encType = bs::wallet::EncryptionType::HSM;
+   passData.metaData.encKey = BinaryData::fromString(walletInfo.deviceId_);
 
-   const auto wallet = std::make_shared<hd::Wallet>(name, desc
-      , netType, passData, walletsPath, logger_);
+   auto walletId = wallet::computeID(BinaryData::fromString(walletInfo.xpubRoot_)).toBinStr();
+   const auto wallet = std::make_shared<hd::Wallet>(walletInfo.label_, walletInfo.vendor_, walletId
+      ,netType, passData, walletsPath, logger_);
 
    if (!ctrlPass.isNull()) {
       wallet->changeControlPassword({}, ctrlPass);
@@ -131,7 +130,7 @@ WalletsManager::HDWalletPtr WalletsManager::createHSMWallet(NetworkType netType,
 
    {
       const bs::core::WalletPasswordScoped lock(wallet, ctrlPass);
-      wallet->createHsmStructure(xpubNested, xpubNative);
+      wallet->createHsmStructure(walletInfo);
    }
 
    saveWallet(wallet);
