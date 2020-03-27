@@ -2078,3 +2078,18 @@ std::shared_ptr<ColoredCoinTrackerClient> WalletsManager::tracker(const std::str
    auto it = trackers_.find(cc);
    return it != trackers_.end() ? it->second : nullptr;
 }
+
+std::unordered_map<std::string, std::string> bs::sync::WalletsManager::getHSMDeviceIdToWallet() const
+{
+   std::unordered_map<std::string, std::string> resp;
+   for (auto &walletPtr : hdWallets_) {
+      if (!walletPtr->isHsm()) {
+         continue;
+      }
+
+      auto encKeys = walletPtr->encryptionKeys();
+      resp[encKeys[0].toBinStr()] = walletPtr->walletId();
+   }
+
+   return resp;
+}
