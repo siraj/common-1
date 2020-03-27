@@ -109,6 +109,8 @@ public:
    bool isEidAuthOnly() const;
    bool isPasswordOnly() const;
 
+   bool isHSM() const;
+
 signals:
    void walletChanged();
 

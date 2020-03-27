@@ -291,4 +291,10 @@ void WalletInfo::setName(const QString &name)
    emit walletChanged();
 }
 
+bool bs::hd::WalletInfo::isHSM() const
+{
+   return static_cast<bool>(std::count(encTypes_.begin(),
+      encTypes_.end(), bs::wallet::EncryptionType::HSM));
+}
+
 #include "moc_SignerUiDefs.cpp"
