@@ -109,7 +109,7 @@ public:
    bool isEidAuthOnly() const;
    bool isPasswordOnly() const;
 
-   bool isHSM() const;
+   Q_INVOKABLE bool isHSM() const;
 
 signals:
    void walletChanged();
