@@ -129,9 +129,8 @@ bs::network::MDFields GetMDFields(const Blocksettle::Communication::BlocksettleM
    if (!qFuzzyIsNull(productInfo.last_price())) {
       result.emplace_back( bs::network::MDField{ bs::network::MDField::PriceLast, productInfo.last_price(), QString()} );
    }
-   if (!qFuzzyIsNull(productInfo.volume())) {
-      result.emplace_back( bs::network::MDField{ bs::network::MDField::DailyVolume, productInfo.volume(), QString()} );
-   }
+
+   result.emplace_back( bs::network::MDField{ bs::network::MDField::DailyVolume, productInfo.volume(), QString()} );
 
    return result;
 }
