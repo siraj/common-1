@@ -378,9 +378,10 @@ message UserScoreUpdateEvent
       DuplicateSignedPayinDelivery     = 9;
       SignedPayinFromUnexpectedUser    = 10;
 
-      PayoutPushMempoolConflict        = 11;
+      PayinPushMempoolConflict         = 11;
+      PayoutPushMempoolConflict        = 12;
 
-      InvalidAuthAddressUsed           = 12;
+      InvalidAuthAddressUsed           = 13;
    };
 
    string               user_email  = 1;
