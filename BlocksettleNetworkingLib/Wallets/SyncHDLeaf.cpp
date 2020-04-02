@@ -127,11 +127,19 @@ bool hd::Leaf::isOwnId(const std::string &wId) const
 
 void hd::Leaf::onRefresh(const std::vector<BinaryData> &ids, bool online)
 {
-   const auto &cbRegistered = [this] {
+   auto cbRegistered = [this, handle = validityFlag_.handle()] () mutable {
+      ValidityGuard lock(handle);
+      if (!handle.isValid()) {
+         return;
+      }
       isRegistered_ = Registered::Registered;
       onRegistrationCompleted();
    };
-   const auto &cbRegisterExt = [this, online, cbRegistered] {
+   auto cbRegisterExt = [this, online, cbRegistered, handle = validityFlag_.handle()] () mutable {
+      ValidityGuard lock(handle);
+      if (!handle.isValid()) {
+         return;
+      }
       if (isExtOnly_ || (regIdExt_.empty() && regIdInt_.empty())) {
          cbRegistered();
          if (online) {
@@ -139,7 +147,11 @@ void hd::Leaf::onRefresh(const std::vector<BinaryData> &ids, bool online)
          }
       }
    };
-   const auto &cbRegisterInt = [this, online, cbRegistered] {
+   auto cbRegisterInt = [this, online, cbRegistered, handle = validityFlag_.handle()] () mutable {
+      ValidityGuard lock(handle);
+      if (!handle.isValid()) {
+         return;
+      }
       if (regIdExt_.empty() && regIdInt_.empty()) {
          cbRegistered();
          if (online) {
@@ -486,6 +498,17 @@ std::vector<std::string> hd::Leaf::registerWallet(
    return {};
 }
 
+void hd::Leaf::unregisterWallet()
+{
+   if (btcWallet_) {
+      btcWallet_->unregister();
+   }
+   if (btcWalletInt_) {
+      btcWalletInt_->unregister();
+   }
+   bs::sync::Wallet::unregisterWallet();
+}
+
 void hd::Leaf::createAddress(const CbAddress &cb, bool isInternal)
 {
    bs::hd::Path addrPath;
@@ -562,7 +585,7 @@ void hd::Leaf::topUpAddressPool(bool extInt, const std::function<void()> &cb)
    auto fillUpAddressPoolCallback = [this, extInt, cb, handle = validityFlag_.handle()](
       const std::vector<std::pair<bs::Address, std::string>>& addrVec) mutable
    {
-      ValidityGuard lock(handle);
+      // No need to lock handle as callback is called on main thread
       if (!handle.isValid()) {
          return;
       }
