@@ -121,11 +121,7 @@ ApplicationSettings::ApplicationSettings(const QString &appName
       { customPubBridgeHost,     SettingDef(QLatin1String("CustomPubBridgeHost"), QString()) },
       { customPubBridgePort,     SettingDef(QLatin1String("CustomPubBridgePort"), 9091) },
       { pubBridgePubKey,         SettingDef(QLatin1String("PubBridgePubKey"), QString()) },
-   #ifdef PRODUCTION_BUILD
-      { envConfiguration,        SettingDef(QLatin1String("envConfiguration"), static_cast<int>(EnvConfiguration::Production)) },
-   #else
-      { envConfiguration,        SettingDef(QLatin1String("envConfiguration"), static_cast<int>(EnvConfiguration::Staging)) },
-   #endif
+      { envConfiguration,        SettingDef(QLatin1String("envConfiguration"), static_cast<int>(EnvConfiguration::ProductionAndUat)) },
       { mdServerHost,            SettingDef(QString()) },
       { mdServerPort,            SettingDef(QString()) },
       { mdhsHost,                SettingDef(QString()) },
