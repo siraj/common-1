@@ -70,7 +70,7 @@ bs::PayoutSignatureType bs::TradesVerification::whichSignature(const Tx &tx, uin
    , const bs::Address &settlAddr, const BinaryData &buyAuthKey, const BinaryData &sellAuthKey
    , std::string *errorMsg, const BinaryData& providedPayinHash)
 {
-   if (!tx.isInitialized() || buyAuthKey.isNull() || sellAuthKey.isNull()) {
+   if (!tx.isInitialized() || buyAuthKey.empty() || sellAuthKey.empty()) {
       return bs::PayoutSignatureType::Failed;
    }
 
@@ -186,7 +186,7 @@ std::shared_ptr<bs::TradesVerification::Result> bs::TradesVerification::verifyUn
    , const std::map<std::string, BinaryData>& preimageData
    , float feePerByte, const std::string &settlementAddress, uint64_t tradeAmount)
 {
-   if (unsignedPayin.isNull()) {
+   if (unsignedPayin.empty()) {
       return Result::error("no unsigned payin provided");
    }
 
@@ -289,11 +289,11 @@ std::shared_ptr<bs::TradesVerification::Result> bs::TradesVerification::verifySi
    , const std::string &buyAuthKeyHex, const std::string &sellAuthKeyHex
    , const BinaryData &payinHash, uint64_t tradeAmount, float feePerByte, const std::string &settlementId, const std::string &settlementAddress)
 {
-   if (signedPayout.isNull()) {
+   if (signedPayout.empty()) {
       return Result::error("signed payout is not provided");
    }
 
-   if (payinHash.isNull()) {
+   if (payinHash.empty()) {
       return Result::error("there is no saved payin hash");
    }
 
@@ -370,11 +370,11 @@ std::shared_ptr<bs::TradesVerification::Result> bs::TradesVerification::verifySi
 
 std::shared_ptr<bs::TradesVerification::Result> bs::TradesVerification::verifySignedPayin(const BinaryData &signedPayin, const BinaryData &payinHash, float feePerByte, uint64_t totalPayinFee)
 {
-   if (signedPayin.isNull()) {
+   if (signedPayin.empty()) {
       return Result::error("no signed payin provided");
    }
 
-   if (payinHash.isNull()) {
+   if (payinHash.empty()) {
       return Result::error("there is no saved payin hash");
    }
 

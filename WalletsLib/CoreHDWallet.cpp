@@ -315,7 +315,7 @@ void hd::Wallet::createChatPrivKey()
 
 BIP32_Node hd::Wallet::getChatNode() const
 {
-   if (!chatNode_.getPrivateKey().isNull()) {
+   if (!chatNode_.getPrivateKey().empty()) {
       return chatNode_;
    }
    try {
