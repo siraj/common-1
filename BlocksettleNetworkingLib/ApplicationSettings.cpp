@@ -423,6 +423,19 @@ bool ApplicationSettings::LoadApplicationSettings(const QStringList& argList)
 #endif // NDEBUG
 
 
+   // Set envConfiguration to valid value
+#ifdef PRODUCTION_BUILD
+   set(ApplicationSettings::envConfiguration, static_cast<int>(EnvConfiguration::ProductionAndUat));
+#else
+   switch (getEnvConf()) {
+      case EnvConfiguration::Custom:
+      case EnvConfiguration::Staging:
+         break;
+      default:
+         set(ApplicationSettings::envConfiguration, static_cast<int>(EnvConfiguration::ProductionAndUat));
+   }
+#endif
+
    settings_.sync();
 
    return true;
@@ -678,8 +691,18 @@ QString ApplicationSettings::ccFilePath() const
 {
    auto conf = EnvConfiguration(get<int>(ApplicationSettings::envConfiguration));
    auto netType = get<NetworkType>(ApplicationSettings::netType);
-   auto fileName = fmt::format("ccgenaddr-{}-{}.signed", envName(conf), networkName(netType));
+   auto fileName = fmt::format("ccgenaddr-{}-{}.signed", envName(conf, netType), networkName(netType));
    return AppendToWritableDir(QString::fromStdString(fileName));
+}
+
+NetworkType ApplicationSettings::getNetType() const
+{
+   return static_cast<NetworkType>(get<int>(ApplicationSettings::netType));
+}
+
+ApplicationSettings::EnvConfiguration ApplicationSettings::getEnvConf() const
+{
+   return static_cast<EnvConfiguration>(get<int>(envConfiguration));
 }
 
 std::pair<autheid::PrivateKey, autheid::PublicKey> ApplicationSettings::GetAuthKeys()
@@ -707,10 +730,12 @@ std::string ApplicationSettings::pubBridgeHost() const
    auto env = EnvConfiguration(get<int>(ApplicationSettings::envConfiguration));
 
    switch (env) {
-   case EnvConfiguration::Production:
+   case EnvConfiguration::ProductionAndUat:
+      if (getNetType() == NetworkType::MainNet) {
          return "185.213.153.36";
-   case EnvConfiguration::Test:
+      } else {
          return "185.213.153.44";
+      }
 #ifndef PRODUCTION_BUILD
    case EnvConfiguration::Staging:
          return "185.213.153.45";
@@ -728,8 +753,7 @@ std::string ApplicationSettings::pubBridgePort() const
    auto env = EnvConfiguration(get<int>(ApplicationSettings::envConfiguration));
 
    switch (env) {
-   case EnvConfiguration::Production:
-   case EnvConfiguration::Test:
+   case EnvConfiguration::ProductionAndUat:
       return "9091";
 #ifndef PRODUCTION_BUILD
    case EnvConfiguration::Staging:
@@ -772,10 +796,8 @@ AuthEidEnv ApplicationSettings::autheidEnv() const
 {
    auto conf = ApplicationSettings::EnvConfiguration(get<int>(ApplicationSettings::envConfiguration));
    switch (conf) {
-      case ApplicationSettings::EnvConfiguration::Production:
+      case ApplicationSettings::EnvConfiguration::ProductionAndUat:
          return AuthEidEnv::Prod;
-      case ApplicationSettings::EnvConfiguration::Test:
-         return AuthEidEnv::Test;
 #ifndef PRODUCTION_BUILD
       case ApplicationSettings::EnvConfiguration::Staging:
       case ApplicationSettings::EnvConfiguration::Custom:
@@ -786,13 +808,15 @@ AuthEidEnv ApplicationSettings::autheidEnv() const
 }
 
 // static
-std::string ApplicationSettings::envName(ApplicationSettings::EnvConfiguration conf)
+std::string ApplicationSettings::envName(ApplicationSettings::EnvConfiguration conf, NetworkType netType)
 {
    switch (conf) {
-      case ApplicationSettings::EnvConfiguration::Production:
-         return "prod";
-      case ApplicationSettings::EnvConfiguration::Test:
-         return "uat";
+      case ApplicationSettings::EnvConfiguration::ProductionAndUat:
+         if (netType == NetworkType::MainNet) {
+            return "prod";
+         } else {
+            return "uat";
+         }
 #ifndef PRODUCTION_BUILD
       case ApplicationSettings::EnvConfiguration::Staging:
          return "staging";

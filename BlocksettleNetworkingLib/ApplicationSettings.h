@@ -55,11 +55,10 @@ public:
 
    enum class EnvConfiguration
    {
-      Production,
-      Test,
+      ProductionAndUat = 0,
 #ifndef PRODUCTION_BUILD
-      Staging,
-      Custom,
+      Staging = 2,
+      Custom = 3,
 #endif
    };
    Q_ENUM(EnvConfiguration)
@@ -199,12 +198,15 @@ public:
    AuthEidEnv autheidEnv() const;
 
    // Returns "prod", "uat", "staging" or "custom"
-   static std::string envName(EnvConfiguration conf);
+   static std::string envName(EnvConfiguration conf, NetworkType netType);
 
    // Returns "mainnet", "testnet" or "regtest"
    static std::string networkName(NetworkType type);
 
    QString ccFilePath() const;
+
+   NetworkType getNetType() const;
+   EnvConfiguration getEnvConf() const;
 
 signals:
    void settingChanged(int setting, QVariant value);
