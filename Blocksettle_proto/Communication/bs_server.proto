@@ -90,6 +90,7 @@ message ArmoryPushTxRequest
 {
    bytes  tx = 1;
    bytes  tx_hash = 2;
+   string settlement_id = 3;	// optional
 }
 
 enum ArmoryPushTxResult
