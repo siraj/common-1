@@ -25,7 +25,7 @@ class HidapiSettings(Configurator):
         return self._package_url
 
     def get_install_dir(self):
-        return os.path.join(self._project_settings.get_common_build_dir(), 'Hidapi')
+        return os.path.join(self._project_settings.get_common_build_dir(), 'hidapi')
 
     def is_archive(self):
         return True
