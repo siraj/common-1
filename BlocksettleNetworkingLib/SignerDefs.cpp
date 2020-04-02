@@ -42,7 +42,7 @@ bs::sync::WalletData bs::sync::WalletData::fromPbMessage(const headless::SyncWal
    for (int i = 0; i < response.addresses_size(); ++i) {
       const auto addrInfo = response.addresses(i);
       const auto addr = bs::Address::fromAddressString(addrInfo.address());
-      if (addr.isNull()) {
+      if (addr.empty()) {
          continue;
       }
       result.addresses.push_back({ addrInfo.index(), std::move(addr)
@@ -51,7 +51,7 @@ bs::sync::WalletData bs::sync::WalletData::fromPbMessage(const headless::SyncWal
    for (int i = 0; i < response.addrpool_size(); ++i) {
       const auto addrInfo = response.addrpool(i);
       const auto addr = bs::Address::fromAddressString(addrInfo.address());
-      if (addr.isNull()) {
+      if (addr.empty()) {
          continue;
       }
       result.addrPool.push_back({ addrInfo.index(), std::move(addr), "" });

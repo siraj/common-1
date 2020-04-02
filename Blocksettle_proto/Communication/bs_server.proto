@@ -90,6 +90,7 @@ message ArmoryPushTxRequest
 {
    bytes  tx = 1;
    bytes  tx_hash = 2;
+   string settlement_id = 3;	// optional
 }
 
 enum ArmoryPushTxResult
@@ -101,6 +102,7 @@ enum ArmoryPushTxResult
    ArmoryPushTxBroadcastTimeout = 4;
    ArmoryPushTxOtherError = 5;
    ArmoryPushTxAlreadyInChain = 6;
+   ArmoryPushTxAlreadyInMempool = 7;
 }
 
 message ArmoryPushTxResponse
@@ -108,6 +110,7 @@ message ArmoryPushTxResponse
    bytes tx_hash = 1;
    ArmoryPushTxResult result = 2;
    string error_message = 3;
+   string settlement_id = 4;
 }
 
 message ArmoryPushXbtTXsRequest

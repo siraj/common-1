@@ -608,7 +608,7 @@ std::string wallet::Seed::getWalletId() const
       DerivationScheme_ArmoryLegacy derScheme(chainCode);
 
       auto pubKey = node.getPublicKey();
-      if (pubKey.isNull()) {
+      if (pubKey.empty()) {
          return {};
       }
       auto assetSingle = std::make_shared<AssetEntry_Single>(
@@ -719,7 +719,7 @@ std::string Wallet::getAddressComment(const bs::Address &address) const
 
 bool Wallet::setAddressComment(const bs::Address &address, const std::string &comment)
 {
-   if (address.isNull()) {
+   if (address.empty()) {
       return false;
    }
    set(std::make_shared<wallet::AssetEntryComment>(nbMetaData_++, address.id(), comment));
@@ -738,7 +738,7 @@ std::string Wallet::getTransactionComment(const BinaryData &txHash)
 
 bool Wallet::setTransactionComment(const BinaryData &txHash, const std::string &comment)
 {
-   if (txHash.isNull() || comment.empty()) {
+   if (txHash.empty() || comment.empty()) {
       return false;
    }
    set(std::make_shared<wallet::AssetEntryComment>(nbMetaData_++, txHash, comment));
@@ -887,7 +887,7 @@ BinaryData bs::core::SignMultiInputTX(const bs::core::wallet::TXMultiSignRequest
    , const WalletMap &wallets, bool partial)
 {
    bs::CheckRecipSigner signer;
-   if (!txMultiReq.prevState.isNull()) {
+   if (!txMultiReq.prevState.empty()) {
       signer.deserializeState(txMultiReq.prevState);
 
       signer.setFlags(SCRIPT_VERIFY_SEGWIT);

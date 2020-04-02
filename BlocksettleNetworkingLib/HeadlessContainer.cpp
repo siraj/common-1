@@ -423,7 +423,7 @@ bs::signer::RequestId HeadlessContainer::signSettlementPayoutTXRequest(const bs:
    , const bs::core::wallet::SettlementData &sd, const bs::sync::PasswordDialogData &dialogData
    , const SignTxCb &cb)
 {
-   if ((txSignReq.inputs.size() != 1) || (txSignReq.recipients.size() != 1) || sd.settlementId.isNull()) {
+   if ((txSignReq.inputs.size() != 1) || (txSignReq.recipients.size() != 1) || sd.settlementId.empty()) {
       logger_->error("[HeadlessContainer::signSettlementPayoutTXRequest] Invalid PayoutTXSignRequest");
       return 0;
    }
@@ -529,7 +529,7 @@ bs::signer::RequestId HeadlessContainer::setUserId(const BinaryData &userId, con
    headless::SetUserIdRequest request;
    auto dialogData = request.mutable_passworddialogdata();
    *dialogData = info.toProtobufMessage();
-   if (!userId.isNull()) {
+   if (!userId.empty()) {
       request.set_userid(userId.toBinStr());
    }
 
@@ -566,7 +566,7 @@ bool HeadlessContainer::createHDLeaf(const std::string &rootWalletId, const bs::
    request.set_path(path.toString());
 
    if (!pwData.empty()) {
-      if (!pwData[0].salt.isNull()) {
+      if (!pwData[0].salt.empty()) {
          request.set_salt(pwData[0].salt.toBinStr());
       }
    }
@@ -637,26 +637,6 @@ bs::signer::RequestId HeadlessContainer::DeleteHDLeaf(const std::string &leafWal
    SPDLOG_LOGGER_ERROR(logger_, "unimplemented");
    return 0;
 }
-
-//void HeadlessContainer::setLimits(const std::string &walletId, const SecureBinaryData &pass
-//   , bool autoSign)
-//{
-//   if (walletId.empty()) {
-//      logger_->error("[HeadlessContainer] no walletId for SetLimits");
-//      return;
-//   }
-//   headless::SetLimitsRequest request;
-//   request.set_rootwalletid(walletId);
-//   if (!pass.isNull()) {
-//      request.set_password(pass.toHexStr());
-//   }
-//   request.set_activateautosign(autoSign);
-
-//   headless::RequestPacket packet;
-//   packet.set_type(headless::SetLimitsRequestType);
-//   packet.set_data(request.SerializeAsString());
-//   Send(packet);
-//}
 
 bs::signer::RequestId HeadlessContainer::customDialogRequest(bs::signer::ui::GeneralDialogType signerDialog, const QVariantMap &data)
 {

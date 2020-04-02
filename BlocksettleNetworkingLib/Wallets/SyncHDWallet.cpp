@@ -93,7 +93,7 @@ void hd::Wallet::synchronize(const std::function<void()> &cbDone)
                continue;
             }
             if (grpData.type == bs::hd::CoinType::BlockSettle_Settlement) {
-               if (leafData.extraData.isNull()) {
+               if (leafData.extraData.empty()) {
                   throw std::runtime_error("no extra data for settlement leaf " + leafData.id);
                }
                const auto settlGroup = std::dynamic_pointer_cast<hd::SettlementGroup>(group);
@@ -230,7 +230,7 @@ std::shared_ptr<hd::Group> hd::Wallet::createGroup(bs::hd::CoinType ct, bool isE
 
 void hd::Wallet::addGroup(const std::shared_ptr<hd::Group> &group)
 {
-   if (!userId_.isNull()) {
+   if (!userId_.empty()) {
       group->setUserId(userId_);
    }
 

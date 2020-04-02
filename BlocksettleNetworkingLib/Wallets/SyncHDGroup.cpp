@@ -180,7 +180,7 @@ void hd::AuthGroup::setUserId(const BinaryData &userId)
       leaf.second->setUserId(userId);
    }
 
-   if (userId.isNull() && !leaves_.empty()) {
+   if (userId.empty() && !leaves_.empty()) {
       const auto leaves = leaves_;
       for (const auto &leaf : leaves) {
          deleteLeaf(leaf.first);
