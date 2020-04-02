@@ -147,7 +147,7 @@ namespace bs {
 
             Seed(const SecureBinaryData &seed, NetworkType netType);
 
-            bool empty() const { return seed_.isNull(); }
+            bool empty() const { return seed_.empty(); }
             bool hasPrivateKey() const { return node_.getPrivateKey().getSize() == 32; }
             const SecureBinaryData &privateKey() const { return node_.getPrivateKey(); }
             const SecureBinaryData &seed() const { return seed_; }

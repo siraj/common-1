@@ -407,7 +407,7 @@ bool HeadlessContainerListener::onSignTxRequest(const std::string &clientId, con
       }
 
       try {
-         if (!rootWallet->encryptionTypes().empty() && pass.isNull()) {
+         if (!rootWallet->encryptionTypes().empty() && pass.empty()) {
             logger_->error("[HeadlessContainerListener] empty password for wallet {}", wallets.front()->name());
             SignTXResponse(clientId, id, reqType, ErrorCode::MissingPassword);
             return;
@@ -612,7 +612,7 @@ bool HeadlessContainerListener::onSignSettlementPayoutTxRequest(const std::strin
 
       try {
          const auto wallet = walletsMgr_->getPrimaryWallet();
-         if (!wallet->encryptionTypes().empty() && pass.isNull()) {
+         if (!wallet->encryptionTypes().empty() && pass.empty()) {
             logger_->error("[HeadlessContainerListener] empty password for wallet {}", wallet->name());
             SignTXResponse(clientId, id, reqType, ErrorCode::MissingPassword);
             return;
@@ -705,7 +705,7 @@ void HeadlessContainerListener::SignTXResponse(const std::string &clientId, unsi
    headless::SignTxReply response;
    response.set_errorcode(static_cast<uint32_t>(errorCode));
 
-   if (!tx.isNull()) {
+   if (!tx.empty()) {
       response.set_signedtx(tx.toBinStr());
    }
 
@@ -981,7 +981,7 @@ bool HeadlessContainerListener::onSetUserId(const std::string &clientId, headles
    }
    const auto salt = SecureBinaryData::fromString(request.userid());
 
-   if (salt.isNull()) {
+   if (salt.empty()) {
       logger_->debug("[{}] unsetting auth salt", __func__);
       setUserIdResponse(clientId, packet.id(), headless::AWR_UnsetSalt);
       return true;
@@ -989,7 +989,7 @@ bool HeadlessContainerListener::onSetUserId(const std::string &clientId, headles
 
    logger_->debug("[{}] setting salt {}...", __func__, salt.toHexStr());
    const auto prevSalt = authGroup->getSalt();
-   if (prevSalt.isNull()) {
+   if (prevSalt.empty()) {
       try {
          authGroup->setSalt(salt);
       } catch (const std::exception &e) {
@@ -1102,11 +1102,11 @@ bool HeadlessContainerListener::onCreateHDLeaf(const std::string &clientId
       }
 
       try {
-         if (!salt.isNull()) {
+         if (!salt.empty()) {
             const auto authGroup = std::dynamic_pointer_cast<bs::core::hd::AuthGroup>(group);
             if (authGroup) {
                const auto prevSalt = authGroup->getSalt();
-               if (prevSalt.isNull()) {
+               if (prevSalt.empty()) {
                   authGroup->setSalt(salt);
                }
                else if (prevSalt != salt) {
@@ -1192,7 +1192,7 @@ bool HeadlessContainerListener::createSettlementLeaves(const std::shared_ptr<bs:
 bool HeadlessContainerListener::createAuthLeaf(const std::shared_ptr<bs::core::hd::Wallet> &wallet
    , const BinaryData &salt)
 {
-   if (salt.isNull()) {
+   if (salt.empty()) {
       logger_->error("[{}] can't create auth leaf with empty salt", __func__);
       return false;
    }
@@ -1208,7 +1208,7 @@ bool HeadlessContainerListener::createAuthLeaf(const std::shared_ptr<bs::core::h
    }
 
    const auto prevSalt = authGroup->getSalt();
-   if (prevSalt.isNull()) {
+   if (prevSalt.empty()) {
       try {
          authGroup->setSalt(salt);
       } catch (const std::exception &e) {
@@ -2133,7 +2133,7 @@ bool HeadlessContainerListener::onChatNodeRequest(const std::string &clientId, h
    if (hdWallet) {
       response.set_wallet_id(hdWallet->walletId());
       const auto chatNode = hdWallet->getChatNode();
-      if (!chatNode.getPrivateKey().isNull()) {
+      if (!chatNode.getPrivateKey().empty()) {
          response.set_b58_chat_node(chatNode.getBase58().toBinStr());
       }
    }

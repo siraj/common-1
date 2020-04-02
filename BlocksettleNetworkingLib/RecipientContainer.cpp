@@ -20,7 +20,7 @@ RecipientContainer::RecipientContainer()
 
 bool RecipientContainer::IsReady() const
 {
-   return !xbtAmount_.isZero() && !address_.isNull();
+   return !xbtAmount_.isZero() && !address_.empty();
 }
 
 bool RecipientContainer::SetAddress(const bs::Address &address)
@@ -36,7 +36,7 @@ void RecipientContainer::ResetAddress()
 
 bs::Address RecipientContainer::GetAddress() const
 {
-   if (!address_.isNull()) {
+   if (!address_.empty()) {
       return address_;
    }
    return bs::Address();

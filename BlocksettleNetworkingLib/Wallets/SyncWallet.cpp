@@ -93,7 +93,7 @@ std::string Wallet::getAddressComment(const bs::Address &address) const
 
 bool Wallet::setAddressComment(const bs::Address &address, const std::string &comment, bool sync)
 {
-   if (address.isNull() || comment.empty()) {
+   if (address.empty() || comment.empty()) {
       return false;
    }
    addrComments_[address] = comment;
@@ -117,7 +117,7 @@ std::string Wallet::getTransactionComment(const BinaryData &txHash)
 
 bool Wallet::setTransactionComment(const BinaryData &txOrHash, const std::string &comment, bool sync)
 {
-   if (txOrHash.isNull() || comment.empty()) {
+   if (txOrHash.empty() || comment.empty()) {
       return false;
    }
    BinaryData txHash;
@@ -788,7 +788,7 @@ bs::core::wallet::TXSignRequest wallet::createTXRequest(const std::vector<std::s
 
    const uint64_t changeAmount = inputAmount - (spendAmount + fee);
    if (changeAmount) {
-      if (changeAddr.isNull()) {
+      if (changeAddr.empty()) {
          throw std::logic_error("can't get change address for " + std::to_string(changeAmount));
       }
       request.change.value = changeAmount;
@@ -802,7 +802,7 @@ bs::core::wallet::TXSignRequest Wallet::createTXRequest(const std::vector<UTXO> 
    , const std::vector<std::shared_ptr<ScriptRecipient>> &recipients, const uint64_t fee
    , bool isRBF, const bs::Address &changeAddress)
 {
-   if (!changeAddress.isNull()) {
+   if (!changeAddress.empty()) {
       setAddressComment(changeAddress, wallet::Comment::toString(wallet::Comment::ChangeAddress));
    }
    return wallet::createTXRequest({ walletId() }, inputs, recipients, changeAddress
@@ -876,7 +876,7 @@ bs::core::wallet::TXSignRequest Wallet::createPartialTXRequest(uint64_t spendVal
    request.outSortOrder = outSortOrder;
    Signer signer;
    bs::CheckRecipSigner prevStateSigner;
-   if (!prevPart.isNull()) {
+   if (!prevPart.empty()) {
       prevStateSigner.deserializeState(prevPart);
       if (feePerByte > 0) {
          fee += prevStateSigner.estimateFee(feePerByte);
@@ -935,7 +935,7 @@ bs::core::wallet::TXSignRequest Wallet::createPartialTXRequest(uint64_t spendVal
          }
          {
             const uint64_t changeVal = inputAmount - (spendVal + fee);
-            if (changeAddress.isNull()) {
+            if (changeAddress.empty()) {
                throw std::invalid_argument("Change address required, but missing");
             }
             signer.addRecipient(changeAddress.getRecipient(bs::XBTAmount{ changeVal }));
@@ -992,13 +992,13 @@ bool Wallet::getLedgerDelegateForAddress(const bs::Address &addr
 int Wallet::addAddress(const bs::Address &addr, const std::string &index
    , bool sync)
 {
-   if (!addr.isNull()) {
+   if (!addr.empty()) {
       usedAddresses_.push_back(addr);
    }
 
    if (sync && signContainer_) {
       std::string idxCopy = index;
-      if (idxCopy.empty() && !addr.isNull()) {
+      if (idxCopy.empty() && !addr.empty()) {
          idxCopy = getAddressIndex(addr);
          if (idxCopy.empty()) {
             idxCopy = addr.display();

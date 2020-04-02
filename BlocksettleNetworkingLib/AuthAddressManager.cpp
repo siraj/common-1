@@ -258,7 +258,7 @@ bool AuthAddressManager::RevokeAddress(const bs::Address &address)
    }
 
    const auto revokeData = addressVerificator_->getRevokeData(address);
-   if (revokeData.first.isNull() || !revokeData.second.isInitialized()) {
+   if (revokeData.first.empty() || !revokeData.second.isInitialized()) {
       logger_->error("[AuthAddressManager::RevokeAddress] failed to obtain revocation data");
       emit Error(tr("Missing revocation input"));
       return false;
@@ -407,7 +407,7 @@ void AuthAddressManager::VerifyWalletAddressesFunction()
          defaultAddr_ = bs::Address::fromAddressString(defaultAuthAddrStr.toStdString());
       }
 
-      if (defaultAddr_.isNull()) {
+      if (defaultAddr_.empty()) {
          logger_->debug("Default auth address not found");
       }
       else {
@@ -589,7 +589,7 @@ void AuthAddressManager::setDefault(const bs::Address &addr)
 
 size_t AuthAddressManager::getDefaultIndex() const
 {
-   if (defaultAddr_.isNull()) {
+   if (defaultAddr_.empty()) {
       return 0;
    }
    size_t rv = 0;
@@ -762,7 +762,7 @@ void AuthAddressManager::createSettlementLeaf(const bs::Address &addr
    , const std::function<void()> &cb)
 {
    const auto &cbPubKey = [this, cb](const SecureBinaryData &pubKey) {
-      if (pubKey.isNull()) {
+      if (pubKey.empty()) {
          return;
       }
       if (cb) {

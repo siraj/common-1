@@ -162,7 +162,7 @@ void bs::tradeutils::createPayin(bs::tradeutils::PayinArgs args, bs::tradeutils:
 
          auto cbSettlAddr = [args, cb, feePerByte, xbtWallet](const bs::Address &settlAddr)
          {
-            if (settlAddr.isNull()) {
+            if (settlAddr.empty()) {
                cb(PayinResult::error("invalid settl addr"));
                return;
             }
@@ -360,7 +360,7 @@ void bs::tradeutils::createPayout(bs::tradeutils::PayoutArgs args, bs::tradeutil
 
          auto cbSettlAddr = [args, cb, feePerByte](const bs::Address &settlAddr) {
             auto recvAddrCb = [args, cb, feePerByte, settlAddr](const bs::Address &recvAddr) {
-               if (settlAddr.isNull()) {
+               if (settlAddr.empty()) {
                   cb(PayoutResult::error("invalid settl addr"));
                   return;
                }
@@ -375,7 +375,7 @@ void bs::tradeutils::createPayout(bs::tradeutils::PayoutArgs args, bs::tradeutil
                cb(std::move(result));
             };
 
-            if (!args.recvAddr.isNull()) {
+            if (!args.recvAddr.empty()) {
                recvAddrCb(args.recvAddr);
             } else {
                // BST-2474: All addresses related to trading, not just change addresses, should use internal addresses

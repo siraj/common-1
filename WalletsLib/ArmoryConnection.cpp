@@ -238,7 +238,7 @@ void ArmoryConnection::setupConnection(NetworkType netType, const std::string &h
    });
 
    // Add BIP 150 server keys
-   if (!serverKey.isNull()) {
+   if (!serverKey.empty()) {
       bsBIP150PubKeys_.push_back(serverKey);
    }
 
@@ -392,7 +392,7 @@ bool ArmoryConnection::broadcastZC(const BinaryData& rawTx)
       return false;
    }
 
-   if (rawTx.isNull()) {
+   if (rawTx.empty()) {
       SPDLOG_LOGGER_ERROR(logger_, "broadcast failed: empty rawTx");
       return false;
    }
@@ -400,7 +400,7 @@ bool ArmoryConnection::broadcastZC(const BinaryData& rawTx)
    try
    {
       Tx tx(rawTx);
-      if (!tx.isInitialized() || tx.getThisHash().isNull()) {
+      if (!tx.isInitialized() || tx.getThisHash().empty()) {
          logger_->error("[ArmoryConnection::broadcastZC] invalid TX data (size {}) - aborting broadcast"
                         , rawTx.getSize());
          return false;
@@ -459,7 +459,7 @@ bool ArmoryConnection::getLedgerDelegateForAddress(const std::string &walletId, 
       catch (const std::exception &e) {
          logger_->error("[ArmoryConnection::getLedgerDelegateForAddress (cbWrap)] Return data "
             "error - {} - Wallet {} - Address {}", e.what(), walletId
-            , addr.isNull() ? "<empty>" : addr.display());
+            , addr.empty() ? "<empty>" : addr.display());
          addToMaintQueue([addr](ArmoryCallbackTarget *tgt) {
             tgt->onLedgerForAddress(addr, nullptr);
          });
