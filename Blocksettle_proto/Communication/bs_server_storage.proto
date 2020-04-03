@@ -383,6 +383,8 @@ message UserScoreUpdateEvent
 
       InvalidAuthAddressUsed           = 13;
       SignedPayinTimeout               = 14;
+
+      AttemptToCancelAnothersTrade     = 15;
    };
 
    string               user_email  = 1;
