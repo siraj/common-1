@@ -164,7 +164,7 @@ void hd::Leaf::onRefresh(const std::vector<BinaryData> &ids, bool online)
       std::unique_lock<std::mutex> lock(regMutex_);
       if (!regIdExt_.empty() || !regIdInt_.empty()) {
          for (const auto &id : ids) {
-            if (id.isNull()) {
+            if (id.empty()) {
                continue;
             }
             logger_->debug("[sync::hd::Leaf::onRefresh] {}: id={}, extId={}, intId={}", walletId()
@@ -551,11 +551,11 @@ void hd::Leaf::createAddress(const CbAddress &cb, const AddrPoolKey &key)
    };
 
    const auto result = swapKey();
-   if (result.isNull()) {
+   if (result.empty()) {
       auto topUpCb = [this, key, swapKey, cbAddAddr, cb](void)
       {
          const auto result = swapKey();
-         if (result.isNull()) {
+         if (result.empty()) {
             logger_->error("[{}] failed to find {} after topping up the pool"
                , __func__, key.path.toString());
             cb(result);
@@ -1059,7 +1059,7 @@ bool hd::CCLeaf::getSpendableTxOutList(const ArmoryConnection::UTXOsCb &cb, uint
    };
 
    if (tracker_ == nullptr) {
-      if (ccResolver_->genesisAddrFor(suffix_).isNull()) {
+      if (ccResolver_->genesisAddrFor(suffix_).empty()) {
          return bs::sync::hd::Leaf::getSpendableTxOutList(cb, val, excludeReservation);
       }
       // GA is null if this CC leaf created inside PB and contain real GA address
@@ -1099,7 +1099,7 @@ bool hd::CCLeaf::getSpendableZCList(const ArmoryConnection::UTXOsCb &cb) const
    };
 
    if (tracker_ == nullptr) {
-      if (ccResolver_->genesisAddrFor(suffix_).isNull()) {
+      if (ccResolver_->genesisAddrFor(suffix_).empty()) {
          return bs::sync::hd::Leaf::getSpendableZCList(cb);
       }
       // GA is null if this CC leaf created inside PB and contain real GA address

@@ -99,7 +99,7 @@ WalletsManager::HDWalletPtr WalletsManager::loadWoWallet(NetworkType netType
          return nullptr;
       }
 
-      if (!controlPassphrase.isNull()) {
+      if (!controlPassphrase.empty()) {
          wallet->changeControlPassword({}, controlPassphrase);
       }
 
@@ -373,7 +373,7 @@ WalletsManager::HDWalletPtr WalletsManager::createWallet(
       if (primary) {
          newWallet->createChatPrivKey();
          auto group = newWallet->createGroup(bs::hd::CoinType::BlockSettle_Auth);
-         if (!userId_.isNull()) {
+         if (!userId_.empty()) {
             newWallet->createGroup(bs::hd::CoinType::BlockSettle_Settlement);
             const auto authGroup = std::dynamic_pointer_cast<bs::core::hd::AuthGroup>(group);
             if (authGroup) {

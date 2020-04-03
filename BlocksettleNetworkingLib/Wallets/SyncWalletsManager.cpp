@@ -274,7 +274,7 @@ void WalletsManager::walletReset(const std::string &walletId)
 
 void WalletsManager::saveWallet(const HDWalletPtr &wallet)
 {
-   if (!userId_.isNull()) {
+   if (!userId_.empty()) {
       wallet->setUserId(userId_);
    }
    const auto existingHdWallet = getHDWalletById(wallet->walletId());
@@ -1767,7 +1767,7 @@ bool WalletsManager::createAuthLeaf(const std::function<void()> &cb)
       return false;
    }
 
-   if (userId_.isNull()) {
+   if (userId_.empty()) {
       logger_->error("[WalletsManager::CreateAuthLeaf] can't create auth leaf without user id");
       return false;
    }
@@ -1997,7 +1997,7 @@ bs::core::wallet::TXSignRequest WalletsManager::createPartialTXRequest(uint64_t 
    request.outSortOrder = outSortOrder;
    Signer signer;
    bs::CheckRecipSigner prevStateSigner;
-   if (!prevPart.isNull()) {
+   if (!prevPart.empty()) {
       prevStateSigner.deserializeState(prevPart);
       if (feePerByte > 0) {
          fee += prevStateSigner.estimateFee(feePerByte);
@@ -2056,7 +2056,7 @@ bs::core::wallet::TXSignRequest WalletsManager::createPartialTXRequest(uint64_t 
          }
          {
             const uint64_t changeVal = inputAmount - (spendVal + fee);
-            if (changeAddress.isNull()) {
+            if (changeAddress.empty()) {
                throw std::invalid_argument("Change address required, but missing");
             }
             signer.addRecipient(changeAddress.getRecipient(bs::XBTAmount{ changeVal }));

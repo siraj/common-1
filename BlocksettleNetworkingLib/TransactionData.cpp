@@ -338,7 +338,7 @@ double TransactionData::CalculateMaxAmount(const bs::Address &recipient, bool fo
          }
          recipientsMap[recipId++] = recipPtr;
       }
-      if (!recipient.isNull()) {
+      if (!recipient.empty()) {
          const auto recipPtr = recipient.getRecipient(bs::XBTAmount{ 0.001 });  // spontaneous output amount, shouldn't be 0
          if (recipPtr) {
             recipientsMap[recipId++] = recipPtr;
