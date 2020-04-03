@@ -383,6 +383,13 @@ message UserScoreUpdateEvent
 
       InvalidAuthAddressUsed           = 13;
       SignedPayinTimeout               = 14;
+
+      ReservedUTXOUsed                 = 15;
+
+      UserBanFromCLI                   = 16;
+      ResetUserScoreFromCLI            = 17;
+
+      SignedPayoutTimeout              = 18;
    };
 
    string               user_email     = 1;
@@ -406,7 +413,7 @@ message StorageUserScoreMessage
 {
    oneof data {
       UserScoreUpdateEvent update_score_request    = 1;
-      UserScoreRequest     ban_user_reqeust        = 2;
+      UserScoreRequest     ban_user_request        = 2;
       UserScoreRequest     reset_score_request     = 3;
       UserScoreRequest     load_score_request      = 4;
       UserScoreData        update_score_response   = 5;
