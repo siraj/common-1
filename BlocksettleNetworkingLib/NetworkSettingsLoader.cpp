@@ -78,6 +78,8 @@ void NetworkSettingsLoader::loadSettings()
          networkSettings_.mdhs = { response.mdhs().host(), int(response.mdhs().port()) };
          networkSettings_.chat = { response.chat().host(), int(response.chat().port()) };
          networkSettings_.proxy = { response.proxy().host(), int(response.proxy().port()) };
+         networkSettings_.status = response.status();
+         networkSettings_.statusMsg = response.statusmsg();
          networkSettings_.isSet = true;
 
          cmdPuBSettings_.reset();
