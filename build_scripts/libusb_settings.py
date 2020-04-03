@@ -34,7 +34,7 @@ class LibusbSettings(Configurator):
         if not self._project_settings.on_linux():
             return True
 
-        command = ["./configure"]
+        command = [os.path.join(self.get_unpacked_sources_dir(), "configure")]
         result = subprocess.call(command)
         return result == 0
 
@@ -54,14 +54,14 @@ class LibusbSettings(Configurator):
         if not self._project_settings.on_linux():
             return True
 
-        src_dir = os.path.join(self.get_build_dir(), 'libusb')
+        src_lib_dir = os.path.join(self.get_build_dir(), 'libusb', '.libs')
         install_lib_dir = os.path.join(self.get_install_dir(), 'lib')
 
-        self.filter_copy(src_dir, install_lib_dir)
+        self.filter_copy(src_lib_dir, install_lib_dir)
 
+        src_include_dir = os.path.join(self.get_unpacked_sources_dir(), 'libusb')
         install_include_dir = os.path.join(self.get_install_dir(), 'include')
-        self.filter_copy(src_dir, install_include_dir)
+        self.filter_copy(src_include_dir, install_include_dir)
 
         return True
-
 
