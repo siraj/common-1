@@ -24,7 +24,6 @@ struct NetworkAddress {
 };
 
 struct NetworkSettings {
-   NetworkAddress  celer;
    NetworkAddress  marketData;
    NetworkAddress  mdhs;
    NetworkAddress  chat;
