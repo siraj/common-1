@@ -760,7 +760,7 @@ bs::core::wallet::TXSignRequest TransactionData::createTXRequest(bool isRBF
    }
 
    std::string changeIndex;
-   if (!changeAddr.isNull()) {
+   if (!changeAddr.empty()) {
       for (const auto &wallet : wallets) {
          changeIndex = wallet->getAddressIndex(changeAddr);
          if (!changeIndex.empty()) {

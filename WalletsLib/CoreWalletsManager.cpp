@@ -124,7 +124,7 @@ WalletsManager::HDWalletPtr WalletsManager::createHSMWallet(NetworkType netType,
    const auto wallet = std::make_shared<hd::Wallet>(walletInfo.label_, walletInfo.vendor_, walletId
       ,netType, passData, walletsPath, logger_);
 
-   if (!ctrlPass.isNull()) {
+   if (!ctrlPass.empty()) {
       wallet->changeControlPassword({}, ctrlPass);
    }
 

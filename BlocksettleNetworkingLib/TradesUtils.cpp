@@ -217,7 +217,7 @@ void bs::tradeutils::createPayin(bs::tradeutils::PayinArgs args, bs::tradeutils:
                               walletIds.push_back(wallet->walletId());
                            }
 
-                           std::string changeIndex = changeAddr.isNull() ? "" : xbtWallet->getAddressIndex(changeAddr);
+                           std::string changeIndex = changeAddr.empty() ? "" : xbtWallet->getAddressIndex(changeAddr);
                            result.signRequest = bs::sync::wallet::createTXRequest(walletIds, selectedInputs, recipients, changeAddr, changeIndex, fee, false);
                            result.preimageData = preimages;
                            result.payinHash = result.signRequest.txId(resolver);
