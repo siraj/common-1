@@ -43,7 +43,7 @@ class HidapiSettings(Configurator):
         if self._project_settings.on_windows():
             sourceDir = 'windows'
         elif self._project_settings.on_linux():
-            sourceDir = "linux"
+            sourceDir = "libusb"
         elif self._project_settings.on_mac():
             sourceDir = "mac"
 
