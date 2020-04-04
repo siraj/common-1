@@ -201,7 +201,6 @@ namespace bs {
          void onStateChanged(ArmoryState) override;
 
       private slots:
-         void onHDWalletCreated(unsigned int id, std::shared_ptr<bs::sync::hd::Wallet>);
          void onWalletsListUpdated();
          void onAuthLeafAdded(const std::string &walletId);
 
@@ -304,8 +303,6 @@ namespace bs {
          mutable std::map<unsigned int, QDateTime> lastFeePerByte_;
          std::map<QObject *, std::map<unsigned int
             , std::pair<QPointer<QObject>, std::function<void(float)>>>> feeCallbacks_;
-
-         unsigned int createHdReqId_ = 0;
 
          enum class WalletsSyncState 
          {

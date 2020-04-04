@@ -1016,17 +1016,6 @@ void WalletsManager::createSettlementLeaf(const bs::Address &authAddr
    signContainer_->createSettlementWallet(authAddr, cbWrap);
 }
 
-void WalletsManager::onHDWalletCreated(unsigned int id, std::shared_ptr<bs::sync::hd::Wallet> newWallet)
-{
-   if (id != createHdReqId_) {
-      return;
-   }
-   createHdReqId_ = 0;
-   newWallet->synchronize([] {});
-   adoptNewWallet(newWallet);
-   emit walletAdded(newWallet->walletId());
-}
-
 void WalletsManager::startWalletRescan(const HDWalletPtr &hdWallet)
 {
    if (armory_->state() == ArmoryState::Ready) {
