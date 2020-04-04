@@ -191,7 +191,7 @@ ApplicationSettings::ApplicationSettings(const QString &appName
       { proxyServerPubKey,       SettingDef(QLatin1String("ProxyServerPubKey"), QString()) },
       { ccServerPubKey,          SettingDef(QLatin1String("CcServerPubKey"), QString()) },
       { LastAqDir,               SettingDef(QLatin1String("LastAqDir")) },
-      { HideCreateAccountPrompt,          SettingDef(QStringLiteral("HideCreateAccountPrompt")) },
+      { HideCreateAccountPromptTestnet,   SettingDef(QStringLiteral("HideCreateAccountPromptTestnet")) },
    };
 }
 
