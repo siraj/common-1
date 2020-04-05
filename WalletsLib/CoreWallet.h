@@ -366,6 +366,10 @@ namespace bs {
             , bool keepDuplicatedRecipients = false);
          virtual BinaryData signPartialTXRequest(const wallet::TXSignRequest &);
 
+         using InputSigs = std::map<unsigned int, BinaryData>;
+         virtual BinaryData signTXRequestWithWitness(const wallet::TXSignRequest &
+            , const InputSigs &);
+
          virtual SecureBinaryData getPublicKeyFor(const bs::Address &) = 0;
          virtual SecureBinaryData getPubChainedKeyFor(const bs::Address &addr) { return getPublicKeyFor(addr); }
 

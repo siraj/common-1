@@ -882,6 +882,79 @@ BinaryData Wallet::signPartialTXRequest(const wallet::TXSignRequest &request)
    return signer.serializeState();
 }
 
+BinaryData Wallet::signTXRequestWithWitness(const wallet::TXSignRequest &request
+   , const InputSigs &inputSigs)
+{
+   if (request.inputs.size() != inputSigs.size()) {
+      throw std::invalid_argument("inputSigs do not equal to inputs count");
+   }
+   bs::CheckRecipSigner signer;
+   std::map<unsigned int, std::shared_ptr<ScriptSpender_Signed>> spenders;
+
+   signer.setFlags(SCRIPT_VERIFY_SEGWIT);
+
+   for (int i = 0; i < request.inputs.size(); ++i) {
+      const auto &utxo = request.inputs[i];
+      const auto &addr = bs::Address::fromUTXO(utxo);
+      if (!containsAddress(addr)) {
+         throw std::runtime_error("can't sign for foreign address");
+      }
+      const auto &spender = (addr.getType() == AddressEntryType_P2WPKH)
+         ? std::make_shared<ScriptSpender_P2WPKH_Signed>(utxo)
+         : std::make_shared<ScriptSpender_Signed>(utxo);
+      if (request.RBF) {
+         spender->setSequence(UINT32_MAX - 2);
+      }
+      signer.addSpender(spender);
+      spenders[i] = spender;
+   }
+
+   for (const auto& recipient : request.recipients) {
+      signer.addRecipient(recipient);
+   }
+
+   if (request.change.value) {
+      const auto changeRecip = request.change.address
+         .getRecipient(bs::XBTAmount{ request.change.value });
+      if (changeRecip) {
+         signer.addRecipient(changeRecip);
+      } else {
+         throw std::runtime_error("failed to get change recipient for "
+            + std::to_string(request.change.value));
+      }
+   }
+
+#ifndef NDEBUG
+   if (logger_) {
+      for (const auto &spender : signer.spenders()) {
+         logger_->debug("[{}] {} spender: {} @ {}", __func__
+            , walletId(), spender->getValue()
+            , bs::Address::fromUTXO(spender->getUtxo()).display());
+      }
+      for (const auto &recip : signer.recipients()) {
+         logger_->debug("[{}] {} recipient: {} @ {}", __func__
+            , walletId(), recip->getValue()
+            , bs::Address::fromRecipient(recip).display());
+      }
+   }
+#endif //NDEBUG
+
+   signer.setFeed(getPublicResolver());
+   signer.sign();
+
+   for (const auto &spender : spenders) {
+      const auto &itSig = inputSigs.find(spender.first);
+      if (itSig == inputSigs.end()) {
+         throw std::invalid_argument("can't find sig for input #" + std::to_string(spender.first));
+      }
+      spender.second->setWitnessData(itSig->second);
+   }
+   if (!signer.verify()) {
+      throw std::runtime_error("failed to verify signer");
+   }
+   return signer.serialize();
+}
+
 
 BinaryData bs::core::SignMultiInputTX(const bs::core::wallet::TXMultiSignRequest &txMultiReq
    , const WalletMap &wallets, bool partial)
