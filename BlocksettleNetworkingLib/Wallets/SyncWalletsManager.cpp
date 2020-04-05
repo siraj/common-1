@@ -813,7 +813,7 @@ bool WalletsManager::getTransactionDirection(Tx tx, const std::string &walletId
 
       for (size_t i = 0; i < tx.getNumTxOut(); ++i) {
          TxOut out = tx.getTxOutCopy((int)i);
-         const auto addrObj = bs::Address::fromHash(out.getScrAddressStr());
+         const auto addrObj = bs::Address::fromTxOut(out);
          const auto addrWallet = getWalletByAddress(addrObj);
          const auto addrGroup = addrWallet ? getGroupByWalletId(addrWallet->walletId()) : nullptr;
          (((addrWallet == wallet) || (group && (group == addrGroup))) ? ourOuts : otherOuts) = true;
@@ -1840,6 +1840,26 @@ std::map<std::string, std::vector<bs::Address>> WalletsManager::getAddressToWall
 std::shared_ptr<ResolverFeed> WalletsManager::getPublicResolver(const std::map<bs::Address, BinaryData> &piMap)
 {
    return std::make_shared<bs::PublicResolver>(piMap);
+}
+
+std::shared_ptr<bs::sync::hd::SettlementLeaf> WalletsManager::getSettlementLeaf(const bs::Address &addr) const
+{
+   const auto priWallet = getPrimaryWallet();
+   if (!priWallet) {
+      logger_->warn("[WalletsManager::getSettlementLeaf] no primary wallet");
+      return nullptr;
+   }
+   const auto group = priWallet->getGroup(bs::hd::BlockSettle_Settlement);
+   std::shared_ptr<bs::sync::hd::SettlementLeaf> settlLeaf;
+   if (group) {
+      const auto settlGroup = std::dynamic_pointer_cast<bs::sync::hd::SettlementGroup>(group);
+      if (!settlGroup) {
+         logger_->error("[WalletsManager::getSettlementLeaf] wrong settlement group type");
+         return nullptr;
+      }
+      settlLeaf = settlGroup->getLeaf(addr);
+   }
+   return settlLeaf;
 }
 
 bool WalletsManager::mergeableEntries(const bs::TXEntry &entry1, const bs::TXEntry &entry2) const

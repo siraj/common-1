@@ -47,6 +47,7 @@ namespace bs {
          class CCLeaf;
          class DummyWallet;
          class Group;
+         class SettlementLeaf;
          class Wallet;
       }
       class Wallet;
@@ -144,6 +145,8 @@ namespace bs {
 
          std::map<std::string, std::vector<bs::Address>> getAddressToWalletsMapping(const std::vector<UTXO> &) const;
          static std::shared_ptr<ResolverFeed> getPublicResolver(const std::map<bs::Address, BinaryData> &);
+
+         std::shared_ptr<bs::sync::hd::SettlementLeaf> getSettlementLeaf(const bs::Address &addr) const;
 
          bool mergeableEntries(const bs::TXEntry &, const bs::TXEntry &) const;
          std::vector<bs::TXEntry> mergeEntries(const std::vector<bs::TXEntry> &) const;

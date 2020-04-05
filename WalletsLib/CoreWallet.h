@@ -59,7 +59,8 @@ namespace bs {
          public:
             enum Type {
                Unknown = 0,
-               Comment = 4
+               Comment = 4,
+               SettlementCP = 5
             };
             AssetEntryMeta(Type type, int id) : AssetEntry(AssetEntryType_Single, id, {}), type_(type) {}
             virtual ~AssetEntryMeta() = default;
@@ -93,6 +94,26 @@ namespace bs {
 
             BinaryData key() const override { return key_; }
             const std::string &comment() const { return comment_; }
+            BinaryData serialize() const override;
+            bool deserialize(BinaryRefReader brr) override;
+         };
+
+         class AssetEntrySettlCP : public AssetEntryMeta // For saving settlement id and counterparty pubkey
+         {
+            BinaryData  txHash_;
+            BinaryData  settlementId_;
+            BinaryData  cpPubKey_;
+
+         public:
+            AssetEntrySettlCP(int id, const BinaryData &txHash, const BinaryData &settlementId
+               , const BinaryData &cpPubKey)
+               : AssetEntryMeta(AssetEntryMeta::SettlementCP, id), txHash_(txHash)
+               , settlementId_(settlementId), cpPubKey_(cpPubKey) {}
+            AssetEntrySettlCP() : AssetEntryMeta(AssetEntryMeta::SettlementCP, 0) {}
+
+            BinaryData key() const override { return txHash_; }
+            BinaryData settlementId() const { return settlementId_; }
+            BinaryData cpPubKey() const { return cpPubKey_; }
             BinaryData serialize() const override;
             bool deserialize(BinaryRefReader brr) override;
          };
