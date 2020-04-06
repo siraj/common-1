@@ -78,6 +78,18 @@ void BsClient::sendPbMessage(std::string data)
    sendMessage(&request);
 }
 
+void BsClient::sendCancelOnATrade(const std::string& settlementId)
+{
+   SPDLOG_LOGGER_DEBUG(logger_, "send cancel on trade {}", settlementId);
+
+   ProxyTerminalPb::Request request;
+
+   auto cancelMessage = request.mutable_xbt_cancel();
+   cancelMessage->set_settlement_id(settlementId);
+
+   sendPbMessage(request.SerializeAsString());
+}
+
 void BsClient::sendUnsignedPayin(const std::string& settlementId, const bs::network::UnsignedPayinData& unsignedPayinData)
 {
    SPDLOG_LOGGER_DEBUG(logger_, "send unsigned payin {}", settlementId);
