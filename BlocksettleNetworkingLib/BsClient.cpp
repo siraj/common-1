@@ -78,9 +78,21 @@ void BsClient::sendPbMessage(std::string data)
    sendMessage(&request);
 }
 
-void BsClient::sendCancelOnATrade(const std::string& settlementId)
+void BsClient::sendCancelOnCCTrade(const std::string& clOrdId)
 {
-   SPDLOG_LOGGER_DEBUG(logger_, "send cancel on trade {}", settlementId);
+   SPDLOG_LOGGER_DEBUG(logger_, "send cancel on CC trade {}", clOrdId);
+
+   ProxyTerminalPb::Request request;
+
+   auto cancelMessage = request.mutable_cc_cancel();
+   cancelMessage->set_client_order_id(clOrdId);
+
+   sendPbMessage(request.SerializeAsString());
+}
+
+void BsClient::sendCancelOnXBTTrade(const std::string& settlementId)
+{
+   SPDLOG_LOGGER_DEBUG(logger_, "send cancel on XBT trade {}", settlementId);
 
    ProxyTerminalPb::Request request;
 

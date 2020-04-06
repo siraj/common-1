@@ -1153,6 +1153,7 @@ enum TerminalMessageType
    TerminalSignedPayinRequest    = 3;
    TerminalSignedPayoutRequest   = 4;
    TerminalXBTTradeCancel        = 5;
+   TerminalCCTradeCancel         = 6;
    TerminalOtcStart     = 10;
    TerminalOtcVerify    = 11;
    TerminalOtcSealPayin = 12;

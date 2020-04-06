@@ -163,7 +163,8 @@ public slots:
    void sendSignedPayin(const std::string& settlementId, const BinaryData& signedPayin);
    void sendSignedPayout(const std::string& settlementId, const BinaryData& signedPayout);
 
-   void sendCancelOnATrade(const std::string& settlementId);
+   void sendCancelOnXBTTrade(const std::string& settlementId);
+   void sendCancelOnCCTrade(const std::string& clOrdId);
 
    void findEmailHash(const std::string &email);
 

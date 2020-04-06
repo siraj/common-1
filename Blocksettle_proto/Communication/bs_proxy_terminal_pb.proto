@@ -94,7 +94,12 @@ message Request
 
     message XBTCancelTrade
     {
-        string  settlement_id   = 1;
+        string settlement_id   = 1;
+    }
+
+    message CCCancelTrade
+    {
+        string client_order_id = 1;
     }
 
     oneof data
@@ -109,6 +114,7 @@ message Request
         XBTSignedPayin        signed_payin         = 32;
         XBTSignedPayout       signed_payout        = 33;
         XBTCancelTrade        xbt_cancel           = 34;
+        CCCancelTrade         cc_cancel            = 35;
     }
 }
 
