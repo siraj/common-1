@@ -390,6 +390,10 @@ message UserScoreUpdateEvent
       ResetUserScoreFromCLI            = 17;
 
       SignedPayoutTimeout              = 18;
+
+      AttemptToCancelAnothersTrade     = 19;
+      AttemptToCancelTradeAfterSign    = 20;
+      SignedPayinToCancelledTrade      = 21;
    };
 
    string               user_email     = 1;

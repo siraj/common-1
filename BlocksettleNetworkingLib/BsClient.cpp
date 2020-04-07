@@ -78,6 +78,30 @@ void BsClient::sendPbMessage(std::string data)
    sendMessage(&request);
 }
 
+void BsClient::sendCancelOnCCTrade(const std::string& clOrdId)
+{
+   SPDLOG_LOGGER_DEBUG(logger_, "send cancel on CC trade {}", clOrdId);
+
+   ProxyTerminalPb::Request request;
+
+   auto cancelMessage = request.mutable_cc_cancel();
+   cancelMessage->set_client_order_id(clOrdId);
+
+   sendPbMessage(request.SerializeAsString());
+}
+
+void BsClient::sendCancelOnXBTTrade(const std::string& settlementId)
+{
+   SPDLOG_LOGGER_DEBUG(logger_, "send cancel on XBT trade {}", settlementId);
+
+   ProxyTerminalPb::Request request;
+
+   auto cancelMessage = request.mutable_xbt_cancel();
+   cancelMessage->set_settlement_id(settlementId);
+
+   sendPbMessage(request.SerializeAsString());
+}
+
 void BsClient::sendUnsignedPayin(const std::string& settlementId, const bs::network::UnsignedPayinData& unsignedPayinData)
 {
    SPDLOG_LOGGER_DEBUG(logger_, "send unsigned payin {}", settlementId);
