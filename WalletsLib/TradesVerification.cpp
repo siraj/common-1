@@ -91,7 +91,7 @@ bs::PayoutSignatureType bs::TradesVerification::whichSignature(const Tx &tx, uin
         b) When checking sig state for the payin spender as seen on chain, we need to
            know who the signer is regardless of the payout tx strucuture. There we
            should pass the payin hash, as there is no such thing as a tx spending from
-           our expected payin without the relevant signature.
+           our expected payin without a relevant signature.
       */
 
       //look for input id with our expected outpoint
@@ -110,12 +110,8 @@ bs::PayoutSignatureType bs::TradesVerification::whichSignature(const Tx &tx, uin
       }
 
       if (i==tx.getNumTxIn()) {
-         //could not find our outpoint, report failure
-         if (errorMsg != nullptr) {
-            *errorMsg = fmt::format("failed to detect payout for TX: {}", tx.getThisHash().toHexStr());
-         }
-
-         return bs::PayoutSignatureType::Failed;
+         //could not find payin output in payout outpoint's, report undefined behavior
+         return bs::PayoutSignatureType::Undefined;
       }
    }
 

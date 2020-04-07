@@ -384,13 +384,21 @@ message UserScoreUpdateEvent
       InvalidAuthAddressUsed           = 13;
       SignedPayinTimeout               = 14;
 
-      AttemptToCancelAnothersTrade     = 15;
-      AttemptToCancelTradeAfterSign    = 16;
-      SignedPayinToCancelledTrade      = 17;
+      ReservedUTXOUsed                 = 15;
+
+      UserBanFromCLI                   = 16;
+      ResetUserScoreFromCLI            = 17;
+
+      SignedPayoutTimeout              = 18;
+
+      AttemptToCancelAnothersTrade     = 19;
+      AttemptToCancelTradeAfterSign    = 20;
+      SignedPayinToCancelledTrade      = 21;
    };
 
-   string               user_email  = 1;
-   ScoreUpdateEventType reason      = 2;
+   string               user_email     = 1;
+   ScoreUpdateEventType reason         = 2;
+   string               settlement_id  = 3;
 }
 
 message UserScoreRequest
@@ -409,14 +417,13 @@ message StorageUserScoreMessage
 {
    oneof data {
       UserScoreUpdateEvent update_score_request    = 1;
-      UserScoreRequest     reset_score_request     = 2;
-      UserScoreRequest     load_score_request      = 3;
-      UserScoreData        update_score_response   = 4;
-      UserScoreData        reset_score_response    = 5;
+      UserScoreRequest     ban_user_request        = 2;
+      UserScoreRequest     reset_score_request     = 3;
+      UserScoreRequest     load_score_request      = 4;
+      UserScoreData        update_score_response   = 5;
       UserScoreData        load_score_response     = 6;
    }
 }
-
 
 message StorageMessage
 {
