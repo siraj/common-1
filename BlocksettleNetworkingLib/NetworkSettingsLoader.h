@@ -23,13 +23,20 @@ struct NetworkAddress {
    int port{};
 };
 
+namespace Blocksettle {
+   namespace Communication {
+      enum GetNetworkSettingsResponse_Status : int;
+   }
+}
+
 struct NetworkSettings {
-   NetworkAddress  celer;
    NetworkAddress  marketData;
    NetworkAddress  mdhs;
    NetworkAddress  chat;
    NetworkAddress  proxy;
    bool            isSet = false;
+   Blocksettle::Communication::GetNetworkSettingsResponse_Status status{};
+   std::string statusMsg;
 };
 
 class NetworkSettingsLoader : public QObject

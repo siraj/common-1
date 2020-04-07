@@ -59,11 +59,6 @@ void NetworkSettingsLoader::loadSettings()
             return;
          }
 
-         if (!response.has_celer()) {
-            sendFailedAndReset(tr("Missing Celer connection settings"));
-            return;
-         }
-
          if (!response.has_marketdata()) {
             sendFailedAndReset(tr("Missing MD connection settings"));
             return;
@@ -79,11 +74,12 @@ void NetworkSettingsLoader::loadSettings()
             return;
          }
 
-         networkSettings_.celer = { response.celer().host(), int(response.celer().port()) };
          networkSettings_.marketData = { response.marketdata().host(), int(response.marketdata().port()) };
          networkSettings_.mdhs = { response.mdhs().host(), int(response.mdhs().port()) };
          networkSettings_.chat = { response.chat().host(), int(response.chat().port()) };
          networkSettings_.proxy = { response.proxy().host(), int(response.proxy().port()) };
+         networkSettings_.status = response.status();
+         networkSettings_.statusMsg = response.statusmsg();
          networkSettings_.isSet = true;
 
          cmdPuBSettings_.reset();
