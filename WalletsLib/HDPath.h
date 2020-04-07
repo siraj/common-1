@@ -65,9 +65,9 @@ namespace bs {
 
 
       enum Purpose : Path::Elem {
-         Native = 44,   // BIP44
+         Native = 84,   // BIP84
          Nested = 49,   // BIP49
-         NonSegWit = 84 // BIP84
+         NonSegWit = 44 // BIP44
       };
 
       Purpose purpose(AddressEntryType);
