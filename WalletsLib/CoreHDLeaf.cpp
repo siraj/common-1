@@ -722,7 +722,12 @@ std::shared_ptr<hd::Leaf> hd::LeafNonSW::getCopy(
 
 hd::AuthLeaf::AuthLeaf(NetworkType netType, std::shared_ptr<spdlog::logger> logger)
    : LeafNative(netType, logger, wallet::Type::Authentication)
-{}
+{ }
+
+void hd::AuthLeaf::setSalt(const SecureBinaryData& salt)
+{
+   salt_ = salt;
+}
 
 BinaryData hd::AuthLeaf::serialize() const
 {

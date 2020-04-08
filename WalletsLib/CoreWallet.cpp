@@ -200,7 +200,7 @@ void wallet::MetaData::readFromDB(const std::shared_ptr<DBIfaceTransaction> &tx)
 //            throw AssetException("invalid prefix " + std::to_string(prefix));
          }
          auto index = brrKey.get_int32_t();
-         nbMetaData_ = index + 1;
+         nbMetaData_ = index & ~0x100000;
 
          auto entryPtr = AssetEntryMeta::deserialize(index, valueBDR);
          if (entryPtr) {
@@ -799,7 +799,7 @@ bool Wallet::setAddressComment(const bs::Address &address, const std::string &co
    if (address.empty()) {
       return false;
    }
-   set(std::make_shared<wallet::AssetEntryComment>(nbMetaData_++, address.id(), comment));
+   set(std::make_shared<wallet::AssetEntryComment>(++nbMetaData_, address.id(), comment));
    return write(getDBWriteTx());
 }
 
@@ -818,7 +818,7 @@ bool Wallet::setTransactionComment(const BinaryData &txHash, const std::string &
    if (txHash.empty() || comment.empty()) {
       return false;
    }
-   set(std::make_shared<wallet::AssetEntryComment>(nbMetaData_++, txHash, comment));
+   set(std::make_shared<wallet::AssetEntryComment>(++nbMetaData_, txHash, comment));
    return write(getDBWriteTx());
 }
 
@@ -841,7 +841,8 @@ bool Wallet::setSettlementMeta(const BinaryData &settlementId, const bs::Address
    if (settlementId.empty() || !authAddr.isValid()) {
       return false;
    }
-   set(std::make_shared<wallet::AssetEntrySettlement>(nbMetaData_++, settlementId, authAddr));
+   set(std::make_shared<wallet::AssetEntrySettlement>(++nbMetaData_ + 0x100000
+      , settlementId, authAddr));
    return write(getDBWriteTx());
 }
 
@@ -863,7 +864,7 @@ bool Wallet::setSettlCPMeta(const BinaryData &payinHash, const BinaryData &settl
    }
    auto txHash = payinHash;
    txHash.swapEndian();    // this is to avoid clashing with tx comment key
-   set(std::make_shared<wallet::AssetEntrySettlCP>(nbMetaData_++, txHash, settlementId, cpPubKey));
+   set(std::make_shared<wallet::AssetEntrySettlCP>(++nbMetaData_ + 0x100000, txHash, settlementId, cpPubKey));
    return write(getDBWriteTx());
 }
 

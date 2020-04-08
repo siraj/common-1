@@ -2175,12 +2175,15 @@ bool HeadlessContainerListener::onSettlAuthRequest(const std::string &clientId, 
          request.set_wallet_id(authLeaf->walletId());
       }
       else {
-         authLeaf->setSettlementMeta(BinaryData::fromString(request.settlement_id())
-            , bs::Address::fromAddressString(request.auth_address()));
+         const auto settlementId = BinaryData::fromString(request.settlement_id());
+         const auto addr = bs::Address::fromAddressString(request.auth_address());
+         logger_->debug("[{}] saving {} = {}", __func__, settlementId.toHexStr(), addr.display());
+         authLeaf->setSettlementMeta(settlementId, addr);
          return true;
       }
    }
    else {
+      logger_->warn("[{}] failed to find auth leaf", __func__);
       request.clear_wallet_id();
    }
    packet.set_data(request.SerializeAsString());
@@ -2211,12 +2214,16 @@ bool HeadlessContainerListener::onSettlCPRequest(const std::string &clientId, he
          request.set_cp_public_key(keys.second.toBinStr());
          request.set_wallet_id(authLeaf->walletId());
       } else {
-         authLeaf->setSettlCPMeta(BinaryData::fromString(request.payin_hash())
-            , BinaryData::fromString(request.settlement_id())
-            , BinaryData::fromString(request.cp_public_key()));
+         const auto payinHash = BinaryData::fromString(request.payin_hash());
+         const auto settlementId = BinaryData::fromString(request.settlement_id());
+         const auto cpPubKey = BinaryData::fromString(request.cp_public_key());
+         logger_->debug("[{}] saving {} = ({}, {})", __func__, payinHash.toHexStr(true)
+            , settlementId.toHexStr(), cpPubKey.toHexStr());
+         authLeaf->setSettlCPMeta(payinHash, settlementId, cpPubKey);
          return true;
       }
    } else {
+      logger_->warn("[{}] failed to find auth leaf", __func__);
       request.clear_wallet_id();
    }
    packet.set_data(request.SerializeAsString());

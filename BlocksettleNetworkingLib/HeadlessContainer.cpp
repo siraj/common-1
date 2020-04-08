@@ -1594,9 +1594,11 @@ void RemoteSigner::onPacketReceived(headless::RequestPacket packet)
       break;
 
    case headless::SettlementAuthType:
+      ProcessSettlAuthResponse(packet.id(), packet.data());
       break;
 
    case headless::SettlementCPType:
+      ProcessSettlCPResponse(packet.id(), packet.data());
       break;
 
    default:

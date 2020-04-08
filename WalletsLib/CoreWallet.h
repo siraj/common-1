@@ -157,7 +157,7 @@ namespace bs {
             std::map<BinaryData, std::shared_ptr<AssetEntryMeta>>   data_;
 
          protected:
-            unsigned int      nbMetaData_;
+            std::atomic_uint  nbMetaData_{ 0 };
 
             MetaData() : nbMetaData_(0) {}
 
