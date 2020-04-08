@@ -92,6 +92,16 @@ message Request
         bytes   signed_payout   = 2;
     }
 
+    message XBTCancelTrade
+    {
+        string settlement_id   = 1;
+    }
+
+    message CCCancelTrade
+    {
+        string client_order_id = 1;
+    }
+
     oneof data
     {
         StartOtc              start_otc            = 1;
@@ -103,6 +113,8 @@ message Request
         XBTUnsignedPayin      unsigned_payin       = 31;
         XBTSignedPayin        signed_payin         = 32;
         XBTSignedPayout       signed_payout        = 33;
+        XBTCancelTrade        xbt_cancel           = 34;
+        CCCancelTrade         cc_cancel            = 35;
     }
 }
 

@@ -89,7 +89,8 @@ struct XBTTradeData
       SignedPayinRequested,
       SignedPayinProcessing,
       SettlementBroadcasting,
-      SettlementMonitoring
+      SettlementMonitoring,
+      TradeCancelled
    };
 
    TradeState tradeState = TradeState::StateUndefined;
