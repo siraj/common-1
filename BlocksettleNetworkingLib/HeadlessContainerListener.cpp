@@ -387,7 +387,7 @@ bool HeadlessContainerListener::onSignTxRequest(const std::string &clientId, con
       , keepDuplicatedRecipients = request.keepduplicatedrecipients()]
       (bs::error::ErrorCode result, const SecureBinaryData &pass)
    {
-      if (result == ErrorCode::TxCanceled) {
+      if (result == ErrorCode::TxCancelled) {
          logger_->error("[HeadlessContainerListener] transaction cancelled for wallet {}", wallets.front()->name());
          SignTXResponse(clientId, id, reqType, result);
          return;
@@ -935,7 +935,7 @@ void HeadlessContainerListener::RunDeferredPwDialog()
          // Don't display dialog if it will be expired soon or already expired
          const PasswordReceivedCb &cb = std::move(deferredPasswordRequests_.front().callback);
          if (cb) {
-            cb(bs::error::ErrorCode::TxCanceled, {});
+            cb(bs::error::ErrorCode::TxCancelled, {});
          }
 
          // at this point password workflow finished for deferredPasswordRequests_.front() dialog
@@ -2172,6 +2172,7 @@ bool HeadlessContainerListener::onSettlAuthRequest(const std::string &clientId, 
       if (request.auth_address().empty()) {
          const auto addr = authLeaf->getSettlAuthAddr(BinaryData::fromString(request.settlement_id()));
          request.set_auth_address(addr.display());
+         request.set_wallet_id(authLeaf->walletId());
       }
       else {
          authLeaf->setSettlementMeta(BinaryData::fromString(request.settlement_id())
@@ -2208,6 +2209,7 @@ bool HeadlessContainerListener::onSettlCPRequest(const std::string &clientId, he
          const auto keys = authLeaf->getSettlCP(BinaryData::fromString(request.payin_hash()));
          request.set_settlement_id(keys.first.toBinStr());
          request.set_cp_public_key(keys.second.toBinStr());
+         request.set_wallet_id(authLeaf->walletId());
       } else {
          authLeaf->setSettlCPMeta(BinaryData::fromString(request.payin_hash())
             , BinaryData::fromString(request.settlement_id())

@@ -29,7 +29,7 @@ namespace bs {
 
          // TX signing error codes
          TxInvalidRequest,
-         TxCanceled,
+         TxCancelled,
          TxSpendLimitExceed,
          TxRequestFileExist,
          TxFailedToOpenRequestFile,

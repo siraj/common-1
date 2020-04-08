@@ -45,7 +45,7 @@ inline QString ErrorCodeToString(bs::error::ErrorCode errorCode) {
    // TX Signing errors
    case bs::error::ErrorCode::TxInvalidRequest:
       return QObject::tr("Tx Request is invalid, missing critical data");
-   case bs::error::ErrorCode::TxCanceled:
+   case bs::error::ErrorCode::TxCancelled:
       return QObject::tr("Transaction canceled");
    case bs::error::ErrorCode::TxSpendLimitExceed:
       return QObject::tr("Spend limit exceeded");

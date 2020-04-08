@@ -1484,7 +1484,7 @@ void RemoteSigner::onDisconnected()
    std::set<bs::signer::RequestId> tmpReqs = std::move(signRequests_);
 
    for (const auto &id : tmpReqs) {
-      emit TXSigned(id, {}, bs::error::ErrorCode::TxCanceled, "Signer disconnected");
+      emit TXSigned(id, {}, bs::error::ErrorCode::TxCancelled, "Signer disconnected");
    }
 
    emit disconnected();
