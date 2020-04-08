@@ -738,6 +738,11 @@ void AuthAddressManager::onWalletCreated()
    }
 }
 
+bool AuthAddressManager::hasSettlementLeaf(const bs::Address &addr) const
+{
+   return walletsManager_->hasSettlementLeaf(addr);
+}
+
 void AuthAddressManager::createSettlementLeaf(const bs::Address &addr
    , const std::function<void()> &cb)
 {

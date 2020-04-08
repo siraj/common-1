@@ -99,8 +99,7 @@ public:
    void createAuthWallet(const std::function<void()> &);
    virtual bool CreateNewAuthAddress();
 
-   std::shared_ptr<bs::sync::hd::SettlementLeaf> getSettlementLeaf(const bs::Address &) const;
-   bool hasSettlementLeaf(const bs::Address &addr) const { return (getSettlementLeaf(addr) != nullptr); }
+   bool hasSettlementLeaf(const bs::Address &) const;
    void createSettlementLeaf(const bs::Address &, const std::function<void()> &);
 
    virtual void SubmitForVerification(BsClient *bsClient, const bs::Address &address);

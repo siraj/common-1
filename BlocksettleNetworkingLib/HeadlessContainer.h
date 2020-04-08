@@ -98,6 +98,14 @@ public:
    void syncAddressComment(const std::string &walletId, const bs::Address &, const std::string &) override;
    void syncTxComment(const std::string &walletId, const BinaryData &, const std::string &) override;
 
+   void setSettlAuthAddr(const std::string &walletId, const BinaryData &, const bs::Address &addr) override;
+   void getSettlAuthAddr(const std::string &walletId, const BinaryData &
+      , const std::function<void(const bs::Address &)> &) override;
+   void setSettlCP(const std::string &walletId, const BinaryData &payinHash, const BinaryData &settlId
+      , const BinaryData &cpPubKey) override;
+   void getSettlCP(const std::string &walletId, const BinaryData &payinHash
+      , const std::function<void(const BinaryData &, const BinaryData &)> &) override;
+
    void syncNewAddresses(const std::string &walletId, const std::vector<std::string> &
       , const std::function<void(const std::vector<std::pair<bs::Address, std::string>> &)> &
       , bool persistent = true) override;
@@ -144,6 +152,8 @@ protected:
    void ProcessAddrPreimageResponse(unsigned int id, const std::string &data);
    void ProcessUpdateStatus(const std::string &data);
    void ProcessChatNodeResponse(unsigned int id, const std::string &data);
+   void ProcessSettlAuthResponse(unsigned int id, const std::string &data);
+   void ProcessSettlCPResponse(unsigned int id, const std::string &data);
 
 protected:
    std::shared_ptr<HeadlessListener>   listener_;
@@ -164,6 +174,8 @@ protected:
    std::map<bs::signer::RequestId, std::function<void(bool, bs::Address)>>          cbPayinAddrMap_;
    std::map<bs::signer::RequestId, std::function<void(bool, const SecureBinaryData &)>>   cbSettlPubkeyMap_;
    std::map<bs::signer::RequestId, std::function<void(const BIP32_Node &)>>   cbChatNodeMap_;
+   std::map<bs::signer::RequestId, std::function<void(const bs::Address &)>>  cbSettlAuthMap_;
+   std::map<bs::signer::RequestId, std::function<void(const BinaryData &, const BinaryData &)>>  cbSettlCPMap_;
 
    std::map<bs::signer::RequestId, CreateHDLeafCb> cbCCreateLeafMap_;
    std::map<bs::signer::RequestId, PromoteHDWalletCb> cbPromoteHDWalletMap_;

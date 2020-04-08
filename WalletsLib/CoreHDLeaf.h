@@ -70,9 +70,9 @@ namespace bs {
             std::vector<bs::Address> getExtAddressList() const override;
             std::vector<bs::Address> getIntAddressList() const override;
 
-            unsigned getExtAddressCount() const override;
-            unsigned getUsedAddressCount() const override;
-            unsigned getIntAddressCount() const override;
+            size_t getExtAddressCount() const override;
+            size_t getUsedAddressCount() const override;
+            size_t getIntAddressCount() const override;
 
             bool isExternalAddress(const Address &) const override;
             bs::Address getNewExtAddress() override;

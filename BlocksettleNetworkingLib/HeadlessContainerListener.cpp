@@ -263,6 +263,12 @@ bool HeadlessContainerListener::onRequestPacket(const std::string &clientId, hea
    case headless::ChatNodeRequestType:
       return onChatNodeRequest(clientId, packet);
 
+   case headless::SettlementAuthType:
+      return onSettlAuthRequest(clientId, packet);
+
+   case headless::SettlementCPType:
+      return onSettlCPRequest(clientId, packet);
+
    default:
       logger_->error("[HeadlessContainerListener] unknown request type {}", packet.type());
       return false;
@@ -2142,6 +2148,76 @@ bool HeadlessContainerListener::onChatNodeRequest(const std::string &clientId, h
    }
 
    packet.set_data(response.SerializeAsString());
+   sendData(packet.SerializeAsString(), clientId);
+   return true;
+}
+
+bool HeadlessContainerListener::onSettlAuthRequest(const std::string &clientId, headless::RequestPacket packet)
+{
+   headless::SettlementAuthAddress request;
+   if (!request.ParseFromString(packet.data())) {
+      logger_->error("[{}] failed to parse request", __func__);
+      return false;
+   }
+   std::shared_ptr<bs::core::hd::Leaf> authLeaf;
+   const auto &priWallet = walletsMgr_->getPrimaryWallet();
+   if (priWallet) {
+      const auto &authGroup = priWallet->getGroup(bs::hd::BlockSettle_Auth);
+      if (authGroup) {
+         const bs::hd::Path authPath({ bs::hd::Purpose::Native, bs::hd::BlockSettle_Auth, 0 });
+         authLeaf = authGroup->getLeafByPath(authPath);
+      }
+   }
+   if (authLeaf) {
+      if (request.auth_address().empty()) {
+         const auto addr = authLeaf->getSettlAuthAddr(BinaryData::fromString(request.settlement_id()));
+         request.set_auth_address(addr.display());
+      }
+      else {
+         authLeaf->setSettlementMeta(BinaryData::fromString(request.settlement_id())
+            , bs::Address::fromAddressString(request.auth_address()));
+         return true;
+      }
+   }
+   else {
+      request.clear_wallet_id();
+   }
+   packet.set_data(request.SerializeAsString());
+   sendData(packet.SerializeAsString(), clientId);
+   return true;
+}
+
+bool HeadlessContainerListener::onSettlCPRequest(const std::string &clientId, headless::RequestPacket packet)
+{
+   headless::SettlementCounterparty request;
+   if (!request.ParseFromString(packet.data())) {
+      logger_->error("[{}] failed to parse request", __func__);
+      return false;
+   }
+   std::shared_ptr<bs::core::hd::Leaf> authLeaf;
+   const auto &priWallet = walletsMgr_->getPrimaryWallet();
+   if (priWallet) {
+      const auto &authGroup = priWallet->getGroup(bs::hd::BlockSettle_Auth);
+      if (authGroup) {
+         const bs::hd::Path authPath({ bs::hd::Purpose::Native, bs::hd::BlockSettle_Auth, 0 });
+         authLeaf = authGroup->getLeafByPath(authPath);
+      }
+   }
+   if (authLeaf) {
+      if (request.settlement_id().empty() && request.cp_public_key().empty()) {
+         const auto keys = authLeaf->getSettlCP(BinaryData::fromString(request.payin_hash()));
+         request.set_settlement_id(keys.first.toBinStr());
+         request.set_cp_public_key(keys.second.toBinStr());
+      } else {
+         authLeaf->setSettlCPMeta(BinaryData::fromString(request.payin_hash())
+            , BinaryData::fromString(request.settlement_id())
+            , BinaryData::fromString(request.cp_public_key()));
+         return true;
+      }
+   } else {
+      request.clear_wallet_id();
+   }
+   packet.set_data(request.SerializeAsString());
    sendData(packet.SerializeAsString(), clientId);
    return true;
 }

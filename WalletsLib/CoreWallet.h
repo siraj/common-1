@@ -60,7 +60,8 @@ namespace bs {
             enum Type {
                Unknown = 0,
                Comment = 4,
-               SettlementCP = 5
+               Settlement = 5,
+               SettlementCP = 6
             };
             AssetEntryMeta(Type type, int id) : AssetEntry(AssetEntryType_Single, id, {}), type_(type) {}
             virtual ~AssetEntryMeta() = default;
@@ -98,17 +99,50 @@ namespace bs {
             bool deserialize(BinaryRefReader brr) override;
          };
 
-         class AssetEntrySettlCP : public AssetEntryMeta // For saving settlement id and counterparty pubkey
+         class AssetEntrySettlement : public AssetEntryMeta // For saving own auth address for settlement
+         {
+            BinaryData  settlementId_;
+            bs::Address authAddr_;
+
+         public:
+            AssetEntrySettlement(int id, const BinaryData &settlId, const bs::Address &authAddr)
+               : AssetEntryMeta(AssetEntryMeta::Settlement, id), settlementId_(settlId)
+               , authAddr_(authAddr)
+            {
+               if (settlId.getSize() != 32) {
+                  throw std::invalid_argument("wrong settlementId size");
+               }
+               if (!authAddr.isValid()) {
+                  throw std::invalid_argument("invalid auth address");
+               }
+            }
+            AssetEntrySettlement() : AssetEntryMeta(AssetEntryMeta::Settlement, 0) {}
+
+            BinaryData key() const override { return settlementId_; }
+            bs::Address address() const { return authAddr_; }
+            BinaryData serialize() const override;
+            bool deserialize(BinaryRefReader brr) override;
+         };
+
+         class AssetEntrySettlCP : public AssetEntryMeta // For saving settlement id and counterparty pubkey by payin hash
          {
             BinaryData  txHash_;
             BinaryData  settlementId_;
             BinaryData  cpPubKey_;
 
          public:
-            AssetEntrySettlCP(int id, const BinaryData &txHash, const BinaryData &settlementId
+            AssetEntrySettlCP(int id, const BinaryData &payinHash, const BinaryData &settlementId
                , const BinaryData &cpPubKey)
-               : AssetEntryMeta(AssetEntryMeta::SettlementCP, id), txHash_(txHash)
-               , settlementId_(settlementId), cpPubKey_(cpPubKey) {}
+               : AssetEntryMeta(AssetEntryMeta::SettlementCP, id), txHash_(payinHash)
+               , settlementId_(settlementId), cpPubKey_(cpPubKey)
+            {
+               if (payinHash.getSize() != 32) {
+                  throw std::invalid_argument("wrong payin hash size");
+               }
+               if (settlementId.getSize() != 32) {
+                  throw std::invalid_argument("wrong settlementId size");
+               }
+            }
             AssetEntrySettlCP() : AssetEntryMeta(AssetEntryMeta::SettlementCP, 0) {}
 
             BinaryData key() const override { return txHash_; }
@@ -334,6 +368,11 @@ namespace bs {
          virtual std::string getTransactionComment(const BinaryData &txHash);
          virtual bool setTransactionComment(const BinaryData &txHash, const std::string &comment);
          virtual std::vector<std::pair<BinaryData, std::string>> getAllTxComments() const;
+         bool setSettlementMeta(const BinaryData &settlementId, const bs::Address &authAddr);
+         bs::Address getSettlAuthAddr(const BinaryData &settlementId);
+         bool setSettlCPMeta(const BinaryData &payinHash, const BinaryData &settlementId
+            , const BinaryData &cpPubKey);
+         std::pair<BinaryData, BinaryData> getSettlCP(const BinaryData &txHash);
 
          virtual std::vector<bs::Address> getUsedAddressList() const { 
             return usedAddresses_; 
@@ -342,9 +381,9 @@ namespace bs {
          virtual std::vector<bs::Address> getExtAddressList() const { return usedAddresses_; }
          virtual std::vector<bs::Address> getIntAddressList() const { return usedAddresses_; }
          virtual bool isExternalAddress(const Address &) const { return true; }
-         virtual unsigned getUsedAddressCount() const { return usedAddresses_.size(); }
-         virtual unsigned getExtAddressCount() const { return usedAddresses_.size(); }
-         virtual unsigned getIntAddressCount() const { return usedAddresses_.size(); }
+         virtual size_t getUsedAddressCount() const { return usedAddresses_.size(); }
+         virtual size_t getExtAddressCount() const { return usedAddresses_.size(); }
+         virtual size_t getIntAddressCount() const { return usedAddresses_.size(); }
          virtual size_t getWalletAddressCount() const { return addrCount_; }
 
          virtual bs::Address getNewExtAddress() = 0;
