@@ -398,7 +398,17 @@ bool HeadlessContainerListener::onSignTxRequest(const std::string &clientId, con
       if (rootWallet->isWatchingOnly()) {
          // when signing tx for watching-only wallet we receiving signed tx
          // from signer ui instead of password
-         SignTXResponse(clientId, id, reqType, ErrorCode::NoError, pass);
+         if (rootWallet->isHsmWallet() && rootWallet->encryptionKeys()[0].toBinStr() == "Ledger") {
+            // For ledger hsm data is not prepared straight away
+            auto wallet = wallets[0];
+            auto newPass = wallet->signTXRequestWithWitness(txSignReq, { { 0 , static_cast<const BinaryData&>(pass)} });
+            SignTXResponse(clientId, id, reqType, ErrorCode::NoError, newPass);
+         }
+         else {
+            SignTXResponse(clientId, id, reqType, ErrorCode::NoError, pass);
+         }
+
+         
          onXbtSpent(amount, isAutoSignActive(rootWalletId));
          if (callbacks_) {
             callbacks_->xbtSpent(amount, false);
