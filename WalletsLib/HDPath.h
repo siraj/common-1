@@ -48,6 +48,7 @@ namespace bs {
          Elem get(int index) const;   // negative index is an offset from end
          void clear();
          bool isAbsolute() const { return isAbsolute_; }
+         int priority() const;
 
          std::string toString() const;
 
