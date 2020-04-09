@@ -95,20 +95,15 @@ std::shared_ptr<hd::Leaf> hd::Group::createLeaf(AddressEntryType aet
    , bs::hd::Path::Elem elem, unsigned lookup)
 {
    bs::hd::Path pathLeaf = getPath(aet, elem);
-   try {
-      auto result = newLeaf(aet);
-      initLeaf(result, pathLeaf, lookup);
-      addLeaf(result);
-      {
-         const auto tx = walletPtr_->beginSubDBTransaction(BS_WALLET_DBNAME, true);
-         commit(tx);
-      }
-      return result;
+
+   auto result = newLeaf(aet);
+   initLeaf(result, pathLeaf, lookup);
+   addLeaf(result);
+   {
+      const auto tx = walletPtr_->beginSubDBTransaction(BS_WALLET_DBNAME, true);
+      commit(tx);
    }
-   catch (std::exception &e) {
-      throw e;
-   }
-   return nullptr;
+   return result;
 }
 
 std::shared_ptr<hd::Leaf> hd::Group::createLeaf(AddressEntryType aet
@@ -121,20 +116,15 @@ std::shared_ptr<bs::core::hd::Leaf> bs::core::hd::Group::createLeafFromXpub(cons
    , bs::hd::Path::Elem elem, unsigned lookup/*= UINT32_MAX*/)
 {
    bs::hd::Path pathLeaf = getPath(aet, elem);
-   try {
-      auto result = newLeaf(aet);
-      initLeafXpub(xpub, result, pathLeaf, lookup);
-      addLeaf(result);
-      {
-         const auto tx = walletPtr_->beginSubDBTransaction(BS_WALLET_DBNAME, true);
-         commit(tx);
-      }
-      return result;
+
+   auto result = newLeaf(aet);
+   initLeafXpub(xpub, result, pathLeaf, lookup);
+   addLeaf(result);
+   {
+      const auto tx = walletPtr_->beginSubDBTransaction(BS_WALLET_DBNAME, true);
+      commit(tx);
    }
-   catch (std::exception &e) {
-      throw e;
-   }
-   return nullptr;
+   return result;
 }
 
 bs::hd::Path bs::core::hd::Group::getPath(AddressEntryType aet, bs::hd::Path::Elem elem)

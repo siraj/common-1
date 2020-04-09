@@ -407,8 +407,8 @@ bool HeadlessContainerListener::onSignTxRequest(const std::string &clientId, con
          if (rootWallet->isHardwareWallet() && rootWallet->encryptionKeys()[0].toBinStr() == "Ledger") {
             // For ledger hw data is not prepared straight away
             auto wallet = wallets[0];
-            auto newPass = wallet->signTXRequestWithWitness(txSignReq, { { 0 , static_cast<const BinaryData&>(pass)} });
-            SignTXResponse(clientId, id, reqType, ErrorCode::NoError, newPass);
+            auto signedTx = wallet->signTXRequestWithWitness(txSignReq, { { 0 , static_cast<const BinaryData&>(pass)} });
+            SignTXResponse(clientId, id, reqType, ErrorCode::NoError, signedTx);
          }
          else {
             SignTXResponse(clientId, id, reqType, ErrorCode::NoError, pass);

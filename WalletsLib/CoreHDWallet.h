@@ -142,7 +142,6 @@ namespace bs {
             std::vector<bs::wallet::PasswordMetaData>             pwdMeta_;
             std::shared_ptr<spdlog::logger>     logger_;
             bool extOnlyFlag_ = false;
-            bool hwWallet_ = false;
 
             std::shared_ptr<AssetWallet_Single> walletPtr_;
             PassphraseLambda  lbdControlPassphrase_;

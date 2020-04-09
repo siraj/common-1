@@ -129,8 +129,6 @@ public:
    void setValue(const bs::sync::dialog::keys::Key &key, int32_t value);
    void setValue(const bs::sync::dialog::keys::Key &key, double value);
 
-   void setValue();
-
    void remove(const bs::sync::dialog::keys::Key &key);
 
    Q_INVOKABLE void merge(PasswordDialogData *other);
