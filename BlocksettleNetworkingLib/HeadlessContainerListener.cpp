@@ -263,6 +263,12 @@ bool HeadlessContainerListener::onRequestPacket(const std::string &clientId, hea
    case headless::ChatNodeRequestType:
       return onChatNodeRequest(clientId, packet);
 
+   case headless::SettlementAuthType:
+      return onSettlAuthRequest(clientId, packet);
+
+   case headless::SettlementCPType:
+      return onSettlCPRequest(clientId, packet);
+
    default:
       logger_->error("[HeadlessContainerListener] unknown request type {}", packet.type());
       return false;
@@ -381,7 +387,7 @@ bool HeadlessContainerListener::onSignTxRequest(const std::string &clientId, con
       , keepDuplicatedRecipients = request.keepduplicatedrecipients()]
       (bs::error::ErrorCode result, const SecureBinaryData &pass)
    {
-      if (result == ErrorCode::TxCanceled) {
+      if (result == ErrorCode::TxCancelled) {
          logger_->error("[HeadlessContainerListener] transaction cancelled for wallet {}", wallets.front()->name());
          SignTXResponse(clientId, id, reqType, result);
          return;
@@ -929,7 +935,7 @@ void HeadlessContainerListener::RunDeferredPwDialog()
          // Don't display dialog if it will be expired soon or already expired
          const PasswordReceivedCb &cb = std::move(deferredPasswordRequests_.front().callback);
          if (cb) {
-            cb(bs::error::ErrorCode::TxCanceled, {});
+            cb(bs::error::ErrorCode::TxCancelled, {});
          }
 
          // at this point password workflow finished for deferredPasswordRequests_.front() dialog
@@ -2142,6 +2148,85 @@ bool HeadlessContainerListener::onChatNodeRequest(const std::string &clientId, h
    }
 
    packet.set_data(response.SerializeAsString());
+   sendData(packet.SerializeAsString(), clientId);
+   return true;
+}
+
+bool HeadlessContainerListener::onSettlAuthRequest(const std::string &clientId, headless::RequestPacket packet)
+{
+   headless::SettlementAuthAddress request;
+   if (!request.ParseFromString(packet.data())) {
+      logger_->error("[{}] failed to parse request", __func__);
+      return false;
+   }
+   std::shared_ptr<bs::core::hd::Leaf> authLeaf;
+   const auto &priWallet = walletsMgr_->getPrimaryWallet();
+   if (priWallet) {
+      const auto &authGroup = priWallet->getGroup(bs::hd::BlockSettle_Auth);
+      if (authGroup) {
+         const bs::hd::Path authPath({ bs::hd::Purpose::Native, bs::hd::BlockSettle_Auth, 0 });
+         authLeaf = authGroup->getLeafByPath(authPath);
+      }
+   }
+   if (authLeaf) {
+      if (request.auth_address().empty()) {
+         const auto addr = authLeaf->getSettlAuthAddr(BinaryData::fromString(request.settlement_id()));
+         request.set_auth_address(addr.display());
+         request.set_wallet_id(authLeaf->walletId());
+      }
+      else {
+         const auto settlementId = BinaryData::fromString(request.settlement_id());
+         const auto addr = bs::Address::fromAddressString(request.auth_address());
+         logger_->debug("[{}] saving {} = {}", __func__, settlementId.toHexStr(), addr.display());
+         authLeaf->setSettlementMeta(settlementId, addr);
+         return true;
+      }
+   }
+   else {
+      logger_->warn("[{}] failed to find auth leaf", __func__);
+      request.clear_wallet_id();
+   }
+   packet.set_data(request.SerializeAsString());
+   sendData(packet.SerializeAsString(), clientId);
+   return true;
+}
+
+bool HeadlessContainerListener::onSettlCPRequest(const std::string &clientId, headless::RequestPacket packet)
+{
+   headless::SettlementCounterparty request;
+   if (!request.ParseFromString(packet.data())) {
+      logger_->error("[{}] failed to parse request", __func__);
+      return false;
+   }
+   std::shared_ptr<bs::core::hd::Leaf> authLeaf;
+   const auto &priWallet = walletsMgr_->getPrimaryWallet();
+   if (priWallet) {
+      const auto &authGroup = priWallet->getGroup(bs::hd::BlockSettle_Auth);
+      if (authGroup) {
+         const bs::hd::Path authPath({ bs::hd::Purpose::Native, bs::hd::BlockSettle_Auth, 0 });
+         authLeaf = authGroup->getLeafByPath(authPath);
+      }
+   }
+   if (authLeaf) {
+      if (request.settlement_id().empty() && request.cp_public_key().empty()) {
+         const auto keys = authLeaf->getSettlCP(BinaryData::fromString(request.payin_hash()));
+         request.set_settlement_id(keys.first.toBinStr());
+         request.set_cp_public_key(keys.second.toBinStr());
+         request.set_wallet_id(authLeaf->walletId());
+      } else {
+         const auto payinHash = BinaryData::fromString(request.payin_hash());
+         const auto settlementId = BinaryData::fromString(request.settlement_id());
+         const auto cpPubKey = BinaryData::fromString(request.cp_public_key());
+         logger_->debug("[{}] saving {} = ({}, {})", __func__, payinHash.toHexStr(true)
+            , settlementId.toHexStr(), cpPubKey.toHexStr());
+         authLeaf->setSettlCPMeta(payinHash, settlementId, cpPubKey);
+         return true;
+      }
+   } else {
+      logger_->warn("[{}] failed to find auth leaf", __func__);
+      request.clear_wallet_id();
+   }
+   packet.set_data(request.SerializeAsString());
    sendData(packet.SerializeAsString(), clientId);
    return true;
 }

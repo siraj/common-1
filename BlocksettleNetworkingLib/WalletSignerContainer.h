@@ -31,6 +31,14 @@ public:
    virtual void syncAddressComment(const std::string &walletId, const bs::Address &, const std::string &) = 0;
    virtual void syncTxComment(const std::string &walletId, const BinaryData &, const std::string &) = 0;
 
+   virtual void setSettlAuthAddr(const std::string &walletId, const BinaryData &, const bs::Address &addr) = 0;
+   virtual void getSettlAuthAddr(const std::string &walletId, const BinaryData &
+      , const std::function<void(const bs::Address &)> &) = 0;
+   virtual void setSettlCP(const std::string &walletId, const BinaryData &payinHash, const BinaryData &settlId
+      , const BinaryData &cpPubKey) = 0;
+   virtual void getSettlCP(const std::string &walletId, const BinaryData &payinHash
+      , const std::function<void(const BinaryData &, const BinaryData &)> &) = 0;
+
    virtual void syncAddressBatch(const std::string &walletId,
       const std::set<BinaryData>& addrSet, std::function<void(bs::sync::SyncState)>) = 0;
    virtual void extendAddressChain(const std::string &walletId, unsigned count, bool extInt,
