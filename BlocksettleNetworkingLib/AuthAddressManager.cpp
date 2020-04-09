@@ -738,24 +738,9 @@ void AuthAddressManager::onWalletCreated()
    }
 }
 
-std::shared_ptr<bs::sync::hd::SettlementLeaf> AuthAddressManager::getSettlementLeaf(const bs::Address &addr) const
+bool AuthAddressManager::hasSettlementLeaf(const bs::Address &addr) const
 {
-   const auto priWallet = walletsManager_->getPrimaryWallet();
-   if (!priWallet) {
-      logger_->warn("[{}] no primary wallet", __func__);
-      return nullptr;
-   }
-   const auto group = priWallet->getGroup(bs::hd::BlockSettle_Settlement);
-   std::shared_ptr<bs::sync::hd::SettlementLeaf> settlLeaf;
-   if (group) {
-      const auto settlGroup = std::dynamic_pointer_cast<bs::sync::hd::SettlementGroup>(group);
-      if (!settlGroup) {
-         logger_->error("[{}] wrong settlement group type", __func__);
-         return nullptr;
-      }
-      settlLeaf = settlGroup->getLeaf(addr);
-   }
-   return settlLeaf;
+   return walletsManager_->hasSettlementLeaf(addr);
 }
 
 void AuthAddressManager::createSettlementLeaf(const bs::Address &addr

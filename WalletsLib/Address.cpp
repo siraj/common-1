@@ -54,10 +54,16 @@ bs::Address::Address(const BinaryDataRef& data) :
       break;
 
    case SCRIPT_PREFIX_P2WSH:
-      if(data.getSize() != 33)
+      if (data.getSize() != 33)
          throw std::runtime_error("invalid data size");
       aet_ = AddressEntryType_P2WSH;
       format_ = Format::Bech32;
+      break;
+
+   case SCRIPT_PREFIX_NONSTD:
+      aet_ = AddressEntryType_Default;
+      format_ = Format::String;
+      copyFrom(data.getPtr() + 1, data.getSize() - 1);
       break;
 
    default:
@@ -355,6 +361,10 @@ std::string bs::Address::display() const
       }
       break;
    }
+
+   case String:
+      result = toBinStr();
+      break;
 
    default:
       throw std::logic_error("unsupported address format");

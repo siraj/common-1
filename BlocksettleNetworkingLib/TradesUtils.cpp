@@ -331,7 +331,8 @@ UTXO bs::tradeutils::getInputFromTX(const bs::Address &addr
       , BtcUtils::getP2WSHOutputScript(addr.unprefixed()));
 }
 
-void bs::tradeutils::createPayout(bs::tradeutils::PayoutArgs args, bs::tradeutils::PayoutResultCb cb)
+void bs::tradeutils::createPayout(bs::tradeutils::PayoutArgs args
+   , bs::tradeutils::PayoutResultCb cb, bool myKeyFirst)
 {
    auto leaf = findSettlementLeaf(args.walletsMgr, args.ourAuthAddress);
    if (!leaf) {
@@ -339,14 +340,15 @@ void bs::tradeutils::createPayout(bs::tradeutils::PayoutArgs args, bs::tradeutil
       return;
    }
 
-   leaf->setSettlementID(args.settlementId, [args, cb](bool result)
+   leaf->setSettlementID(args.settlementId, [args, cb, myKeyFirst]
+      (bool result)
    {
       if (!result) {
          cb(PayoutResult::error("setSettlementID failed"));
          return;
       }
 
-      auto cbFee = [args, cb](float fee) {
+      auto cbFee = [args, cb, myKeyFirst](float fee) {
          auto feePerByte = ArmoryConnection::toFeePerByte(fee);
          if (feePerByte < 1.0f) {
             cb(PayoutResult::error("invalid feePerByte"));
@@ -383,8 +385,6 @@ void bs::tradeutils::createPayout(bs::tradeutils::PayoutArgs args, bs::tradeutil
                args.outputXbtWallet->getNewIntAddress(recvAddrCb);
             }
          };
-
-         const bool myKeyFirst = true;
          primaryHdWallet->getSettlementPayinAddress(args.settlementId, args.cpAuthPubKey, cbSettlAddr, myKeyFirst);
       };
 

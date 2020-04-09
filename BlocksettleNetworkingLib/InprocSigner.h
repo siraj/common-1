@@ -20,6 +20,7 @@ namespace spdlog {
 namespace bs {
    namespace core {
       namespace hd {
+         class Leaf;
          class Wallet;
       }
       class SettlementWallet;
@@ -114,7 +115,18 @@ public:
    void getChatNode(const std::string &walletID
       , const std::function<void(const BIP32_Node &)> &) override;
 
+   void setSettlAuthAddr(const std::string &walletId, const BinaryData &, const bs::Address &addr) override;
+   void getSettlAuthAddr(const std::string &walletId, const BinaryData &
+      , const std::function<void(const bs::Address &)> &) override;
+   void setSettlCP(const std::string &walletId, const BinaryData &payinHash, const BinaryData &settlId
+      , const BinaryData &cpPubKey) override;
+   void getSettlCP(const std::string &walletId, const BinaryData &payinHash
+      , const std::function<void(const BinaryData &, const BinaryData &)> &) override;
+
    bool isReady() const override { return inited_; }
+
+private:
+   std::shared_ptr<bs::core::hd::Leaf> getAuthLeaf() const;
 
 private:
    std::shared_ptr<bs::core::WalletsManager> walletsMgr_;

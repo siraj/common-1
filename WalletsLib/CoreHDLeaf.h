@@ -70,9 +70,9 @@ namespace bs {
             std::vector<bs::Address> getExtAddressList() const override;
             std::vector<bs::Address> getIntAddressList() const override;
 
-            unsigned getExtAddressCount() const override;
-            unsigned getUsedAddressCount() const override;
-            unsigned getIntAddressCount() const override;
+            size_t getExtAddressCount() const override;
+            size_t getUsedAddressCount() const override;
+            size_t getIntAddressCount() const override;
 
             bool isExternalAddress(const Address &) const override;
             bs::Address getNewExtAddress() override;
@@ -119,6 +119,7 @@ namespace bs {
          protected:
             void reset();
 
+            void readMetaData();
             std::shared_ptr<DBIfaceTransaction> getDBWriteTx() override;
             std::shared_ptr<DBIfaceTransaction> getDBReadTx() override;
 
@@ -136,8 +137,6 @@ namespace bs {
             };
             using PooledAddress = std::pair<AddrPoolKey, bs::Address>;
 
-            void readMetaData();
-
          protected:
             mutable std::string     walletId_, walletIdInt_;
             wallet::Type            type_;
@@ -145,8 +144,6 @@ namespace bs {
             std::string suffix_;
             const NetworkType netType_;
             std::shared_ptr<::AddressAccount> accountPtr_;
-
-         private:
             std::shared_ptr<AssetWallet_Single> walletPtr_;
 
          private:
@@ -206,7 +203,7 @@ namespace bs {
             SecureBinaryData salt_;
 
          private:
-            void setSalt(const SecureBinaryData& salt) { salt_= salt; }
+            void setSalt(const SecureBinaryData& salt);
 
          public:
             AuthLeaf(NetworkType netType, std::shared_ptr<spdlog::logger> logger);

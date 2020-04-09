@@ -479,12 +479,12 @@ std::vector<bs::Address> hd::Leaf::getExtAddressList() const
    return addrVec;
 }
 
-unsigned hd::Leaf::getUsedAddressCount() const
+size_t hd::Leaf::getUsedAddressCount() const
 {
    return getExtAddressCount() + getIntAddressCount();
 }
 
-unsigned hd::Leaf::getExtAddressCount() const
+size_t hd::Leaf::getExtAddressCount() const
 {
    return accountPtr_->getOuterAccount()->getHighestUsedIndex() + 1;
 }
@@ -513,7 +513,7 @@ std::vector<bs::Address> hd::Leaf::getIntAddressList() const
    return addrVec;
 }
 
-unsigned hd::Leaf::getIntAddressCount() const
+size_t hd::Leaf::getIntAddressCount() const
 {
    auto& accID = accountPtr_->getInnerAccountID();
 
@@ -722,7 +722,12 @@ std::shared_ptr<hd::Leaf> hd::LeafNonSW::getCopy(
 
 hd::AuthLeaf::AuthLeaf(NetworkType netType, std::shared_ptr<spdlog::logger> logger)
    : LeafNative(netType, logger, wallet::Type::Authentication)
-{}
+{ }
+
+void hd::AuthLeaf::setSalt(const SecureBinaryData& salt)
+{
+   salt_ = salt;
+}
 
 BinaryData hd::AuthLeaf::serialize() const
 {
