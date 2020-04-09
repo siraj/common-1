@@ -60,6 +60,8 @@ class Configurator:
             ext = 'tar.gz'
         elif url.endswith('.tar.xz'):
             ext = 'tar.xz'
+        elif url.endswith('.tar.bz2'):
+            ext = 'tar.bz2'
 
         print('Start download : {}'.format(url))
 
@@ -86,6 +88,9 @@ class Configurator:
         elif self._file_name.endswith('.tar.gz'):
             extension = '.tar.gz'
             extractor = tarfile.open(self._download_path, 'r:gz')
+        elif self._file_name.endswith('.tar.bz2'):
+            extension = '.tar.bz2'
+            extractor = tarfile.open(self._download_path, 'r:bz2')
         elif self._file_name.endswith('.tar.xz'):
             tarpath = self._download_path[:-3]
             if not os.path.isfile(self._download_path[:-3]):

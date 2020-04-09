@@ -59,6 +59,7 @@ DIALOG_KEY_INIT(TransactionAmount)
 DIALOG_KEY_INIT(TxInputProduct)
 DIALOG_KEY_INIT(WalletId)
 DIALOG_KEY_INIT(XBT)
+DIALOG_KEY_INIT(TxRequest)
 
 Any toPbVariant(const QVariant& v)
 {

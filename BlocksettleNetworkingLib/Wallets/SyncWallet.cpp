@@ -755,7 +755,7 @@ bs::core::wallet::TXSignRequest wallet::createTXRequest(const std::vector<std::s
    , const std::vector<UTXO> &inputs
    , const std::vector<std::shared_ptr<ScriptRecipient>> &recipients
    , const bs::Address &changeAddr
-   , const uint64_t fee, bool isRBF)
+   , const std::string &changeIndex, const uint64_t fee, bool isRBF)
 {
    bs::core::wallet::TXSignRequest request;
    request.walletIds = walletIds;
@@ -793,6 +793,7 @@ bs::core::wallet::TXSignRequest wallet::createTXRequest(const std::vector<std::s
       }
       request.change.value = changeAmount;
       request.change.address = changeAddr;
+      request.change.index = changeIndex;
    }
 
    return request;
@@ -802,11 +803,13 @@ bs::core::wallet::TXSignRequest Wallet::createTXRequest(const std::vector<UTXO> 
    , const std::vector<std::shared_ptr<ScriptRecipient>> &recipients, const uint64_t fee
    , bool isRBF, const bs::Address &changeAddress)
 {
+   std::string changeIndex;
    if (!changeAddress.empty()) {
       setAddressComment(changeAddress, wallet::Comment::toString(wallet::Comment::ChangeAddress));
+      changeIndex = getAddressIndex(changeAddress);
    }
    return wallet::createTXRequest({ walletId() }, inputs, recipients, changeAddress
-      , fee, isRBF);
+      , changeIndex, fee, isRBF);
 }
 
 bs::core::wallet::TXSignRequest Wallet::createPartialTXRequest(uint64_t spendVal

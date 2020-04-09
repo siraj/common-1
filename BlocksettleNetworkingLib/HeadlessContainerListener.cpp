@@ -1,4 +1,4 @@
-/*
+﻿/*
 
 ***********************************************************************************
 * Copyright (C) 2016 - , BlockSettle AB
@@ -404,7 +404,17 @@ bool HeadlessContainerListener::onSignTxRequest(const std::string &clientId, con
       if (rootWallet->isWatchingOnly()) {
          // when signing tx for watching-only wallet we receiving signed tx
          // from signer ui instead of password
-         SignTXResponse(clientId, id, reqType, ErrorCode::NoError, pass);
+         if (rootWallet->isHardwareWallet() && rootWallet->encryptionKeys()[0].toBinStr() == "Ledger") {
+            // For ledger hw data is not prepared straight away
+            auto wallet = wallets[0];
+            auto signedTx = wallet->signTXRequestWithWitness(txSignReq, { { 0 , static_cast<const BinaryData&>(pass)} });
+            SignTXResponse(clientId, id, reqType, ErrorCode::NoError, signedTx);
+         }
+         else {
+            SignTXResponse(clientId, id, reqType, ErrorCode::NoError, pass);
+         }
+
+         
          onXbtSpent(amount, isAutoSignActive(rootWalletId));
          if (callbacks_) {
             callbacks_->xbtSpent(amount, false);
@@ -472,6 +482,9 @@ bool HeadlessContainerListener::onSignTxRequest(const std::string &clientId, con
    };
 
    dialogData.insert(PasswordDialogData::WalletId, rootWalletId);
+   auto data = request.SerializeAsString();
+   dialogData.insert(PasswordDialogData::TxRequest, data.c_str(), data.size());
+
    return RequestPasswordIfNeeded(clientId, rootWalletId, txSignReq, reqType, dialogData, onPassword);
 }
 

@@ -52,6 +52,9 @@ namespace bs {
             virtual std::shared_ptr<Leaf> createLeaf(AddressEntryType
                , const std::string &key, unsigned lookup = UINT32_MAX);
             
+            std::shared_ptr<Leaf> createLeafFromXpub(const std::string&, AddressEntryType
+               , bs::hd::Path::Elem, unsigned lookup = UINT32_MAX);
+            
             virtual std::shared_ptr<Leaf> newLeaf(AddressEntryType) const;
             virtual bool addLeaf(const std::shared_ptr<Leaf> &);
             bool deleteLeaf(const std::shared_ptr<bs::core::hd::Leaf> &);
@@ -74,6 +77,12 @@ namespace bs {
             virtual void serializeLeaves(BinaryWriter &) const;
             virtual void initLeaf(std::shared_ptr<Leaf> &, const bs::hd::Path &, 
                unsigned lookup = UINT32_MAX) const;
+
+            void initLeafXpub(const std::string& xpub, std::shared_ptr<Leaf> &, const bs::hd::Path &,
+               unsigned lookup = UINT32_MAX) const;
+
+            bs::hd::Path getPath(AddressEntryType aet
+               , bs::hd::Path::Elem elem);
 
          protected:
             bs::hd::Path::Elem   index_;
