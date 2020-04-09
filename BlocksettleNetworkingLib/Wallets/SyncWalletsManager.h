@@ -84,6 +84,7 @@ namespace bs {
          HDWalletPtr getPrimaryWallet() const;
 //         std::shared_ptr<hd::DummyWallet> getDummyWallet() const { return hdDummyWallet_; }
          std::vector<WalletPtr> getAllWallets() const;
+         std::unordered_map<std::string, std::string> getHwDeviceIdToWallet() const;
          WalletPtr getWalletById(const std::string& walletId) const;
          WalletPtr getWalletByAddress(const bs::Address &addr) const;
          WalletPtr getDefaultWallet() const;
@@ -204,7 +205,6 @@ namespace bs {
          void onStateChanged(ArmoryState) override;
 
       private slots:
-         void onHDWalletCreated(unsigned int id, std::shared_ptr<bs::sync::hd::Wallet>);
          void onWalletsListUpdated();
          void onAuthLeafAdded(const std::string &walletId);
 
@@ -307,8 +307,6 @@ namespace bs {
          mutable std::map<unsigned int, QDateTime> lastFeePerByte_;
          std::map<QObject *, std::map<unsigned int
             , std::pair<QPointer<QObject>, std::function<void(float)>>>> feeCallbacks_;
-
-         unsigned int createHdReqId_ = 0;
 
          enum class WalletsSyncState 
          {

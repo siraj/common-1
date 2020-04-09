@@ -1016,17 +1016,6 @@ void WalletsManager::createSettlementLeaf(const bs::Address &authAddr
    signContainer_->createSettlementWallet(authAddr, cbWrap);
 }
 
-void WalletsManager::onHDWalletCreated(unsigned int id, std::shared_ptr<bs::sync::hd::Wallet> newWallet)
-{
-   if (id != createHdReqId_) {
-      return;
-   }
-   createHdReqId_ = 0;
-   newWallet->synchronize([] {});
-   adoptNewWallet(newWallet);
-   emit walletAdded(newWallet->walletId());
-}
-
 void WalletsManager::startWalletRescan(const HDWalletPtr &hdWallet)
 {
    if (armory_->state() == ArmoryState::Ready) {
@@ -2097,4 +2086,19 @@ std::shared_ptr<ColoredCoinTrackerClient> WalletsManager::tracker(const std::str
 {
    auto it = trackers_.find(cc);
    return it != trackers_.end() ? it->second : nullptr;
+}
+
+std::unordered_map<std::string, std::string> bs::sync::WalletsManager::getHwDeviceIdToWallet() const
+{
+   std::unordered_map<std::string, std::string> resp;
+   for (auto &walletPtr : hdWallets_) {
+      if (!walletPtr->isHardwareWallet()) {
+         continue;
+      }
+
+      auto encKeys = walletPtr->encryptionKeys();
+      resp[encKeys[0].toBinStr()] = walletPtr->walletId();
+   }
+
+   return resp;
 }

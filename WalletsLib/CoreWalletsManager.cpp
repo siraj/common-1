@@ -111,6 +111,33 @@ WalletsManager::HDWalletPtr WalletsManager::loadWoWallet(NetworkType netType
    return nullptr;
 }
 
+WalletsManager::HDWalletPtr WalletsManager::createHwWallet(NetworkType netType, const bs::core::wallet::HwWalletInfo &walletInfo, 
+   const std::string &walletsPath, const SecureBinaryData &ctrlPass /*= {}*/)
+{
+   logger_->debug("Creating Hardware WO-wallet");
+
+   bs::wallet::PasswordData passData;
+   passData.metaData.encType = bs::wallet::EncryptionType::Hardware;
+   passData.metaData.encKey = BinaryData::fromString(walletInfo.deviceId_);
+
+   auto walletId = wallet::computeID(BinaryData::fromString(walletInfo.xpubRoot_)).toBinStr();
+   const auto wallet = std::make_shared<hd::Wallet>(walletInfo.label_, walletInfo.vendor_, walletId
+      ,netType, passData, walletsPath, logger_);
+
+   if (!ctrlPass.empty()) {
+      wallet->changeControlPassword({}, ctrlPass);
+   }
+
+   {
+      const bs::core::WalletPasswordScoped lock(wallet, ctrlPass);
+      wallet->createHwStructure(walletInfo);
+   }
+
+   saveWallet(wallet);
+
+   return wallet;
+}
+
 void WalletsManager::changeControlPassword(const SecureBinaryData &oldPass, const SecureBinaryData &newPass)
 {
    for (const auto &hdWallet : hdWallets_) {

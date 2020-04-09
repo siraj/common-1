@@ -53,6 +53,7 @@ enum PacketType
    UpdateControlPasswordStatusType   = 33; // send message to ui if control password wrong, accepted or requested new
    ControlPasswordReceivedType       = 34;
    ChangeControlPasswordType         = 35;
+   ImportHwWalletType  = 36;
 }
 
 enum PasswordDialogType
@@ -408,4 +409,14 @@ message TerminalEvent
 message UpdateWalletRequest
 {
   string wallet_id = 1;
+}
+
+message ImportHwWalletRequest
+{
+   string vendor = 1;
+   string label = 2;
+   string deviceId = 3;
+   string xpubRoot = 4;
+   string xpubNestedSegwit = 5;
+   string xpubNativeSegwit = 6;
 }

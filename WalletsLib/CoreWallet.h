@@ -99,6 +99,17 @@ namespace bs {
             bool deserialize(BinaryRefReader brr) override;
          };
 
+
+         struct HwWalletInfo {
+            std::string vendor_;
+            std::string label_;
+            std::string deviceId_;
+
+            std::string xpubRoot_;
+            std::string xpubNestedSegwit_;
+            std::string xpubNativeSegwit_;
+         };
+
          class AssetEntrySettlement : public AssetEntryMeta // For saving own auth address for settlement
          {
             BinaryData  settlementId_;
@@ -415,6 +426,10 @@ namespace bs {
          virtual BinaryData signTXRequest(const wallet::TXSignRequest &
             , bool keepDuplicatedRecipients = false);
          virtual BinaryData signPartialTXRequest(const wallet::TXSignRequest &);
+
+         using InputSigs = std::map<unsigned int, BinaryData>;
+         virtual BinaryData signTXRequestWithWitness(const wallet::TXSignRequest &
+            , const InputSigs &);
 
          virtual SecureBinaryData getPublicKeyFor(const bs::Address &) = 0;
          virtual SecureBinaryData getPubChainedKeyFor(const bs::Address &addr) { return getPublicKeyFor(addr); }

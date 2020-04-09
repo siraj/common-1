@@ -17,8 +17,8 @@ using namespace bs::core;
 
 
 hd::Group::Group(const std::shared_ptr<AssetWallet_Single> &walletPtr
-   , bs::hd::Path::Elem index, NetworkType netType, bool isExtOnly,
-   const std::shared_ptr<spdlog::logger> &logger)
+   , bs::hd::Path::Elem index, NetworkType netType, bool isExtOnly
+   , const std::shared_ptr<spdlog::logger> &logger)
    : walletPtr_(walletPtr), index_(index & ~bs::hd::hardFlag)
    , netType_(netType), isExtOnly_(isExtOnly)
    , logger_(logger)
@@ -94,6 +94,41 @@ std::shared_ptr<hd::Leaf> hd::Group::createLeaf(const bs::hd::Path &path
 std::shared_ptr<hd::Leaf> hd::Group::createLeaf(AddressEntryType aet
    , bs::hd::Path::Elem elem, unsigned lookup)
 {
+   bs::hd::Path pathLeaf = getPath(aet, elem);
+
+   auto result = newLeaf(aet);
+   initLeaf(result, pathLeaf, lookup);
+   addLeaf(result);
+   {
+      const auto tx = walletPtr_->beginSubDBTransaction(BS_WALLET_DBNAME, true);
+      commit(tx);
+   }
+   return result;
+}
+
+std::shared_ptr<hd::Leaf> hd::Group::createLeaf(AddressEntryType aet
+   , const std::string &key, unsigned lookup)
+{
+   return createLeaf(aet, bs::hd::Path::keyToElem(key), lookup);
+}
+
+std::shared_ptr<bs::core::hd::Leaf> bs::core::hd::Group::createLeafFromXpub(const std::string& xpub, AddressEntryType aet
+   , bs::hd::Path::Elem elem, unsigned lookup/*= UINT32_MAX*/)
+{
+   bs::hd::Path pathLeaf = getPath(aet, elem);
+
+   auto result = newLeaf(aet);
+   initLeafXpub(xpub, result, pathLeaf, lookup);
+   addLeaf(result);
+   {
+      const auto tx = walletPtr_->beginSubDBTransaction(BS_WALLET_DBNAME, true);
+      commit(tx);
+   }
+   return result;
+}
+
+bs::hd::Path bs::core::hd::Group::getPath(AddressEntryType aet, bs::hd::Path::Elem elem)
+{
    const auto purpose = static_cast<bs::hd::Path::Elem>(bs::hd::purpose(aet));
    bs::hd::Path pathLeaf({ purpose | bs::hd::hardFlag, index_ | bs::hd::hardFlag });
 
@@ -103,26 +138,8 @@ std::shared_ptr<hd::Leaf> hd::Group::createLeaf(AddressEntryType aet
    if (getLeafByPath(pathLeaf) != nullptr) {
       throw std::runtime_error("leaf already exists");
    }
-   try {
-      auto result = newLeaf(aet);
-      initLeaf(result, pathLeaf, lookup);
-      addLeaf(result);
-      {
-         const auto tx = walletPtr_->beginSubDBTransaction(BS_WALLET_DBNAME, true);
-         commit(tx);
-      }
-      return result;
-   }
-   catch (std::exception &e) {
-      throw e;
-   }
-   return nullptr;
-}
 
-std::shared_ptr<hd::Leaf> hd::Group::createLeaf(AddressEntryType aet
-   , const std::string &key, unsigned lookup)
-{
-   return createLeaf(aet, bs::hd::Path::keyToElem(key), lookup);
+   return pathLeaf;
 }
 
 bool hd::Group::addLeaf(const std::shared_ptr<hd::Leaf> &leaf)
@@ -293,6 +310,48 @@ void hd::Group::initLeaf(
    leaf->init(walletPtr_, accID);
 }
 
+void bs::core::hd::Group::initLeafXpub(const std::string& xpub, std::shared_ptr<hd::Leaf> &leaf, const bs::hd::Path &path,
+   unsigned lookup /*= UINT32_MAX*/) const
+{
+   BIP32_Node newPubNode;
+   newPubNode.initFromBase58(SecureBinaryData::fromString(xpub));
+
+   auto pubkeyCopy = newPubNode.getPublicKey();
+   auto chaincodeCopy = newPubNode.getChaincode();
+
+   auto pubRootAsset = std::make_shared<AssetEntry_BIP32Root>(
+      -1, BinaryData(),
+      pubkeyCopy,
+      nullptr,
+      chaincodeCopy,
+      newPubNode.getDepth(), newPubNode.getLeafID(), newPubNode.getFingerPrint()
+      );
+
+   auto accTypePtr = std::make_shared<AccountType_BIP32_Custom>(); //empty ctor
+
+   std::set<unsigned> nodes = { BIP32_LEGACY_OUTER_ACCOUNT_DERIVATIONID, BIP32_LEGACY_INNER_ACCOUNT_DERIVATIONID };
+   accTypePtr->setNodes(nodes);
+   accTypePtr->setAddressTypes({ leaf->addressType() });
+   accTypePtr->setDefaultAddressType(leaf->addressType());
+   accTypePtr->setAddressLookup(10);
+   accTypePtr->setOuterAccountID(WRITE_UINT32_BE(*nodes.begin()));
+   accTypePtr->setInnerAccountID(WRITE_UINT32_BE(*nodes.rbegin()));
+   accTypePtr->setMain(true);
+
+   // We assume the passphrase prompt lambda is already set.
+   auto lock = walletPtr_->lockDecryptedContainer();
+
+   auto accID = walletPtr_->createBIP32Account(
+      pubRootAsset,
+      {},
+      accTypePtr
+   );
+
+   leaf->setPath(path);
+   leaf->init(walletPtr_, accID);
+}
+
+
 void hd::Group::deserialize(BinaryDataRef value)
 {
    BinaryRefReader brrVal(value);
@@ -325,7 +384,8 @@ void hd::Group::shutdown()
 }
 
 std::set<AddressEntryType> hd::Group::getAddressTypeSet(void) const
-{              // disabled for now
+{
+   // disabled for now
    return { /*AddressEntryType_P2PKH,*/ AddressEntryType_P2WPKH,
       AddressEntryType(AddressEntryType_P2SH | AddressEntryType_P2WPKH)
       };

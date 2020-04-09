@@ -152,6 +152,7 @@ void WalletInfo::initFromRootWallet(const std::shared_ptr<bs::sync::hd::Wallet> 
    walletId_ = QString::fromStdString(rootWallet->walletId());
    name_ = QString::fromStdString(rootWallet->name());
    rootId_ = QString::fromStdString(rootWallet->walletId());
+   desc_ = QString::fromStdString(rootWallet->description());
    keyRank_ = rootWallet->encryptionRank();
    emit walletChanged();
 }
@@ -252,21 +253,19 @@ void WalletInfo::setPasswordData(const std::vector<PasswordData> &passwordData)
    encKeys_.clear();
    encTypes_.clear();
 
-   bool isAuth = false;
-   bool isPassword = false;
    for (const PasswordData &pw : passwordData) {
       encKeys_.push_back(QString::fromStdString(pw.metaData.encKey.toBinStr()));
-      if (pw.metaData.encType == EncryptionType::Auth)
-         isAuth = true;
-      if (pw.metaData.encType == EncryptionType::Password)
-         isPassword = true;
+      switch (pw.metaData.encType)
+      {
+      case EncryptionType::Auth:
+      case EncryptionType::Password:
+      case EncryptionType::Hardware:
+         encTypes_.append(pw.metaData.encType);
+         break;
+      default:
+         break;
+      }
    }
-
-   if (isAuth)
-      encTypes_.append(EncryptionType::Auth);
-
-   if (isPassword)
-      encTypes_.append(EncryptionType::Password);
 
    emit walletChanged();
 }
@@ -290,6 +289,12 @@ void WalletInfo::setName(const QString &name)
 
    name_ = name;
    emit walletChanged();
+}
+
+bool bs::hd::WalletInfo::isHardwareWallet() const
+{
+   return static_cast<bool>(std::count(encTypes_.begin(),
+      encTypes_.end(), bs::wallet::EncryptionType::Hardware));
 }
 
 #include "moc_SignerUiDefs.cpp"
