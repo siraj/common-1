@@ -24,7 +24,7 @@ namespace bs {
          Unencrypted,
          Password,
          Auth,
-         HSM
+         Hardware
       };
 
       // first - required number of keys (M), second - total number of keys (N)

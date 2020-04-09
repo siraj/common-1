@@ -111,13 +111,13 @@ WalletsManager::HDWalletPtr WalletsManager::loadWoWallet(NetworkType netType
    return nullptr;
 }
 
-WalletsManager::HDWalletPtr WalletsManager::createHSMWallet(NetworkType netType, const bs::core::wallet::HSMWalletInfo &walletInfo, 
+WalletsManager::HDWalletPtr WalletsManager::createHwWallet(NetworkType netType, const bs::core::wallet::HwWalletInfo &walletInfo, 
    const std::string &walletsPath, const SecureBinaryData &ctrlPass /*= {}*/)
 {
-   logger_->debug("Creating HSM WO-wallet");
+   logger_->debug("Creating Hardware WO-wallet");
 
    bs::wallet::PasswordData passData;
-   passData.metaData.encType = bs::wallet::EncryptionType::HSM;
+   passData.metaData.encType = bs::wallet::EncryptionType::Hardware;
    passData.metaData.encKey = BinaryData::fromString(walletInfo.deviceId_);
 
    auto walletId = wallet::computeID(BinaryData::fromString(walletInfo.xpubRoot_)).toBinStr();
@@ -130,7 +130,7 @@ WalletsManager::HDWalletPtr WalletsManager::createHSMWallet(NetworkType netType,
 
    {
       const bs::core::WalletPasswordScoped lock(wallet, ctrlPass);
-      wallet->createHsmStructure(walletInfo);
+      wallet->createHwStructure(walletInfo);
    }
 
    saveWallet(wallet);

@@ -31,7 +31,7 @@ public:
       Unencrypted,
       Password,
       Auth,
-      HSM
+      Hardware
    };
    Q_ENUMS(QEncryptionType)
 

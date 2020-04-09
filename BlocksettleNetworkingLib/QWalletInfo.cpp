@@ -259,7 +259,7 @@ void WalletInfo::setPasswordData(const std::vector<PasswordData> &passwordData)
       {
       case EncryptionType::Auth:
       case EncryptionType::Password:
-      case EncryptionType::HSM:
+      case EncryptionType::Hardware:
          encTypes_.append(pw.metaData.encType);
          break;
       default:
@@ -291,10 +291,10 @@ void WalletInfo::setName(const QString &name)
    emit walletChanged();
 }
 
-bool bs::hd::WalletInfo::isHSM() const
+bool bs::hd::WalletInfo::isHardwareWallet() const
 {
    return static_cast<bool>(std::count(encTypes_.begin(),
-      encTypes_.end(), bs::wallet::EncryptionType::HSM));
+      encTypes_.end(), bs::wallet::EncryptionType::Hardware));
 }
 
 #include "moc_SignerUiDefs.cpp"

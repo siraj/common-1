@@ -2068,11 +2068,11 @@ std::shared_ptr<ColoredCoinTrackerClient> WalletsManager::tracker(const std::str
    return it != trackers_.end() ? it->second : nullptr;
 }
 
-std::unordered_map<std::string, std::string> bs::sync::WalletsManager::getHSMDeviceIdToWallet() const
+std::unordered_map<std::string, std::string> bs::sync::WalletsManager::getHwDeviceIdToWallet() const
 {
    std::unordered_map<std::string, std::string> resp;
    for (auto &walletPtr : hdWallets_) {
-      if (!walletPtr->isHsm()) {
+      if (!walletPtr->isHardwareWallet()) {
          continue;
       }
 

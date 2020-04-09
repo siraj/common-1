@@ -97,7 +97,7 @@ namespace bs {
             bool deserialize(BinaryRefReader brr) override;
          };
 
-         struct HSMWalletInfo {
+         struct HwWalletInfo {
             std::string vendor_;
             std::string label_;
             std::string deviceId_;

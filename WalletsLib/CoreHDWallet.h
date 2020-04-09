@@ -82,7 +82,7 @@ namespace bs {
             void setExtOnly(void);
             bool isExtOnly() const { return extOnlyFlag_; }
 
-            bool isHsmWallet() const;
+            bool isHardwareWallet() const;
 
             std::shared_ptr<Group> getGroup(bs::hd::CoinType ct) const;
             std::shared_ptr<Group> createGroup(bs::hd::CoinType ct);
@@ -100,7 +100,7 @@ namespace bs {
             void changeControlPassword(const SecureBinaryData &oldPass, const SecureBinaryData &newPass);
             void eraseControlPassword(const SecureBinaryData &oldPass);
             void createStructure(unsigned lookup = UINT32_MAX);
-            void createHsmStructure(const bs::core::wallet::HSMWalletInfo &walletInfo, unsigned lookup = UINT32_MAX);
+            void createHwStructure(const bs::core::wallet::HwWalletInfo &walletInfo, unsigned lookup = UINT32_MAX);
             void createChatPrivKey();
 
             void shutdown();
@@ -142,7 +142,7 @@ namespace bs {
             std::vector<bs::wallet::PasswordMetaData>             pwdMeta_;
             std::shared_ptr<spdlog::logger>     logger_;
             bool extOnlyFlag_ = false;
-            bool hsmWallet_ = false;
+            bool hwWallet_ = false;
 
             std::shared_ptr<AssetWallet_Single> walletPtr_;
             PassphraseLambda  lbdControlPassphrase_;

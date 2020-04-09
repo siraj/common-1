@@ -281,9 +281,9 @@ void hd::Wallet::changeControlPassword(const SecureBinaryData &oldPass, const Se
    walletPtr_->changeControlPassphrase(newPassCb, lbdControlPassphrase_);
 }
 
-bool bs::core::hd::Wallet::isHsmWallet() const
+bool bs::core::hd::Wallet::isHardwareWallet() const
 {
-   return !pwdMeta_.empty() && pwdMeta_[0].encType == bs::wallet::EncryptionType::HSM;
+   return !pwdMeta_.empty() && pwdMeta_[0].encType == bs::wallet::EncryptionType::Hardware;
 }
 
 void bs::core::hd::Wallet::eraseControlPassword(const SecureBinaryData &oldPass)
@@ -301,9 +301,9 @@ void bs::core::hd::Wallet::eraseControlPassword(const SecureBinaryData &oldPass)
    walletPtr_->eraseControlPassphrase(lbdControlPassphrase_);
 }
 
-void bs::core::hd::Wallet::createHsmStructure(const bs::core::wallet::HSMWalletInfo &walletInfo, unsigned lookup)
+void bs::core::hd::Wallet::createHwStructure(const bs::core::wallet::HwWalletInfo &walletInfo, unsigned lookup)
 {
-   assert(isHsmWallet());
+   assert(isHardwareWallet());
    const auto groupXBT = createGroup(getXBTGroupType());
    assert(groupXBT);
 
@@ -612,7 +612,7 @@ std::shared_ptr<hd::Wallet> hd::Wallet::createWatchingOnly() const
 
 bool hd::Wallet::isWatchingOnly() const
 {
-   return isHsmWallet() || walletPtr_->isWatchingOnly();
+   return isHardwareWallet() || walletPtr_->isWatchingOnly();
 }
 
 static bool nextCombi(std::vector<int> &a , const int n, const int m)
