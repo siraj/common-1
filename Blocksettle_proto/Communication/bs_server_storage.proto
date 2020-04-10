@@ -424,7 +424,8 @@ message DealerSettlementStats
 message DealerSettlementResponse
 {
    string user_email = 1;
-   double success_ratio = 2;
+   string settlement_id = 2;
+   float  success_ratio = 3;
 }
 
 message StorageUserScoreMessage
