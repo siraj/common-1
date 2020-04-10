@@ -364,7 +364,8 @@ std::shared_ptr<bs::TradesVerification::Result> bs::TradesVerification::verifySi
    }
 }
 
-std::shared_ptr<bs::TradesVerification::Result> bs::TradesVerification::verifySignedPayin(const BinaryData &signedPayin, const BinaryData &payinHash, float feePerByte, uint64_t totalPayinFee)
+std::shared_ptr<bs::TradesVerification::Result> bs::TradesVerification::verifySignedPayin(const BinaryData &signedPayin
+   , const BinaryData &payinHash)
 {
    if (signedPayin.empty()) {
       return Result::error("no signed payin provided");
@@ -385,15 +386,6 @@ std::shared_ptr<bs::TradesVerification::Result> bs::TradesVerification::verifySi
       auto txSize = payinTx.getTxWeight();
       if (txSize == 0) {
          return Result::error("failed to get TX weight");
-      }
-
-      // xxx : need to discuss what to do when tx fee is below market.
-      // this is a signed payin, so the fee was checked once within 30s already, which suggest a
-      // network spike. Does this check affect OTC?
-      const uint64_t estimatedFee = feePerByte * txSize;
-      if (estimatedFee > totalPayinFee) {
-         return Result::error(fmt::format("fee too small: {} ({} s/b). Expected: {} ({} s/b)"
-            , totalPayinFee, static_cast<float>(totalPayinFee) / txSize, estimatedFee, feePerByte));
       }
 
       auto result = std::make_shared<Result>();

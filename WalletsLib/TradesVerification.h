@@ -74,7 +74,7 @@ namespace bs {
          , const std::string &buyAuthKeyHex, const std::string &sellAuthKeyHex,  const BinaryData &payinHash
          , uint64_t tradeAmount, float feePerByte, const std::string &settlementId, const std::string &settlementAddress);
 
-      static std::shared_ptr<Result> verifySignedPayin(const BinaryData &signedPayin, const BinaryData &payinHash, float feePerByte, uint64_t totalPayinFee);
+      static std::shared_ptr<Result> verifySignedPayin(const BinaryData &signedPayin, const BinaryData &payinHash);
 
       // preImages - key: address, value:preimage script
       // required for P2SH addresses only
