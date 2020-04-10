@@ -17,6 +17,13 @@
 #include "PublicResolver.h"
 #include "SettableField.h"
 
+namespace {
+
+   // Allow actual fee be 5% lower than expected
+   const float kFeeRateIncreaseThreshold = 0.05f;
+
+}
+
 const char *bs::toString(const bs::PayoutSignatureType t)
 {
    switch (t) {
@@ -251,10 +258,19 @@ std::shared_ptr<bs::TradesVerification::Result> bs::TradesVerification::verifyUn
          deserializedSigner.setFeed(resolver);
       }
 
+      const uint64_t totalFee = totalInput - totalOutputAmount;
+      float feePerByteMin = getAllowedFeePerByteMin(feePerByte);
+      const uint64_t estimatedFeeMin = deserializedSigner.estimateFee(feePerByteMin, totalFee);
+
+      if (totalFee < estimatedFeeMin) {
+         return Result::error(fmt::format("fee is too small: {}, expected: {} ({} s/b)"
+            , totalFee, estimatedFeeMin, feePerByteMin));
+      }
+
       auto result = std::make_shared<Result>();
       result->success = true;
-      result->totalFee = totalInput - totalOutputAmount;
-      result->estimatedFee = deserializedSigner.estimateFee(feePerByte, result->totalFee);
+      result->totalFee = totalFee;
+      result->estimatedFee = estimatedFeeMin;
       result->totalOutputCount = totalOutputCount;
       if (optionalChangeAddr.isValid()) {
          result->changeAddr = optionalChangeAddr.getValue().display();
@@ -330,10 +346,12 @@ std::shared_ptr<bs::TradesVerification::Result> bs::TradesVerification::verifySi
       const uint64_t totalFee = tradeAmount - receiveValue;
       const uint64_t txSize = payoutTx.getTxWeight();
 
-      const uint64_t estimatedFee = feePerByte * txSize;
-      if (estimatedFee > totalFee) {
-         return Result::error(fmt::format("fee too small: {} ({} s/b). Expected: {} ({} s/b)"
-            , totalFee, static_cast<float>(totalFee) / txSize, estimatedFee, feePerByte));
+      float feePerByteMin = getAllowedFeePerByteMin(feePerByte);
+      const float estimatedFeeMin = feePerByteMin * txSize;
+
+      if (totalFee < estimatedFeeMin) {
+         return Result::error(fmt::format("fee is too small: {} ({} s/b). Expected: {} ({} s/b)"
+            , totalFee, static_cast<float>(totalFee) / txSize, estimatedFeeMin, feePerByteMin));
       }
 
       // xxx : add a check for fees that are too high
@@ -444,4 +462,10 @@ try {
    return true;
 } catch (...) {
    return false;
+}
+
+float bs::TradesVerification::getAllowedFeePerByteMin(float feePerByte)
+{
+   // Allow fee to be slightly less than expected (but not less than 1 sat/byte)
+   return std::max(1.0f, feePerByte * (1 - kFeeRateIncreaseThreshold));
 }

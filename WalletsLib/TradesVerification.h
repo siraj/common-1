@@ -80,6 +80,8 @@ namespace bs {
       // required for P2SH addresses only
       static bool XBTInputsAcceptable(const std::vector<UTXO>& utxoList, const std::map<std::string, BinaryData>& preImages);
 
+      static float getAllowedFeePerByteMin(float feePerByte);
+
    };
 
 }
