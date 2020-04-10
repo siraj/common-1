@@ -146,7 +146,8 @@ void bs::tradeutils::createPayin(bs::tradeutils::PayinArgs args, bs::tradeutils:
       }
 
       auto cbFee = [args, cb](float fee) {
-         auto feePerByte = ArmoryConnection::toFeePerByte(fee);
+         auto feePerByteArmory = ArmoryConnection::toFeePerByte(fee);
+         auto feePerByte = std::max(feePerByteArmory, args.feeRatePb_);
          if (feePerByte < 1.0f) {
             cb(PayinResult::error("invalid feePerByte"));
             return;
@@ -349,7 +350,8 @@ void bs::tradeutils::createPayout(bs::tradeutils::PayoutArgs args
       }
 
       auto cbFee = [args, cb, myKeyFirst](float fee) {
-         auto feePerByte = ArmoryConnection::toFeePerByte(fee);
+         auto feePerByteArmory = ArmoryConnection::toFeePerByte(fee);
+         auto feePerByte = std::max(feePerByteArmory, args.feeRatePb_);
          if (feePerByte < 1.0f) {
             cb(PayoutResult::error("invalid feePerByte"));
             return;

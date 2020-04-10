@@ -58,6 +58,11 @@ message Request
         bool confirmation_required = 3;
     }
 
+    message UpdateFeeRate
+    {
+        float fee_rate = 1;
+    }
+
     oneof data
     {
         // Messages
@@ -69,6 +74,7 @@ message Request
         TermRep confirm_cc_address = 35;
         UserStatusUpdated user_status_updated = 36;
         GenAddrUpdated gen_addr_updated = 37;
+        UpdateFeeRate update_fee_rate = 38;
     }
 }
 
