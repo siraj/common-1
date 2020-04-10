@@ -106,11 +106,6 @@ void ArmoryConnection::maintenanceThreadFunc()
    const auto &forEachTarget = [this](const std::function<void(ArmoryCallbackTarget *tgt)> &cb) {
       decltype(activeTargets_) notifiedACTs;
 
-      // go through existing ACT
-      // basically there are 2 cycles as minor optimization
-      // normal path - update once without any changes to ACT set.
-      // during startup there might be new ACT added on some armory events ( state changes usually )
-      // so we need to protect existing ACT from multiple notifications on the same event
       {
          std::unique_lock<std::mutex> lock(cbMutex_);
          notifiedACTs = activeTargets_;
