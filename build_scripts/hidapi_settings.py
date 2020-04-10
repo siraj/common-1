@@ -44,7 +44,7 @@ class HidapiSettings(Configurator):
             sourceDir = 'windows'
         elif self._project_settings.on_linux():
             sourceDir = "libusb"
-        elif self._project_settings.on_mac():
+        elif self._project_settings.on_osx():
             sourceDir = "mac"
 
         self.filter_copy(os.path.join(self.get_unpacked_sources_dir(), sourceDir), self.get_install_dir(), '.c', False)
