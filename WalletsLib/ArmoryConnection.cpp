@@ -62,20 +62,7 @@ ArmoryConnection::ArmoryConnection(const std::shared_ptr<spdlog::logger> &logger
 
 ArmoryConnection::~ArmoryConnection() noexcept
 {
-   {
-      std::unique_lock<std::mutex> lock(actMutex_);
-      maintThreadRunning_ = false;
-      actCV_.notify_one();
-   }
-   stopServiceThreads();
-
-   if (cbRemote_) {
-      cbRemote_->resetConnection();
-   }
-
-   if (maintThread_.joinable()) {
-      maintThread_.join();
-   }
+   shutdown();
    for (const auto &tgt : activeTargets_) {
       tgt->onDestroy();
    }
@@ -89,7 +76,6 @@ bool ArmoryConnection::addTarget(ArmoryCallbackTarget *act)
       logger_->warn("[ArmoryConnection::addTarget] target {} already exists", (void*)act);
       return false;
    }
-   actChanged_ = true;
    activeTargets_.insert(act);
    return true;
 }
@@ -107,7 +93,6 @@ bool ArmoryConnection::removeTarget(ArmoryCallbackTarget *act)
          done.set_value(false);
          return;
       }
-      actChanged_ = true;
       activeTargets_.erase(it);
       done.set_value(true);
    });
@@ -121,52 +106,24 @@ void ArmoryConnection::maintenanceThreadFunc()
    const auto &forEachTarget = [this](const std::function<void(ArmoryCallbackTarget *tgt)> &cb) {
       decltype(activeTargets_) notifiedACTs;
 
-      // go through existing ACT
-      // basically there are 2 cycles as minor optimization
-      // normal path - update once without any changes to ACT set.
-      // during startup there might be new ACT added on some armory events ( state changes usually )
-      // so we need to protect existing ACT from multiple notifications on the same event
       {
          std::unique_lock<std::mutex> lock(cbMutex_);
-         actChanged_ = false;
          notifiedACTs = activeTargets_;
       }
 
       for (const auto &tgt : notifiedACTs) {
-         if (!maintThreadRunning_ || actChanged_) {
+         if (!maintThreadRunning_) {
             break;
          }
          cb(tgt);
-      }
-
-      while (actChanged_ && maintThreadRunning_) {
-         decltype(activeTargets_) tempACT;
-         {
-            std::unique_lock<std::mutex> lock(cbMutex_);
-            actChanged_ = false;
-            tempACT = activeTargets_;
-         }
-
-         for (const auto &tgt : tempACT) {
-            if (!maintThreadRunning_ || actChanged_) {
-               break;
-            }
-
-            auto it = notifiedACTs.find(tgt);
-
-            if (it == notifiedACTs.end()) {
-               cb(tgt);
-               notifiedACTs.emplace_hint(it, tgt);
-            }
-         }
       }
    };
 
    while (maintThreadRunning_) {
       {
          std::unique_lock<std::mutex> lock(actMutex_);
-         if (actQueue_.empty()) {
-            actCV_.wait_for(lock, std::chrono::milliseconds{ 100 });
+         if (actQueue_.empty() && runQueue_.empty()) {
+            actCV_.wait(lock);
          }
       }
       if (!maintThreadRunning_) {
@@ -181,18 +138,14 @@ void ArmoryConnection::maintenanceThreadFunc()
          tempRunQueue.swap(runQueue_);
       }
 
-      if (!tempRunQueue.empty()) {
-         for (const auto &cb : tempRunQueue) {
-            cb();
-         }
+      for (const auto &cb : tempRunQueue) {
+         cb();
       }
 
-      if (!tempQueue.empty()) {
-         for (const auto &cb : tempQueue) {
-            forEachTarget(cb);
-            if (!maintThreadRunning_) {
-               break;
-            }
+      for (const auto &cb : tempQueue) {
+         forEachTarget(cb);
+         if (!maintThreadRunning_) {
+            break;
          }
       }
    }
@@ -207,7 +160,7 @@ void ArmoryConnection::addToMaintQueue(const CallbackQueueCb &cb)
 
 void ArmoryConnection::runOnMaintThread(ArmoryConnection::EmptyCb cb)
 {
-   if (std::this_thread::get_id() == maintThread_.get_id()) {
+   if (std::this_thread::get_id() == maintThread_.get_id() || !maintThreadRunning_) {
       cb();
       return;
    }
@@ -1135,6 +1088,24 @@ std::shared_ptr<AsyncClient::BtcWallet> ArmoryConnection::instantiateWallet(cons
 float ArmoryConnection::toFeePerByte(float fee)
 {
    return float(double(fee) * BTCNumericTypes::BalanceDivider / 1000.0);
+}
+
+void ArmoryConnection::shutdown()
+{
+   {
+      std::unique_lock<std::mutex> lock(actMutex_);
+      maintThreadRunning_ = false;
+      actCV_.notify_one();
+   }
+   stopServiceThreads();
+
+   if (cbRemote_) {
+      cbRemote_->resetConnection();
+   }
+
+   if (maintThread_.joinable()) {
+      maintThread_.join();
+   }
 }
 
 void ArmoryCallback::progress(BDMPhase phase,

@@ -249,6 +249,8 @@ public:
    // Converts BTC/kb (returned by armory) to sat/byte
    static float toFeePerByte(float fee);
 
+   void shutdown();
+
 protected:
    using CallbackQueueCb = std::function<void(ArmoryCallbackTarget *)>;
    void addToMaintQueue(const CallbackQueueCb &);
@@ -290,7 +292,6 @@ protected:
    std::map<BinaryData, std::vector<TxCb>>   txCallbacks_;
 
    std::unordered_set<ArmoryCallbackTarget *>   activeTargets_;
-   std::atomic_bool  actChanged_{ false };
 
    std::thread    regThread_;
    std::mutex     regMutex_;
