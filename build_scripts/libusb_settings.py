@@ -31,7 +31,7 @@ class LibusbSettings(Configurator):
         return True
 
     def config(self):
-        if not self._project_settings.on_linux():
+        if self._project_settings.on_windows():
             return True
 
         command = [os.path.join(self.get_unpacked_sources_dir(), "configure")]
@@ -39,7 +39,7 @@ class LibusbSettings(Configurator):
         return result == 0
 
     def make(self):
-        if not self._project_settings.on_linux():
+        if self._project_settings.on_windows():
             return True
 
         command = ["make"]
@@ -51,7 +51,7 @@ class LibusbSettings(Configurator):
         if not os.path.isdir(self.get_install_dir()):
             os.makedirs(self.get_install_dir())
 
-        if not self._project_settings.on_linux():
+        if self._project_settings.on_windows():
             return True
 
         src_lib_dir = os.path.join(self.get_build_dir(), 'libusb', '.libs')
