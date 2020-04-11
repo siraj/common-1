@@ -455,3 +455,8 @@ bool bs::sync::hd::Wallet::isHardwareWallet() const
 
    return false;
 }
+
+bool hd::Wallet::isFullWallet() const
+{
+   return !isOffline() && !isHardwareWallet() && !isPrimary();
+}

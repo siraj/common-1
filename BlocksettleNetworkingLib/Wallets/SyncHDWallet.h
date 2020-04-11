@@ -56,6 +56,7 @@ namespace bs {
             bool isPrimary() const;
             bool isOffline() const { return isOffline_; }
             bool isHardwareWallet() const;
+            bool isFullWallet() const; // Non-primary but could be promoted
             NetworkType networkType() const { return netType_; }
 
             std::shared_ptr<Group> getGroup(bs::hd::CoinType ct) const;
