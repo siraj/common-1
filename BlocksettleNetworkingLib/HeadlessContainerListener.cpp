@@ -283,7 +283,22 @@ bool HeadlessContainerListener::AuthResponse(const std::string &clientId, headle
    response.set_nettype((netType_ == NetworkType::TestNet) ? headless::TestNetType : headless::MainNetType);
 
    packet.set_data(response.SerializeAsString());
-   return sendData(packet.SerializeAsString(), clientId);
+   bool rc = sendData(packet.SerializeAsString(), clientId);
+
+   if (rc) {
+      const auto &priWallet = walletsMgr_->getPrimaryWallet();
+      if (priWallet && isAutoSignActive(priWallet->walletId())) {
+         headless::AutoSignActEvent autoSignActEvent;
+         autoSignActEvent.set_rootwalletid(priWallet->walletId());
+         autoSignActEvent.set_errorcode(static_cast<uint>(bs::error::ErrorCode::NoError));
+
+         headless::RequestPacket packet;
+         packet.set_type(headless::AutoSignActType);
+         packet.set_data(autoSignActEvent.SerializeAsString());
+         sendData(packet.SerializeAsString());
+      }
+   }
+   return rc;
 }
 
 bool HeadlessContainerListener::onSignTxRequest(const std::string &clientId, const headless::RequestPacket &packet
@@ -346,7 +361,9 @@ bool HeadlessContainerListener::onSignTxRequest(const std::string &clientId, con
       rootWalletId = curRootWalletId;
 
       // get total spent
-      const std::function<bool(const bs::Address &)> &containsAddressCb = [this, walletId](const bs::Address &address){
+      const std::function<bool(const bs::Address &)> &containsAddressCb = [this, walletId]
+         (const bs::Address &address)
+      {
          const auto &hdWallet = walletsMgr_->getHDWalletById(walletId);
          if (hdWallet) {
             for (auto leaf : hdWallet->getLeaves()) {
@@ -364,21 +381,19 @@ bool HeadlessContainerListener::onSignTxRequest(const std::string &clientId, con
          return false;
       };
 
-      if ((wallet->type() == bs::core::wallet::Type::Bitcoin)) {
-         amount += txSignReq.amount(containsAddressCb);
+      if (!amount && (wallet->type() == bs::core::wallet::Type::Bitcoin)) {
+         amount = txSignReq.amount(containsAddressCb);
       }
-
-   }
-
-   // FIXME: review spend limits
-   if (!CheckSpendLimit(amount, rootWalletId)) {
-      SignTXResponse(clientId, packet.id(), reqType, ErrorCode::TxSpendLimitExceed);
-      return false;
    }
 
    if (wallets.empty()) {
       logger_->error("[HeadlessContainerListener] failed to find any wallets");
       SignTXResponse(clientId, packet.id(), reqType, ErrorCode::WalletNotFound);
+      return false;
+   }
+
+   if (!amount || !CheckSpendLimit(amount, rootWalletId)) {
+      SignTXResponse(clientId, packet.id(), reqType, ErrorCode::TxSpendLimitExceed);
       return false;
    }
 
@@ -1734,11 +1749,13 @@ void HeadlessContainerListener::onXbtSpent(int64_t value, bool autoSign)
 {
    if (autoSign) {
       limits_.autoSignSpendXBT -= value;
-      logger_->debug("[HeadlessContainerListener] new auto-sign spend limit =  {}", limits_.autoSignSpendXBT);
+      logger_->debug("[HeadlessContainerListener] new auto-sign spend limit = {} (-{})"
+         , limits_.autoSignSpendXBT, value);
    }
    else {
       limits_.manualSpendXBT -= value;
-      logger_->debug("[HeadlessContainerListener] new manual spend limit =  {}", limits_.manualSpendXBT);
+      logger_->debug("[HeadlessContainerListener] new manual spend limit = {} (-{})"
+         , limits_.manualSpendXBT, value);
    }
 }
 
