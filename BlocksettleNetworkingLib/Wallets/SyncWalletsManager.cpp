@@ -274,7 +274,7 @@ void WalletsManager::walletReset(const std::string &walletId)
 
 void WalletsManager::saveWallet(const HDWalletPtr &wallet)
 {
-   if (!userId_.isNull()) {
+   if (!userId_.empty()) {
       wallet->setUserId(userId_);
    }
    const auto existingHdWallet = getHDWalletById(wallet->walletId());
@@ -813,7 +813,7 @@ bool WalletsManager::getTransactionDirection(Tx tx, const std::string &walletId
 
       for (size_t i = 0; i < tx.getNumTxOut(); ++i) {
          TxOut out = tx.getTxOutCopy((int)i);
-         const auto addrObj = bs::Address::fromHash(out.getScrAddressStr());
+         const auto addrObj = bs::Address::fromTxOut(out);
          const auto addrWallet = getWalletByAddress(addrObj);
          const auto addrGroup = addrWallet ? getGroupByWalletId(addrWallet->walletId()) : nullptr;
          (((addrWallet == wallet) || (group && (group == addrGroup))) ? ourOuts : otherOuts) = true;
@@ -1014,17 +1014,6 @@ void WalletsManager::createSettlementLeaf(const bs::Address &authAddr
       }
    };
    signContainer_->createSettlementWallet(authAddr, cbWrap);
-}
-
-void WalletsManager::onHDWalletCreated(unsigned int id, std::shared_ptr<bs::sync::hd::Wallet> newWallet)
-{
-   if (id != createHdReqId_) {
-      return;
-   }
-   createHdReqId_ = 0;
-   newWallet->synchronize([] {});
-   adoptNewWallet(newWallet);
-   emit walletAdded(newWallet->walletId());
 }
 
 void WalletsManager::startWalletRescan(const HDWalletPtr &hdWallet)
@@ -1767,7 +1756,7 @@ bool WalletsManager::createAuthLeaf(const std::function<void()> &cb)
       return false;
    }
 
-   if (userId_.isNull()) {
+   if (userId_.empty()) {
       logger_->error("[WalletsManager::CreateAuthLeaf] can't create auth leaf without user id");
       return false;
    }
@@ -1840,6 +1829,26 @@ std::map<std::string, std::vector<bs::Address>> WalletsManager::getAddressToWall
 std::shared_ptr<ResolverFeed> WalletsManager::getPublicResolver(const std::map<bs::Address, BinaryData> &piMap)
 {
    return std::make_shared<bs::PublicResolver>(piMap);
+}
+
+std::shared_ptr<bs::sync::hd::SettlementLeaf> WalletsManager::getSettlementLeaf(const bs::Address &addr) const
+{
+   const auto priWallet = getPrimaryWallet();
+   if (!priWallet) {
+      logger_->warn("[WalletsManager::getSettlementLeaf] no primary wallet");
+      return nullptr;
+   }
+   const auto group = priWallet->getGroup(bs::hd::BlockSettle_Settlement);
+   std::shared_ptr<bs::sync::hd::SettlementLeaf> settlLeaf;
+   if (group) {
+      const auto settlGroup = std::dynamic_pointer_cast<bs::sync::hd::SettlementGroup>(group);
+      if (!settlGroup) {
+         logger_->error("[WalletsManager::getSettlementLeaf] wrong settlement group type");
+         return nullptr;
+      }
+      settlLeaf = settlGroup->getLeaf(addr);
+   }
+   return settlLeaf;
 }
 
 bool WalletsManager::mergeableEntries(const bs::TXEntry &entry1, const bs::TXEntry &entry2) const
@@ -1997,7 +2006,7 @@ bs::core::wallet::TXSignRequest WalletsManager::createPartialTXRequest(uint64_t 
    request.outSortOrder = outSortOrder;
    Signer signer;
    bs::CheckRecipSigner prevStateSigner;
-   if (!prevPart.isNull()) {
+   if (!prevPart.empty()) {
       prevStateSigner.deserializeState(prevPart);
       if (feePerByte > 0) {
          fee += prevStateSigner.estimateFee(feePerByte);
@@ -2056,7 +2065,7 @@ bs::core::wallet::TXSignRequest WalletsManager::createPartialTXRequest(uint64_t 
          }
          {
             const uint64_t changeVal = inputAmount - (spendVal + fee);
-            if (changeAddress.isNull()) {
+            if (changeAddress.empty()) {
                throw std::invalid_argument("Change address required, but missing");
             }
             signer.addRecipient(changeAddress.getRecipient(bs::XBTAmount{ changeVal }));
@@ -2077,4 +2086,19 @@ std::shared_ptr<ColoredCoinTrackerClient> WalletsManager::tracker(const std::str
 {
    auto it = trackers_.find(cc);
    return it != trackers_.end() ? it->second : nullptr;
+}
+
+std::unordered_map<std::string, std::string> bs::sync::WalletsManager::getHwDeviceIdToWallet() const
+{
+   std::unordered_map<std::string, std::string> resp;
+   for (auto &walletPtr : hdWallets_) {
+      if (!walletPtr->isHardwareWallet()) {
+         continue;
+      }
+
+      auto encKeys = walletPtr->encryptionKeys();
+      resp[encKeys[0].toBinStr()] = walletPtr->walletId();
+   }
+
+   return resp;
 }

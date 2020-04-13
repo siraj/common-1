@@ -99,7 +99,7 @@ WalletsManager::HDWalletPtr WalletsManager::loadWoWallet(NetworkType netType
          return nullptr;
       }
 
-      if (!controlPassphrase.isNull()) {
+      if (!controlPassphrase.empty()) {
          wallet->changeControlPassword({}, controlPassphrase);
       }
 
@@ -109,6 +109,33 @@ WalletsManager::HDWalletPtr WalletsManager::loadWoWallet(NetworkType netType
       logger_->warn("Failed to load WO-wallet: {}", e.what());
    }
    return nullptr;
+}
+
+WalletsManager::HDWalletPtr WalletsManager::createHwWallet(NetworkType netType, const bs::core::wallet::HwWalletInfo &walletInfo, 
+   const std::string &walletsPath, const SecureBinaryData &ctrlPass /*= {}*/)
+{
+   logger_->debug("Creating Hardware WO-wallet");
+
+   bs::wallet::PasswordData passData;
+   passData.metaData.encType = bs::wallet::EncryptionType::Hardware;
+   passData.metaData.encKey = BinaryData::fromString(walletInfo.deviceId_);
+
+   auto walletId = wallet::computeID(BinaryData::fromString(walletInfo.xpubRoot_)).toBinStr();
+   const auto wallet = std::make_shared<hd::Wallet>(walletInfo.label_, walletInfo.vendor_, walletId
+      ,netType, passData, walletsPath, logger_);
+
+   if (!ctrlPass.empty()) {
+      wallet->changeControlPassword({}, ctrlPass);
+   }
+
+   {
+      const bs::core::WalletPasswordScoped lock(wallet, ctrlPass);
+      wallet->createHwStructure(walletInfo);
+   }
+
+   saveWallet(wallet);
+
+   return wallet;
 }
 
 void WalletsManager::changeControlPassword(const SecureBinaryData &oldPass, const SecureBinaryData &newPass)
@@ -346,7 +373,7 @@ WalletsManager::HDWalletPtr WalletsManager::createWallet(
       if (primary) {
          newWallet->createChatPrivKey();
          auto group = newWallet->createGroup(bs::hd::CoinType::BlockSettle_Auth);
-         if (!userId_.isNull()) {
+         if (!userId_.empty()) {
             newWallet->createGroup(bs::hd::CoinType::BlockSettle_Settlement);
             const auto authGroup = std::dynamic_pointer_cast<bs::core::hd::AuthGroup>(group);
             if (authGroup) {

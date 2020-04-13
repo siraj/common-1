@@ -456,7 +456,7 @@ UTXO ValidationAddressManager::getVettingUtxo(const bs::Address &validationAddr
       auto scrAddr = utxo.getRecipientScrAddr();
 
       //filter by desired validation address if one was provided
-      if (!validationAddr.isNull() && (scrAddr != validationAddr.prefixed())) {
+      if (!validationAddr.empty() && (scrAddr != validationAddr.prefixed())) {
          continue;
       }
       auto maStructPtr = getValidationAddress(scrAddr);
@@ -493,7 +493,7 @@ std::vector<UTXO> ValidationAddressManager::filterVettingUtxos(
       auto scrAddr = utxo.getRecipientScrAddr();
 
       //filter by desired validation address if one was provided
-      if (!validationAddr.isNull() && (scrAddr != validationAddr.prefixed())) {
+      if (!validationAddr.empty() && (scrAddr != validationAddr.prefixed())) {
          continue;
       }
       auto maStructPtr = getValidationAddress(scrAddr);
@@ -719,7 +719,7 @@ BinaryData ValidationAddressManager::revokeValidationAddress(
    //sign & serialize tx
    signer.sign();
    auto signedTx = signer.serialize();
-   if (signedTx.isNull()) {
+   if (signedTx.empty()) {
       throw AuthLogicException("failed to sign");
    }
    //broadcast the zc
@@ -744,7 +744,7 @@ BinaryData ValidationAddressManager::revokeUserAddress(
       throw AuthLogicException("invalid user auth address");
    }
    auto& validationAddr = findValidationAddressForTxHash(paths[0].txHash_);
-   if (validationAddr.isNull()) {
+   if (validationAddr.empty()) {
       throw AuthLogicException("invalidated validation address");
    }
    auto validationAddrPtr = getValidationAddress(validationAddr);

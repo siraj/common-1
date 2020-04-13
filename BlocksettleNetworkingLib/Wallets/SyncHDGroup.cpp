@@ -49,12 +49,18 @@ std::vector<std::shared_ptr<hd::Leaf>> hd::Group::getLeaves() const
 
 std::vector<std::shared_ptr<bs::sync::Wallet>> hd::Group::getAllLeaves() const
 {
-   std::vector<std::shared_ptr<bs::sync::Wallet>> result;
+   std::vector<std::shared_ptr<hd::Leaf>> result;
    result.reserve(leaves_.size());
    for (const auto &leaf : leaves_) {
       result.emplace_back(leaf.second);
    }
-   return result;
+
+   auto byPriority = [](const std::shared_ptr<hd::Leaf> &left, const std::shared_ptr<hd::Leaf> &right) {
+      return left->path().priority() < right->path().priority();
+   };
+   std::sort(result.begin(), result.end(), byPriority);
+
+   return std::vector<std::shared_ptr<bs::sync::Wallet>>(result.begin(), result.end());
 }
 
 std::shared_ptr<hd::Leaf> hd::Group::createLeaf(const bs::hd::Path &path, const std::string &walletId)
@@ -180,7 +186,7 @@ void hd::AuthGroup::setUserId(const BinaryData &userId)
       leaf.second->setUserId(userId);
    }
 
-   if (userId.isNull() && !leaves_.empty()) {
+   if (userId.empty() && !leaves_.empty()) {
       const auto leaves = leaves_;
       for (const auto &leaf : leaves) {
          deleteLeaf(leaf.first);

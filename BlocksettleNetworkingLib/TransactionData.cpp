@@ -338,7 +338,7 @@ double TransactionData::CalculateMaxAmount(const bs::Address &recipient, bool fo
          }
          recipientsMap[recipId++] = recipPtr;
       }
-      if (!recipient.isNull()) {
+      if (!recipient.empty()) {
          const auto recipPtr = recipient.getRecipient(bs::XBTAmount{ 0.001 });  // spontaneous output amount, shouldn't be 0
          if (recipPtr) {
             recipientsMap[recipId++] = recipPtr;
@@ -741,12 +741,42 @@ std::vector<std::shared_ptr<ScriptRecipient>> TransactionData::GetRecipientList(
 bs::core::wallet::TXSignRequest TransactionData::createTXRequest(bool isRBF
    , const bs::Address &changeAddr) const
 {
-   if (!wallet_ && !group_) {
+   std::vector<std::shared_ptr<bs::sync::Wallet>> wallets;
+   if (group_) {
+      for (const auto &wallet : group_->getLeaves()) {
+         wallets.push_back(wallet);
+      }
+   } else if (wallet_) {
+      wallets.push_back(wallet_);
+   }
+   if (wallets.empty()) {
+      SPDLOG_LOGGER_ERROR(logger_, "no wallets found");
       return {};
    }
+
+   std::vector<std::string> walletIds;
+   for (const auto &wallet : wallets) {
+      walletIds.push_back(wallet->walletId());
+   }
+
+   std::string changeIndex;
+   if (!changeAddr.empty()) {
+      for (const auto &wallet : wallets) {
+         changeIndex = wallet->getAddressIndex(changeAddr);
+         if (!changeIndex.empty()) {
+            wallet->setAddressComment(changeAddr, bs::sync::wallet::Comment::toString(bs::sync::wallet::Comment::ChangeAddress));
+            break;
+         }
+      }
+      if (changeIndex.empty()) {
+         SPDLOG_LOGGER_ERROR(logger_, "can't find change address index");
+         return {};
+      }
+   }
+
    const auto fee = summary_.totalFee ? summary_.totalFee : totalFee();
-   auto txReq = wallet_->createTXRequest(inputs(), GetRecipientList()
-      , fee, isRBF, changeAddr);
+   auto txReq = bs::sync::wallet::createTXRequest(walletIds, inputs(), GetRecipientList()
+      , changeAddr, changeIndex, fee, isRBF);
    if (group_) {
       txReq.walletIds.clear();
       std::set<std::string> walletIds;

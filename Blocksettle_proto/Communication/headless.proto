@@ -40,6 +40,8 @@ enum RequestType
    AddressPreimageType         = 33;
    ChatNodeRequestType         = 34;
    UpdateStatusType            = 35; // sent to terminal with latest status update
+   SettlementAuthType          = 36;
+   SettlementCPType            = 37;
 }
 
 message RequestPacket
@@ -381,6 +383,7 @@ enum EncryptionType
    EncryptionTypeUnencrypted = 0;
    EncryptionTypePassword    = 1;
    EncryptionTypeAutheID     = 2;
+   EncryptionTypeHw          = 3;
 }
 
 message SyncWalletResponse
@@ -414,6 +417,20 @@ message SyncCommentRequest
    string comment = 4;
 }
 
+message SettlementAuthAddress
+{
+   string wallet_id = 1;
+   bytes  settlement_id = 2;
+   string auth_address = 3;
+}
+
+message SettlementCounterparty
+{
+   string wallet_id = 1;
+   bytes  payin_hash = 2;
+   bytes  settlement_id = 3;
+   bytes  cp_public_key = 4;
+}
 
 enum SyncState
 {

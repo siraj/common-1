@@ -647,3 +647,59 @@ void InprocSigner::getChatNode(const std::string &walletID
    const auto chatNode = hdWallet->getChatNode();
    cb(chatNode);
 }
+
+std::shared_ptr<bs::core::hd::Leaf> InprocSigner::getAuthLeaf() const
+{
+   const auto &priWallet = walletsMgr_->getPrimaryWallet();
+   if (priWallet) {
+      const auto &authGroup = priWallet->getGroup(bs::hd::BlockSettle_Auth);
+      if (authGroup) {
+         const bs::hd::Path authPath({ bs::hd::Purpose::Native, bs::hd::BlockSettle_Auth, 0 });
+         return authGroup->getLeafByPath(authPath);
+      }
+   }
+   return nullptr;
+}
+
+void InprocSigner::setSettlAuthAddr(const std::string &walletId, const BinaryData &settlId
+   , const bs::Address &addr)
+{
+   const auto &authLeaf = getAuthLeaf();
+   if (authLeaf) {
+      authLeaf->setSettlementMeta(settlId, addr);
+   }
+}
+
+void InprocSigner::getSettlAuthAddr(const std::string &walletId, const BinaryData &settlId
+   , const std::function<void(const bs::Address &)> &cb)
+{
+   const auto &authLeaf = getAuthLeaf();
+   if (authLeaf) {
+      cb(authLeaf->getSettlAuthAddr(settlId));
+   }
+   else {
+      cb({});
+   }
+}
+
+void InprocSigner::setSettlCP(const std::string &walletId, const BinaryData &payinHash
+   , const BinaryData &settlId, const BinaryData &cpPubKey)
+{
+   const auto &authLeaf = getAuthLeaf();
+   if (authLeaf) {
+      authLeaf->setSettlCPMeta(payinHash, settlId, cpPubKey);
+   }
+}
+
+void InprocSigner::getSettlCP(const std::string &walletId, const BinaryData &payinHash
+   , const std::function<void(const BinaryData &, const BinaryData &)> &cb)
+{
+   const auto &authLeaf = getAuthLeaf();
+   if (authLeaf) {
+      const auto &keys = authLeaf->getSettlCP(payinHash);
+      cb(keys.first, keys.second);
+   }
+   else {
+      cb({}, {});
+   }
+}

@@ -83,6 +83,16 @@ void hd::Path::clear()
    path_.clear();
 }
 
+int hd::Path::priority() const
+{
+   auto type = get(0) & ~bs::hd::hardFlag;
+   switch (type) {
+      case bs::hd::Purpose::Native:    return 0;
+      case bs::hd::Purpose::Nested:    return 1;
+      default:                         return 2;
+   }
+}
+
 void hd::Path::append(Elem elem)
 {
    path_.push_back(elem);

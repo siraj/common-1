@@ -47,6 +47,7 @@ namespace bs {
          class CCLeaf;
          class DummyWallet;
          class Group;
+         class SettlementLeaf;
          class Wallet;
       }
       class Wallet;
@@ -83,6 +84,7 @@ namespace bs {
          HDWalletPtr getPrimaryWallet() const;
 //         std::shared_ptr<hd::DummyWallet> getDummyWallet() const { return hdDummyWallet_; }
          std::vector<WalletPtr> getAllWallets() const;
+         std::unordered_map<std::string, std::string> getHwDeviceIdToWallet() const;
          WalletPtr getWalletById(const std::string& walletId) const;
          WalletPtr getWalletByAddress(const bs::Address &addr) const;
          WalletPtr getDefaultWallet() const;
@@ -114,7 +116,7 @@ namespace bs {
          bool deleteWallet(HDWalletPtr, bool deleteRemotely);
 
          void setUserId(const BinaryData &userId);
-         bool isUserIdSet() const { return !userId_.isNull(); }
+         bool isUserIdSet() const { return !userId_.empty(); }
          std::shared_ptr<CCDataResolver> ccResolver() const { return ccResolver_; }
 
          bool isArmoryReady() const;
@@ -144,6 +146,9 @@ namespace bs {
 
          std::map<std::string, std::vector<bs::Address>> getAddressToWalletsMapping(const std::vector<UTXO> &) const;
          static std::shared_ptr<ResolverFeed> getPublicResolver(const std::map<bs::Address, BinaryData> &);
+
+         std::shared_ptr<bs::sync::hd::SettlementLeaf> getSettlementLeaf(const bs::Address &addr) const;
+         bool hasSettlementLeaf(const bs::Address &addr) const { return (getSettlementLeaf(addr) != nullptr); }
 
          bool mergeableEntries(const bs::TXEntry &, const bs::TXEntry &) const;
          std::vector<bs::TXEntry> mergeEntries(const std::vector<bs::TXEntry> &) const;
@@ -200,7 +205,6 @@ namespace bs {
          void onStateChanged(ArmoryState) override;
 
       private slots:
-         void onHDWalletCreated(unsigned int id, std::shared_ptr<bs::sync::hd::Wallet>);
          void onWalletsListUpdated();
          void onAuthLeafAdded(const std::string &walletId);
 
@@ -303,8 +307,6 @@ namespace bs {
          mutable std::map<unsigned int, QDateTime> lastFeePerByte_;
          std::map<QObject *, std::map<unsigned int
             , std::pair<QPointer<QObject>, std::function<void(float)>>>> feeCallbacks_;
-
-         unsigned int createHdReqId_ = 0;
 
          enum class WalletsSyncState 
          {

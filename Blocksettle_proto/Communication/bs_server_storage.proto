@@ -133,6 +133,21 @@ message SaveNewResponse
    bool success = 1;
 }
 
+message CcToken
+{
+   string email = 1;
+   string cc_product = 2;
+   uint32 bs_seed = 3;
+}
+
+enum CcTokenStatus
+{
+   CC_TOKEN_STATUS_FAILED = 0;
+   CC_TOKEN_STATUS_NOT_FOUND = 1;
+   CC_TOKEN_STATUS_FOUND = 2;
+   CC_TOKEN_STATUS_COMPLETE= 3;
+}
+
 message ExportRequestFiles
 {
    string export_path = 1;
@@ -163,6 +178,12 @@ enum RequestStorageMessageType
    RequestCompletedType           = 5;
    PendingRequestsStatistics      = 6;
 
+   AddCcTokenRequest              = 7;
+   AddCcTokenResponse             = 8;
+   VerifyCcTokenRequest           = 9;
+   VerifyCcTokenResponse          = 10;
+   CompleteCcTokenRequest         = 11;
+   CompleteCcTokenResponse        = 12;
 }
 
 enum RequestFileType
@@ -235,6 +256,12 @@ message StorageRequestsMessage
       ExportRequestFilesResponse export_response   = 5;
       RequestCompletedUpdate     completed_request = 6;
       PendingRequestsInfo        pending_requests_statistics = 7;
+      CcToken                    add_cc_token_request          = 9;
+      bool                       add_cc_token_response         = 10;
+      CcToken                    verify_cc_token_request       = 11;
+      CcTokenStatus              verify_cc_token_response      = 12;
+      CcToken                    complete_cc_token_request     = 13;
+      bool                       complete_cc_token_response    = 14;
    }
 }
 
@@ -350,10 +377,28 @@ message UserScoreUpdateEvent
       SignedPayinSentBeforeRequested   = 8;
       DuplicateSignedPayinDelivery     = 9;
       SignedPayinFromUnexpectedUser    = 10;
+
+      PayinPushMempoolConflict         = 11;
+      PayoutPushMempoolConflict        = 12;
+
+      InvalidAuthAddressUsed           = 13;
+      SignedPayinTimeout               = 14;
+
+      ReservedUTXOUsed                 = 15;
+
+      UserBanFromCLI                   = 16;
+      ResetUserScoreFromCLI            = 17;
+
+      SignedPayoutTimeout              = 18;
+
+      AttemptToCancelAnothersTrade     = 19;
+      AttemptToCancelTradeAfterSign    = 20;
+      SignedPayinToCancelledTrade      = 21;
    };
 
-   string               user_email  = 1;
-   ScoreUpdateEventType reason      = 2;
+   string               user_email     = 1;
+   ScoreUpdateEventType reason         = 2;
+   string               settlement_id  = 3;
 }
 
 message UserScoreRequest
@@ -372,14 +417,13 @@ message StorageUserScoreMessage
 {
    oneof data {
       UserScoreUpdateEvent update_score_request    = 1;
-      UserScoreRequest     reset_score_request     = 2;
-      UserScoreRequest     load_score_request      = 3;
-      UserScoreData        update_score_response   = 4;
-      UserScoreData        reset_score_response    = 5;
+      UserScoreRequest     ban_user_request        = 2;
+      UserScoreRequest     reset_score_request     = 3;
+      UserScoreRequest     load_score_request      = 4;
+      UserScoreData        update_score_response   = 5;
       UserScoreData        load_score_response     = 6;
    }
 }
-
 
 message StorageMessage
 {

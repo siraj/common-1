@@ -12,6 +12,7 @@
 #include <spdlog/spdlog.h>
 #include "SystemFileUtils.h"
 #include "Wallets.h"
+#include "Assets.h"
 
 
 #define LOG(logger, method, ...) \
@@ -52,6 +53,30 @@ hd::Wallet::Wallet(const std::string &name, const std::string &desc
 {
    wallet::Seed seed(CryptoPRNG::generateRandom(32), netType);
    initNew(seed, pd, folder);
+}
+
+bs::core::hd::Wallet::Wallet(const std::string &name, const std::string &desc,
+   const std::string& walletID, NetworkType netType, const bs::wallet::PasswordData & pd,
+   const std::string& folder, const std::shared_ptr<spdlog::logger> &logger /*= nullptr*/)
+   : name_(name), desc_(desc)
+   , netType_(netType)
+   , logger_(logger)
+{
+   walletPtr_ = AssetWallet_Single::createSeedless_WatchingOnly(
+      folder, walletID, pd.controlPassword);
+   filePathName_ = folder;
+   DBUtils::appendPath(filePathName_, walletPtr_->getDbFilename());
+
+   lbdControlPassphrase_ = [controlPassphrase = pd.controlPassword]
+   (const std::set<BinaryData>&)->SecureBinaryData
+   {
+      return controlPassphrase;
+   };
+
+   pwdMeta_.push_back(pd.metaData);
+
+   initializeDB();
+   writeToDB();
 }
 
 hd::Wallet::~Wallet()
@@ -256,6 +281,11 @@ void hd::Wallet::changeControlPassword(const SecureBinaryData &oldPass, const Se
    walletPtr_->changeControlPassphrase(newPassCb, lbdControlPassphrase_);
 }
 
+bool bs::core::hd::Wallet::isHardwareWallet() const
+{
+   return !pwdMeta_.empty() && pwdMeta_[0].encType == bs::wallet::EncryptionType::Hardware;
+}
+
 void bs::core::hd::Wallet::eraseControlPassword(const SecureBinaryData &oldPass)
 {
    auto nbTries = std::make_shared<int>(0);
@@ -269,6 +299,23 @@ void bs::core::hd::Wallet::eraseControlPassword(const SecureBinaryData &oldPass)
    };
 
    walletPtr_->eraseControlPassphrase(lbdControlPassphrase_);
+}
+
+void bs::core::hd::Wallet::createHwStructure(const bs::core::wallet::HwWalletInfo &walletInfo, unsigned lookup)
+{
+   assert(isHardwareWallet());
+   const auto groupXBT = createGroup(getXBTGroupType());
+   assert(groupXBT);
+
+   std::map<AddressEntryType, std::string> xpubs = {
+      { static_cast<AddressEntryType>(AddressEntryType_P2SH | AddressEntryType_P2WPKH), walletInfo.xpubNestedSegwit_ },
+      { AddressEntryType_P2WPKH, walletInfo.xpubNativeSegwit_ }
+   };
+
+   for (const auto &aet : groupXBT->getAddressTypeSet()) {
+      groupXBT->createLeafFromXpub(xpubs[aet], aet, 0u, lookup);
+   }
+   writeToDB();
 }
 
 void hd::Wallet::createStructure(unsigned lookup)
@@ -315,7 +362,7 @@ void hd::Wallet::createChatPrivKey()
 
 BIP32_Node hd::Wallet::getChatNode() const
 {
-   if (!chatNode_.getPrivateKey().isNull()) {
+   if (!chatNode_.getPrivateKey().empty()) {
       return chatNode_;
    }
    try {
@@ -565,7 +612,7 @@ std::shared_ptr<hd::Wallet> hd::Wallet::createWatchingOnly() const
 
 bool hd::Wallet::isWatchingOnly() const
 {
-   return walletPtr_->isWatchingOnly();
+   return isHardwareWallet() || walletPtr_->isWatchingOnly();
 }
 
 static bool nextCombi(std::vector<int> &a , const int n, const int m)

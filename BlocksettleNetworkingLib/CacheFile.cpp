@@ -109,7 +109,7 @@ void CacheFile::read()
 
       BinaryRefReader brrVal(valueBDR);
       const BinaryData value(brrVal.getCurrPtr(), brrVal.getSizeRemaining());
-      if (!key.isNull()) {
+      if (!key.empty()) {
          map_.emplace(key, value);
       }
 
@@ -239,7 +239,7 @@ std::shared_ptr<const Tx> TxCacheFile::get(const BinaryData &key)
       return itTx->second;
    }
    const auto &data = CacheFile::get(key);
-   if (data.isNull()) {
+   if (data.empty()) {
       return nullptr;
    }
    const auto tx = std::make_shared<Tx>(data);

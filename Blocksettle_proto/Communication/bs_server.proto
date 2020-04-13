@@ -90,6 +90,7 @@ message ArmoryPushTxRequest
 {
    bytes  tx = 1;
    bytes  tx_hash = 2;
+   string settlement_id = 3;	// optional
 }
 
 enum ArmoryPushTxResult
@@ -101,6 +102,7 @@ enum ArmoryPushTxResult
    ArmoryPushTxBroadcastTimeout = 4;
    ArmoryPushTxOtherError = 5;
    ArmoryPushTxAlreadyInChain = 6;
+   ArmoryPushTxAlreadyInMempool = 7;
 }
 
 message ArmoryPushTxResponse
@@ -108,6 +110,7 @@ message ArmoryPushTxResponse
    bytes tx_hash = 1;
    ArmoryPushTxResult result = 2;
    string error_message = 3;
+   string settlement_id = 4;
 }
 
 message ArmoryPushXbtTXsRequest
@@ -296,33 +299,40 @@ message CCValidateHalvesResponse
 
 message CCUpdatedGenesisAddress
 {
-   string cc_name = 1;
-   repeated string ga_addresses = 2;
+   string cc_name    = 1;
+   string ga_address = 2;
 }
 
+message LoadedCCDefinition
+{
+   string cc_name       = 1;
+   string ga_address    = 2;
+   int32  lot_size      = 3;
+}
 
 enum CcTrackMessageType
 {
    CcTrackUnknownType         = 0;
-   CcTrackOnline              = 1;
-   CcTrackCCDefinitions       = 2;
-   CcTrackIsTxValid           = 4;
-   CcTrackValidateHalves      = 5;
-   CcTrackNewDefinitions      = 6;
-   CcTrackDisabledDefinition  = 7;
-   CcUpdatedGenesisAddress    = 8;
+   CcTrackCCDefinitions       = 1;
+   CcTrackIsTxValid           = 2;
+   CcTrackValidateHalves      = 3;
+   CcTrackNewDefinitions      = 4;
+   CcTrackDisabledDefinition  = 5;
+   CcUpdatedGenesisAddress    = 6;
+   CCDefinitionLoaded         = 7;
 }
 
 message CcTrackMessage
 {
    CcTrackMessageType type = 1;
    oneof data {
-      CCDefinitionsData          cc_definitions = 2;
-      CCTxValidRequest           tx_valid_request = 4;
-      CCTxValidResponse          tx_valid_response = 5;
-      CCValidateHalvesRequest    cc_valid_request = 6;
-      CCValidateHalvesResponse   cc_valid_response = 7;
-      CCUpdatedGenesisAddress    updated_genesis_address = 8;
+      CCDefinitionsData          cc_definitions          = 2;
+      CCTxValidRequest           tx_valid_request        = 3;
+      CCTxValidResponse          tx_valid_response       = 4;
+      CCValidateHalvesRequest    cc_valid_request        = 5;
+      CCValidateHalvesResponse   cc_valid_response       = 6;
+      CCUpdatedGenesisAddress    updated_genesis_address = 7;
+      LoadedCCDefinition         loaded_cc_definition    = 8;
    }
 }
 
@@ -790,40 +800,38 @@ message MktDataMessage
 
 enum CelerType
 {
-   CelerUnknownType           = 0;
-   CelerTradeHistConnected    = 1;
-   CelerClientConnected       = 2;
-   CelerReconnect             = 3;
-   CelerTradeHistDisconnected = 4;
-   CelerClientDisconnected    = 5;
-   CelerMerchantConnected     = 6;
-   CelerMerchantDisconnected  = 7;
-   CelerPiggyBankConnected    = 8;
-   CelerPiggyBankDisconnected = 9;
-   CelerDataConnected         = 10;
-   CelerDataDisconnected      = 11;
-   CelerSetUserProperties     = 12;
-   CelerUpdateBalance         = 13;
-   CelerSaveTrade             = 14;
-   CelerSaveCcTrade           = 15;
-   CelerRegisterCcDefinition  = 16;
-   CelerNewCCCreated          = 17;
-   CelerCreateUser            = 18;
-   CelerSubscribeMerchant     = 19;
-   CelerVerifyXBTQuote        = 20;
-   CelerVerifyXBTQuoteRequest = 21;
-   CelerReserveCashForXBTRequest = 22;
-   CelerXBTTradeRequestType   = 23;
-   CelerFxTradeRequestType    = 24;
-   CelerVerifyCCQuote         = 25;
-   CelerVerifyCCQuoteRequest  = 26;
-   CelerVerifyCCAcceptedQuote = 27;
-   CelerCCTradeRequest        = 28;
-   CelerWarehouseConfiguration = 29;
-   CelerSecurityDefinition    = 30;
-   CelerGetBalanceRequest     = 31;
-   CelerGetAccountsRequest    = 32;
-   CelerNewAccountAck         = 33;
+   CelerUnknownType              = 0;
+   CelerClientConnected          = 1;
+   CelerReconnect                = 2;
+   CelerClientDisconnected       = 3;
+   CelerMerchantConnected        = 4;
+   CelerMerchantDisconnected     = 5;
+   CelerPiggyBankConnected       = 6;
+   CelerPiggyBankDisconnected    = 7;
+   CelerDataConnected            = 8;
+   CelerDataDisconnected         = 9;
+   CelerSetUserProperties        = 10;
+   CelerUpdateBalance            = 11;
+   CelerSaveTrade                = 12;
+   CelerSaveCcTrade              = 13;
+   CelerRegisterCcDefinition     = 14;
+   CelerNewCCCreated             = 15;
+   CelerCreateUser               = 16;
+   CelerSubscribeMerchant        = 17;
+   CelerVerifyXBTQuote           = 18;
+   CelerVerifyXBTQuoteRequest    = 19;
+   CelerReserveCashForXBTRequest = 20;
+   CelerXBTTradeRequestType      = 21;
+   CelerFxTradeRequestType       = 22;
+   CelerVerifyCCQuote            = 23;
+   CelerVerifyCCQuoteRequest     = 24;
+   CelerVerifyCCAcceptedQuote    = 25;
+   CelerCCTradeRequest           = 26;
+   CelerWarehouseConfiguration   = 27;
+   CelerSecurityDefinition       = 28;
+   CelerGetBalanceRequest        = 29;
+   CelerGetAccountsRequest       = 30;
+   CelerNewAccountAck            = 31;
 }
 
 message CelerSavedTrade
@@ -1144,11 +1152,13 @@ message SettlementTxMessage
 
 enum TerminalMessageType
 {
-   TerminalUnknownType = 0;
-   TerminalSendBlotterUpdate = 1;
-   TerminalUnsignedPayinRequest = 2;
-   TerminalSignedPayinRequest = 3;
-   TerminalSignedPayoutRequest = 4;
+   TerminalUnknownType           = 0;
+   TerminalSendBlotterUpdate     = 1;
+   TerminalUnsignedPayinRequest  = 2;
+   TerminalSignedPayinRequest    = 3;
+   TerminalSignedPayoutRequest   = 4;
+   TerminalXBTTradeCancel        = 5;
+   TerminalCCTradeCancel         = 6;
    TerminalOtcStart     = 10;
    TerminalOtcVerify    = 11;
    TerminalOtcSealPayin = 12;

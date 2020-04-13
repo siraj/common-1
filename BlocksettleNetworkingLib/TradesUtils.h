@@ -134,7 +134,7 @@ namespace bs {
       void createPayin(PayinArgs args, PayinResultCb cb);
 
       // Callback is called from background thread
-      void createPayout(PayoutArgs args, PayoutResultCb cb);
+      void createPayout(PayoutArgs args, PayoutResultCb cb, bool myKeyFirst = true);
 
       struct PayoutVerifyArgs
       {

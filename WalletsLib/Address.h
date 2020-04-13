@@ -34,7 +34,8 @@ namespace bs {
          Base58,
          Hex,
          Bech32,
-         Binary
+         Binary,
+         String
       };
 
       Address(void) : BinaryData()

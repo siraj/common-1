@@ -102,6 +102,7 @@ public:
    DIALOG_KEY(TxInputProduct)
    DIALOG_KEY(WalletId)
    DIALOG_KEY(XBT)
+   DIALOG_KEY(TxRequest)
 
 #ifdef QT_CORE_LIB
    Q_OBJECT

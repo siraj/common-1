@@ -139,6 +139,7 @@ public:
       LastAqDir,
       proxyServerPubKey,
       ccServerPubKey,
+      HideCreateAccountPromptTestnet,
       _last
    };
 

@@ -163,7 +163,7 @@ void bs::tradeutils::createPayin(bs::tradeutils::PayinArgs args, bs::tradeutils:
 
          auto cbSettlAddr = [args, cb, feePerByte, xbtWallet](const bs::Address &settlAddr)
          {
-            if (settlAddr.isNull()) {
+            if (settlAddr.empty()) {
                cb(PayinResult::error("invalid settl addr"));
                return;
             }
@@ -218,7 +218,8 @@ void bs::tradeutils::createPayin(bs::tradeutils::PayinArgs args, bs::tradeutils:
                               walletIds.push_back(wallet->walletId());
                            }
 
-                           result.signRequest = bs::sync::wallet::createTXRequest(walletIds, selectedInputs, recipients, changeAddr, fee, false);
+                           std::string changeIndex = changeAddr.empty() ? "" : xbtWallet->getAddressIndex(changeAddr);
+                           result.signRequest = bs::sync::wallet::createTXRequest(walletIds, selectedInputs, recipients, changeAddr, changeIndex, fee, false);
                            result.preimageData = preimages;
                            result.payinHash = result.signRequest.txId(resolver);
 
@@ -331,7 +332,8 @@ UTXO bs::tradeutils::getInputFromTX(const bs::Address &addr
       , BtcUtils::getP2WSHOutputScript(addr.unprefixed()));
 }
 
-void bs::tradeutils::createPayout(bs::tradeutils::PayoutArgs args, bs::tradeutils::PayoutResultCb cb)
+void bs::tradeutils::createPayout(bs::tradeutils::PayoutArgs args
+   , bs::tradeutils::PayoutResultCb cb, bool myKeyFirst)
 {
    auto leaf = findSettlementLeaf(args.walletsMgr, args.ourAuthAddress);
    if (!leaf) {
@@ -339,14 +341,15 @@ void bs::tradeutils::createPayout(bs::tradeutils::PayoutArgs args, bs::tradeutil
       return;
    }
 
-   leaf->setSettlementID(args.settlementId, [args, cb](bool result)
+   leaf->setSettlementID(args.settlementId, [args, cb, myKeyFirst]
+      (bool result)
    {
       if (!result) {
          cb(PayoutResult::error("setSettlementID failed"));
          return;
       }
 
-      auto cbFee = [args, cb](float fee) {
+      auto cbFee = [args, cb, myKeyFirst](float fee) {
          auto feePerByteArmory = ArmoryConnection::toFeePerByte(fee);
          auto feePerByte = std::max(feePerByteArmory, args.feeRatePb_);
          if (feePerByte < 1.0f) {
@@ -362,7 +365,7 @@ void bs::tradeutils::createPayout(bs::tradeutils::PayoutArgs args, bs::tradeutil
 
          auto cbSettlAddr = [args, cb, feePerByte](const bs::Address &settlAddr) {
             auto recvAddrCb = [args, cb, feePerByte, settlAddr](const bs::Address &recvAddr) {
-               if (settlAddr.isNull()) {
+               if (settlAddr.empty()) {
                   cb(PayoutResult::error("invalid settl addr"));
                   return;
                }
@@ -377,15 +380,13 @@ void bs::tradeutils::createPayout(bs::tradeutils::PayoutArgs args, bs::tradeutil
                cb(std::move(result));
             };
 
-            if (!args.recvAddr.isNull()) {
+            if (!args.recvAddr.empty()) {
                recvAddrCb(args.recvAddr);
             } else {
                // BST-2474: All addresses related to trading, not just change addresses, should use internal addresses
                args.outputXbtWallet->getNewIntAddress(recvAddrCb);
             }
          };
-
-         const bool myKeyFirst = true;
          primaryHdWallet->getSettlementPayinAddress(args.settlementId, args.cpAuthPubKey, cbSettlAddr, myKeyFirst);
       };
 

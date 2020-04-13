@@ -379,8 +379,8 @@ std::unique_ptr<ZmqBIP15XPeer> ZmqBIP15XServerConnection::getClientKey(const str
       return nullptr;
    }
 
-   auto pubKey = ZmqBIP15XUtils::convertCompressedKey(it->second->encData_->getChosenAuthPeerKey());
-   if (pubKey.isNull()) {
+   const auto &pubKey = ZmqBIP15XUtils::convertCompressedKey(it->second->encData_->getChosenAuthPeerKey());
+   if (pubKey.empty()) {
       SPDLOG_LOGGER_ERROR(logger_, "ZmqBIP15XUtils::convertCompressedKey failed");
       return nullptr;
    }
@@ -762,8 +762,8 @@ bool ZmqBIP15XServerConnection::processAEADHandshake(
          }
 
          if (!forcedTrustedClients_.empty()) {
-            auto chosenKey = ZmqBIP15XUtils::convertCompressedKey(connection->encData_->getChosenAuthPeerKey());
-            if (chosenKey.isNull()) {
+            const auto &chosenKey = ZmqBIP15XUtils::convertCompressedKey(connection->encData_->getChosenAuthPeerKey());
+            if (chosenKey.empty()) {
                SPDLOG_LOGGER_ERROR(logger_, "invalid choosed public key for forced trusted clients");
                return false;
             }

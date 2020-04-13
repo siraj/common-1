@@ -325,7 +325,7 @@ bool CheckRecipSigner::GetInputAddressList(const std::shared_ptr<spdlog::logger>
    txHashSet_.clear();
    for (const auto &spender : spenders_) {
       auto outputHash = spender->getOutputHash();
-      if (outputHash.isNull() || outputHash.getSize() == 0) {
+      if (outputHash.empty() || outputHash.getSize() == 0) {
          logger->warn("[CheckRecipSigner::GetInputAddressList] spender has empty output hash");
       }
       else {

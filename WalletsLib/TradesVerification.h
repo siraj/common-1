@@ -63,7 +63,8 @@ namespace bs {
       static PayoutSignatureType whichSignature(const Tx &tx
          , uint64_t value
          , const bs::Address &settlAddr
-         , const BinaryData &buyAuthKey, const BinaryData &sellAuthKey, std::string *errorMsg = nullptr);
+         , const BinaryData &buyAuthKey, const BinaryData &sellAuthKey
+         , std::string *errorMsg = nullptr, const BinaryData& payinHash = {});
 
       static std::shared_ptr<Result> verifyUnsignedPayin(const BinaryData &unsignedPayin
          , const std::map<std::string, BinaryData>& preimageData
@@ -73,11 +74,13 @@ namespace bs {
          , const std::string &buyAuthKeyHex, const std::string &sellAuthKeyHex,  const BinaryData &payinHash
          , uint64_t tradeAmount, float feePerByte, const std::string &settlementId, const std::string &settlementAddress);
 
-      static std::shared_ptr<Result> verifySignedPayin(const BinaryData &signedPayin, const BinaryData &payinHash, float feePerByte, uint64_t totalPayinFee);
+      static std::shared_ptr<Result> verifySignedPayin(const BinaryData &signedPayin, const BinaryData &payinHash);
 
       // preImages - key: address, value:preimage script
       // required for P2SH addresses only
       static bool XBTInputsAcceptable(const std::vector<UTXO>& utxoList, const std::map<std::string, BinaryData>& preImages);
+
+      static float getAllowedFeePerByteMin(float feePerByte);
 
    };
 

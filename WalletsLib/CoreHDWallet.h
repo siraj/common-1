@@ -59,6 +59,11 @@ namespace bs {
                , const std::string& folder = "./"
                , const std::shared_ptr<spdlog::logger> &logger = nullptr);
 
+            //generate seedless watching only wallet
+            Wallet(const std::string &name, const std::string &desc,
+               const std::string& walletID, NetworkType netType, const bs::wallet::PasswordData & pd,
+               const std::string& folder, const std::shared_ptr<spdlog::logger> &logger = nullptr);
+
             std::vector<bs::wallet::EncryptionType> encryptionTypes() const;
             std::vector<BinaryData> encryptionKeys() const;
             bs::wallet::KeyRank encryptionRank() const { return {1, (unsigned int)pwdMeta_.size() }; }
@@ -77,6 +82,8 @@ namespace bs {
             void setExtOnly(void);
             bool isExtOnly() const { return extOnlyFlag_; }
 
+            bool isHardwareWallet() const;
+
             std::shared_ptr<Group> getGroup(bs::hd::CoinType ct) const;
             std::shared_ptr<Group> createGroup(bs::hd::CoinType ct);
             void addGroup(const std::shared_ptr<Group> &group);
@@ -93,6 +100,7 @@ namespace bs {
             void changeControlPassword(const SecureBinaryData &oldPass, const SecureBinaryData &newPass);
             void eraseControlPassword(const SecureBinaryData &oldPass);
             void createStructure(unsigned lookup = UINT32_MAX);
+            void createHwStructure(const bs::core::wallet::HwWalletInfo &walletInfo, unsigned lookup = UINT32_MAX);
             void createChatPrivKey();
 
             void shutdown();

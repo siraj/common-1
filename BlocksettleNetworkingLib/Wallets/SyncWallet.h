@@ -72,7 +72,7 @@ namespace bs {
          bs::core::wallet::TXSignRequest createTXRequest(const std::vector<std::string> &walletIds
             , const std::vector<UTXO> &inputs
             , const std::vector<std::shared_ptr<ScriptRecipient>> &
-            , const bs::Address &changeAddr = {}
+            , const bs::Address &changeAddr = {}, const std::string &changeIndex = {}
             , const uint64_t fee = 0, bool isRBF = false);
 
       }  // namepsace wallet

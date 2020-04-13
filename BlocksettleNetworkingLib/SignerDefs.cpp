@@ -42,7 +42,7 @@ bs::sync::WalletData bs::sync::WalletData::fromPbMessage(const headless::SyncWal
    for (int i = 0; i < response.addresses_size(); ++i) {
       const auto addrInfo = response.addresses(i);
       const auto addr = bs::Address::fromAddressString(addrInfo.address());
-      if (addr.isNull()) {
+      if (addr.empty()) {
          continue;
       }
       result.addresses.push_back({ addrInfo.index(), std::move(addr)
@@ -51,7 +51,7 @@ bs::sync::WalletData bs::sync::WalletData::fromPbMessage(const headless::SyncWal
    for (int i = 0; i < response.addrpool_size(); ++i) {
       const auto addrInfo = response.addrpool(i);
       const auto addr = bs::Address::fromAddressString(addrInfo.address());
-      if (addr.isNull()) {
+      if (addr.empty()) {
          continue;
       }
       result.addrPool.push_back({ addrInfo.index(), std::move(addr), "" });
@@ -98,6 +98,7 @@ bs::wallet::EncryptionType bs::sync::mapFrom(headless::EncryptionType encType)
    switch (encType) {
    case headless::EncryptionTypePassword: return bs::wallet::EncryptionType::Password;
    case headless::EncryptionTypeAutheID:  return bs::wallet::EncryptionType::Auth;
+   case headless::EncryptionTypeHw:      return bs::wallet::EncryptionType::Hardware;
    case headless::EncryptionTypeUnencrypted:
    default:    return bs::wallet::EncryptionType::Unencrypted;
    }
@@ -140,6 +141,7 @@ headless::EncryptionType bs::sync::mapFrom(bs::wallet::EncryptionType encType)
    switch (encType) {
    case bs::wallet::EncryptionType::Password:   return headless::EncryptionTypePassword;
    case bs::wallet::EncryptionType::Auth:       return headless::EncryptionTypeAutheID;
+   case bs::wallet::EncryptionType::Hardware:        return headless::EncryptionTypeHw;
    case bs::wallet::EncryptionType::Unencrypted:
    default:       return headless::EncryptionTypeUnencrypted;
    }

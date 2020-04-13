@@ -161,6 +161,8 @@ private:
    bool onSyncNewAddr(const std::string &clientId, Blocksettle::Communication::headless::RequestPacket packet);
    bool onAddrPreimage(const std::string &clientId, Blocksettle::Communication::headless::RequestPacket packet);
    bool onChatNodeRequest(const std::string &clientId, Blocksettle::Communication::headless::RequestPacket packet);
+   bool onSettlAuthRequest(const std::string &clientId, Blocksettle::Communication::headless::RequestPacket packet);
+   bool onSettlCPRequest(const std::string &clientId, Blocksettle::Communication::headless::RequestPacket packet);
    bool onExecCustomDialog(const std::string &clientId, Blocksettle::Communication::headless::RequestPacket packet);
 
    bool onCreateSettlWallet(const std::string &clientId, Blocksettle::Communication::headless::RequestPacket packet);

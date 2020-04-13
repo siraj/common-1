@@ -17,6 +17,13 @@
 #include "PublicResolver.h"
 #include "SettableField.h"
 
+namespace {
+
+   // Allow actual fee be 5% lower than expected
+   const float kFeeRateIncreaseThreshold = 0.05f;
+
+}
+
 const char *bs::toString(const bs::PayoutSignatureType t)
 {
    switch (t) {
@@ -67,21 +74,67 @@ bs::Address bs::TradesVerification::constructSettlementAddress(const BinaryData 
 }
 
 bs::PayoutSignatureType bs::TradesVerification::whichSignature(const Tx &tx, uint64_t value
-   , const bs::Address &settlAddr, const BinaryData &buyAuthKey, const BinaryData &sellAuthKey, std::string *errorMsg)
+   , const bs::Address &settlAddr, const BinaryData &buyAuthKey, const BinaryData &sellAuthKey
+   , std::string *errorMsg, const BinaryData& providedPayinHash)
 {
-   if (!tx.isInitialized() || buyAuthKey.isNull() || sellAuthKey.isNull()) {
+   if (!tx.isInitialized() || buyAuthKey.empty() || sellAuthKey.empty()) {
       return bs::PayoutSignatureType::Failed;
    }
 
-   constexpr uint32_t txIndex = 0;
    constexpr uint32_t txOutIndex = 0;
-   constexpr int inputId = 0;
+
+   int inputId = 0;
+   if (providedPayinHash.getSize() == 32)
+   {
+      /*
+      If a hash for the payin is provided, the code will look for the input with
+      the relevant outpoint (payinHash:0). This allows for 2 levels of sig verification:
+
+        a) On signed payout delivery, we expect a properly formed payout, and will not
+           tolerate any deviation from the protocol. There we shouldn't pass the payin
+           hash, as the payout should only have 1 input, which points to the payin first
+           output.
+
+        b) When checking sig state for the payin spender as seen on chain, we need to
+           know who the signer is regardless of the payout tx strucuture. There we
+           should pass the payin hash, as there is no such thing as a tx spending from
+           our expected payin without a relevant signature.
+      */
+
+      //look for input id with our expected outpoint
+      unsigned i=0;
+      for (; i<tx.getNumTxIn(); i++)
+      {
+         auto txIn = tx.getTxInCopy(i);
+         auto outpoint = txIn.getOutPoint();
+
+         if (outpoint.getTxHash() == providedPayinHash && 
+            outpoint.getTxOutIndex() == txOutIndex) {
+            //TODO: log a warning if i != 0 (unexpected payout structure)
+            inputId = i;
+            break;
+         }
+      }
+
+      if (i==tx.getNumTxIn()) {
+         //could not find payin output in payout outpoint's, report undefined behavior
+         return bs::PayoutSignatureType::Undefined;
+      }
+   }
 
    const TxIn in = tx.getTxInCopy(inputId);
    const OutPoint op = in.getOutPoint();
    const auto payinHash = op.getTxHash();
 
-   UTXO utxo(value, UINT32_MAX, txIndex, txOutIndex, payinHash
+   if (op.getTxOutIndex() != txOutIndex) {
+      if (errorMsg != nullptr) {
+         *errorMsg = fmt::format("invalid outpoint txOutIndex for TX: {}", tx.getThisHash().toHexStr());
+      }
+
+      return bs::PayoutSignatureType::Failed;
+   }
+
+   UTXO utxo(value, UINT32_MAX, 0, txOutIndex, payinHash
       , BtcUtils::getP2WSHOutputScript(settlAddr.unprefixed()));
 
    //serialize signed tx
@@ -91,7 +144,7 @@ bs::PayoutSignatureType bs::TradesVerification::whichSignature(const Tx &tx, uin
 
    std::map<BinaryData, std::map<unsigned, UTXO>> utxoMap;
 
-   utxoMap[utxo.getTxHash()][inputId] = utxo;
+   utxoMap[utxo.getTxHash()][txOutIndex] = utxo;
 
    //setup verifier
    try {
@@ -136,7 +189,7 @@ std::shared_ptr<bs::TradesVerification::Result> bs::TradesVerification::verifyUn
    , const std::map<std::string, BinaryData>& preimageData
    , float feePerByte, const std::string &settlementAddress, uint64_t tradeAmount)
 {
-   if (unsignedPayin.isNull()) {
+   if (unsignedPayin.empty()) {
       return Result::error("no unsigned payin provided");
    }
 
@@ -205,10 +258,19 @@ std::shared_ptr<bs::TradesVerification::Result> bs::TradesVerification::verifyUn
          deserializedSigner.setFeed(resolver);
       }
 
+      const uint64_t totalFee = totalInput - totalOutputAmount;
+      float feePerByteMin = getAllowedFeePerByteMin(feePerByte);
+      const uint64_t estimatedFeeMin = deserializedSigner.estimateFee(feePerByteMin, totalFee);
+
+      if (totalFee < estimatedFeeMin) {
+         return Result::error(fmt::format("fee is too small: {}, expected: {} ({} s/b)"
+            , totalFee, estimatedFeeMin, feePerByteMin));
+      }
+
       auto result = std::make_shared<Result>();
       result->success = true;
-      result->totalFee = totalInput - totalOutputAmount;
-      result->estimatedFee = deserializedSigner.estimateFee(feePerByte, result->totalFee);
+      result->totalFee = totalFee;
+      result->estimatedFee = estimatedFeeMin;
       result->totalOutputCount = totalOutputCount;
       if (optionalChangeAddr.isValid()) {
          result->changeAddr = optionalChangeAddr.getValue().display();
@@ -239,11 +301,11 @@ std::shared_ptr<bs::TradesVerification::Result> bs::TradesVerification::verifySi
    , const std::string &buyAuthKeyHex, const std::string &sellAuthKeyHex
    , const BinaryData &payinHash, uint64_t tradeAmount, float feePerByte, const std::string &settlementId, const std::string &settlementAddress)
 {
-   if (signedPayout.isNull()) {
+   if (signedPayout.empty()) {
       return Result::error("signed payout is not provided");
    }
 
-   if (payinHash.isNull()) {
+   if (payinHash.empty()) {
       return Result::error("there is no saved payin hash");
    }
 
@@ -284,10 +346,12 @@ std::shared_ptr<bs::TradesVerification::Result> bs::TradesVerification::verifySi
       const uint64_t totalFee = tradeAmount - receiveValue;
       const uint64_t txSize = payoutTx.getTxWeight();
 
-      const uint64_t estimatedFee = feePerByte * txSize;
-      if (estimatedFee > totalFee) {
-         return Result::error(fmt::format("fee too small: {} ({} s/b). Expected: {} ({} s/b)"
-            , totalFee, static_cast<float>(totalFee) / txSize, estimatedFee, feePerByte));
+      float feePerByteMin = getAllowedFeePerByteMin(feePerByte);
+      const float estimatedFeeMin = feePerByteMin * txSize;
+
+      if (totalFee < estimatedFeeMin) {
+         return Result::error(fmt::format("fee is too small: {} ({} s/b). Expected: {} ({} s/b)"
+            , totalFee, static_cast<float>(totalFee) / txSize, estimatedFeeMin, feePerByteMin));
       }
 
       // xxx : add a check for fees that are too high
@@ -318,13 +382,14 @@ std::shared_ptr<bs::TradesVerification::Result> bs::TradesVerification::verifySi
    }
 }
 
-std::shared_ptr<bs::TradesVerification::Result> bs::TradesVerification::verifySignedPayin(const BinaryData &signedPayin, const BinaryData &payinHash, float feePerByte, uint64_t totalPayinFee)
+std::shared_ptr<bs::TradesVerification::Result> bs::TradesVerification::verifySignedPayin(const BinaryData &signedPayin
+   , const BinaryData &payinHash)
 {
-   if (signedPayin.isNull()) {
+   if (signedPayin.empty()) {
       return Result::error("no signed payin provided");
    }
 
-   if (payinHash.isNull()) {
+   if (payinHash.empty()) {
       return Result::error("there is no saved payin hash");
    }
 
@@ -339,15 +404,6 @@ std::shared_ptr<bs::TradesVerification::Result> bs::TradesVerification::verifySi
       auto txSize = payinTx.getTxWeight();
       if (txSize == 0) {
          return Result::error("failed to get TX weight");
-      }
-
-      // xxx : need to discuss what to do when tx fee is below market.
-      // this is a signed payin, so the fee was checked once within 30s already, which suggest a
-      // network spike. Does this check affect OTC?
-      const uint64_t estimatedFee = feePerByte * txSize;
-      if (estimatedFee > totalPayinFee) {
-         return Result::error(fmt::format("fee too small: {} ({} s/b). Expected: {} ({} s/b)"
-            , totalPayinFee, static_cast<float>(totalPayinFee) / txSize, estimatedFee, feePerByte));
       }
 
       auto result = std::make_shared<Result>();
@@ -406,4 +462,10 @@ try {
    return true;
 } catch (...) {
    return false;
+}
+
+float bs::TradesVerification::getAllowedFeePerByteMin(float feePerByte)
+{
+   // Allow fee to be slightly less than expected (but not less than 1 sat/byte)
+   return std::max(1.0f, feePerByte * (1 - kFeeRateIncreaseThreshold));
 }

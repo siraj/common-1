@@ -29,12 +29,28 @@ std::shared_ptr<wallet::AssetEntryMeta> wallet::AssetEntryMeta::deserialize(int,
    BinaryRefReader brr(value);
 
    const auto type = brr.get_uint8_t();
-   if ((type == wallet::AssetEntryMeta::Comment) && (brr.getSizeRemaining() > 0)) {
-      auto aeComment = std::make_shared<wallet::AssetEntryComment>();
-      return (aeComment->deserialize(brr) ? aeComment : nullptr);
+   if (!brr.getSizeRemaining()) {
+      throw AssetException("corrupted metadata " + std::to_string(type));
    }
-   throw AssetException("unknown metadata type " + std::to_string(type));
-   return nullptr;
+
+   std::shared_ptr<wallet::AssetEntryMeta> result;
+   switch (type) {
+   case wallet::AssetEntryMeta::Comment:
+      result = std::make_shared<wallet::AssetEntryComment>();
+      break;
+   case wallet::AssetEntryMeta::Settlement:
+      result = std::make_shared<wallet::AssetEntrySettlement>();
+      break;
+   case wallet::AssetEntryMeta::SettlementCP:
+      result = std::make_shared<wallet::AssetEntrySettlCP>();
+      break;
+   default:
+      throw AssetException("unknown meta type " + std::to_string(type));
+   }
+   if (!result->deserialize(brr)) {
+      throw AssetException("failed to read metadata " + std::to_string(type));
+   }
+   return result;
 }
 
 
@@ -62,6 +78,67 @@ bool wallet::AssetEntryComment::deserialize(BinaryRefReader brr)
    return true;
 }
 
+
+BinaryData wallet::AssetEntrySettlement::serialize() const
+{
+   BinaryWriter bw;
+   bw.put_uint8_t(type());
+
+   bw.put_var_int(settlementId_.getSize());
+   bw.put_BinaryData(settlementId_);
+
+   const auto &addrStr = authAddr_.display();
+   bw.put_var_int(addrStr.length());
+   bw.put_BinaryData(BinaryData::fromString(addrStr));
+
+   return bw.getData();
+}
+
+bool wallet::AssetEntrySettlement::deserialize(BinaryRefReader brr)
+{
+   uint64_t len = brr.get_var_int();
+   settlementId_ = BinaryData(brr.get_BinaryData(len));
+
+   len = brr.get_var_int();
+   authAddr_ = bs::Address::fromAddressString((brr.get_BinaryDataRef(len)).toBinStr());
+   return true;
+}
+
+BinaryData wallet::AssetEntrySettlCP::serialize() const
+{
+   BinaryWriter bw;
+   bw.put_uint8_t(type());
+
+   bw.put_var_int(txHash_.getSize());
+   bw.put_BinaryData(txHash_);
+
+   bw.put_var_int(settlementId_.getSize());
+   bw.put_BinaryData(settlementId_);
+
+   bw.put_var_int(cpPubKey_.getSize());
+   bw.put_BinaryData(cpPubKey_);
+
+   return bw.getData();
+}
+
+bool wallet::AssetEntrySettlCP::deserialize(BinaryRefReader brr)
+{
+   auto len = brr.get_var_int();
+   if (len != 32) {
+      throw std::range_error("wrong payin hash size");
+   }
+   txHash_ = BinaryData(brr.get_BinaryData(len));
+
+   len = brr.get_var_int();
+   if (len != 32) {
+      throw std::range_error("wrong settlementId size");
+   }
+   settlementId_ = BinaryData(brr.get_BinaryDataRef(len));
+
+   len = brr.get_var_int();
+   cpPubKey_ = BinaryData(brr.get_BinaryDataRef(len));
+   return true;
+}
 
 void wallet::MetaData::set(const std::shared_ptr<AssetEntryMeta> &value)
 {
@@ -123,7 +200,7 @@ void wallet::MetaData::readFromDB(const std::shared_ptr<DBIfaceTransaction> &tx)
 //            throw AssetException("invalid prefix " + std::to_string(prefix));
          }
          auto index = brrKey.get_int32_t();
-         nbMetaData_ = index + 1;
+         nbMetaData_ = index & ~0x100000;
 
          auto entryPtr = AssetEntryMeta::deserialize(index, valueBDR);
          if (entryPtr) {
@@ -608,7 +685,7 @@ std::string wallet::Seed::getWalletId() const
       DerivationScheme_ArmoryLegacy derScheme(chainCode);
 
       auto pubKey = node.getPublicKey();
-      if (pubKey.isNull()) {
+      if (pubKey.empty()) {
          return {};
       }
       auto assetSingle = std::make_shared<AssetEntry_Single>(
@@ -719,10 +796,10 @@ std::string Wallet::getAddressComment(const bs::Address &address) const
 
 bool Wallet::setAddressComment(const bs::Address &address, const std::string &comment)
 {
-   if (address.isNull()) {
+   if (address.empty()) {
       return false;
    }
-   set(std::make_shared<wallet::AssetEntryComment>(nbMetaData_++, address.id(), comment));
+   set(std::make_shared<wallet::AssetEntryComment>(++nbMetaData_, address.id(), comment));
    return write(getDBWriteTx());
 }
 
@@ -738,10 +815,10 @@ std::string Wallet::getTransactionComment(const BinaryData &txHash)
 
 bool Wallet::setTransactionComment(const BinaryData &txHash, const std::string &comment)
 {
-   if (txHash.isNull() || comment.empty()) {
+   if (txHash.empty() || comment.empty()) {
       return false;
    }
-   set(std::make_shared<wallet::AssetEntryComment>(nbMetaData_++, txHash, comment));
+   set(std::make_shared<wallet::AssetEntryComment>(++nbMetaData_, txHash, comment));
    return write(getDBWriteTx());
 }
 
@@ -757,6 +834,53 @@ std::vector<std::pair<BinaryData, std::string>> Wallet::getAllTxComments() const
       }
    }
    return result;
+}
+
+bool Wallet::setSettlementMeta(const BinaryData &settlementId, const bs::Address &authAddr)
+{
+   if (settlementId.empty() || !authAddr.isValid()) {
+      return false;
+   }
+   set(std::make_shared<wallet::AssetEntrySettlement>(++nbMetaData_ + 0x100000
+      , settlementId, authAddr));
+   return write(getDBWriteTx());
+}
+
+bs::Address Wallet::getSettlAuthAddr(const BinaryData &settlementId)
+{
+   const auto aeMeta = get(settlementId);
+   if ((aeMeta == nullptr) || (aeMeta->type() != wallet::AssetEntryMeta::Settlement)) {
+      return {};
+   }
+   const auto aeSettl = std::dynamic_pointer_cast<wallet::AssetEntrySettlement>(aeMeta);
+   return aeSettl ? aeSettl->address() : bs::Address{};
+}
+
+bool Wallet::setSettlCPMeta(const BinaryData &payinHash, const BinaryData &settlementId
+   , const BinaryData &cpPubKey)
+{
+   if ((payinHash.getSize() != 32) || (settlementId.getSize() != 32) || cpPubKey.empty()) {
+      return false;
+   }
+   auto txHash = payinHash;
+   txHash.swapEndian();    // this is to avoid clashing with tx comment key
+   set(std::make_shared<wallet::AssetEntrySettlCP>(++nbMetaData_ + 0x100000, txHash, settlementId, cpPubKey));
+   return write(getDBWriteTx());
+}
+
+std::pair<BinaryData, BinaryData> Wallet::getSettlCP(const BinaryData &txHash)
+{
+   auto payinHash = txHash;
+   payinHash.swapEndian(); // this is to avoid clashing with tx comment key
+   const auto aeMeta = get(payinHash);
+   if ((aeMeta == nullptr) || (aeMeta->type() != wallet::AssetEntryMeta::SettlementCP)) {
+      return {};
+   }
+   const auto aeSettl = std::dynamic_pointer_cast<wallet::AssetEntrySettlCP>(aeMeta);
+   if (aeSettl) {
+      return { aeSettl->settlementId(), aeSettl->cpPubKey() };
+   }
+   return {};
 }
 
 Signer Wallet::getSigner(const wallet::TXSignRequest &request,
@@ -882,12 +1006,85 @@ BinaryData Wallet::signPartialTXRequest(const wallet::TXSignRequest &request)
    return signer.serializeState();
 }
 
+BinaryData Wallet::signTXRequestWithWitness(const wallet::TXSignRequest &request
+   , const InputSigs &inputSigs)
+{
+   if (request.inputs.size() != inputSigs.size()) {
+      throw std::invalid_argument("inputSigs do not equal to inputs count");
+   }
+   bs::CheckRecipSigner signer;
+   std::map<unsigned int, std::shared_ptr<ScriptSpender_Signed>> spenders;
+
+   signer.setFlags(SCRIPT_VERIFY_SEGWIT);
+
+   for (int i = 0; i < request.inputs.size(); ++i) {
+      const auto &utxo = request.inputs[i];
+      const auto &addr = bs::Address::fromUTXO(utxo);
+      if (!containsAddress(addr)) {
+         throw std::runtime_error("can't sign for foreign address");
+      }
+      const auto &spender = (addr.getType() == AddressEntryType_P2WPKH)
+         ? std::make_shared<ScriptSpender_P2WPKH_Signed>(utxo)
+         : std::make_shared<ScriptSpender_Signed>(utxo);
+      if (request.RBF) {
+         spender->setSequence(UINT32_MAX - 2);
+      }
+      signer.addSpender(spender);
+      spenders[i] = spender;
+   }
+
+   for (const auto& recipient : request.recipients) {
+      signer.addRecipient(recipient);
+   }
+
+   if (request.change.value) {
+      const auto changeRecip = request.change.address
+         .getRecipient(bs::XBTAmount{ request.change.value });
+      if (changeRecip) {
+         signer.addRecipient(changeRecip);
+      } else {
+         throw std::runtime_error("failed to get change recipient for "
+            + std::to_string(request.change.value));
+      }
+   }
+
+#ifndef NDEBUG
+   if (logger_) {
+      for (const auto &spender : signer.spenders()) {
+         logger_->debug("[{}] {} spender: {} @ {}", __func__
+            , walletId(), spender->getValue()
+            , bs::Address::fromUTXO(spender->getUtxo()).display());
+      }
+      for (const auto &recip : signer.recipients()) {
+         logger_->debug("[{}] {} recipient: {} @ {}", __func__
+            , walletId(), recip->getValue()
+            , bs::Address::fromRecipient(recip).display());
+      }
+   }
+#endif //NDEBUG
+
+   signer.setFeed(getPublicResolver());
+   signer.sign();
+
+   for (const auto &spender : spenders) {
+      const auto &itSig = inputSigs.find(spender.first);
+      if (itSig == inputSigs.end()) {
+         throw std::invalid_argument("can't find sig for input #" + std::to_string(spender.first));
+      }
+      spender.second->setWitnessData(itSig->second);
+   }
+   if (!signer.verify()) {
+      throw std::runtime_error("failed to verify signer");
+   }
+   return signer.serialize();
+}
+
 
 BinaryData bs::core::SignMultiInputTX(const bs::core::wallet::TXMultiSignRequest &txMultiReq
    , const WalletMap &wallets, bool partial)
 {
    bs::CheckRecipSigner signer;
-   if (!txMultiReq.prevState.isNull()) {
+   if (!txMultiReq.prevState.empty()) {
       signer.deserializeState(txMultiReq.prevState);
 
       signer.setFlags(SCRIPT_VERIFY_SEGWIT);

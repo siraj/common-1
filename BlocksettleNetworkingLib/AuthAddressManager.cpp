@@ -258,7 +258,7 @@ bool AuthAddressManager::RevokeAddress(const bs::Address &address)
    }
 
    const auto revokeData = addressVerificator_->getRevokeData(address);
-   if (revokeData.first.isNull() || !revokeData.second.isInitialized()) {
+   if (revokeData.first.empty() || !revokeData.second.isInitialized()) {
       logger_->error("[AuthAddressManager::RevokeAddress] failed to obtain revocation data");
       emit Error(tr("Missing revocation input"));
       return false;
@@ -407,7 +407,7 @@ void AuthAddressManager::VerifyWalletAddressesFunction()
          defaultAddr_ = bs::Address::fromAddressString(defaultAuthAddrStr.toStdString());
       }
 
-      if (defaultAddr_.isNull()) {
+      if (defaultAddr_.empty()) {
          logger_->debug("Default auth address not found");
       }
       else {
@@ -589,7 +589,7 @@ void AuthAddressManager::setDefault(const bs::Address &addr)
 
 size_t AuthAddressManager::getDefaultIndex() const
 {
-   if (defaultAddr_.isNull()) {
+   if (defaultAddr_.empty()) {
       return 0;
    }
    size_t rv = 0;
@@ -738,31 +738,16 @@ void AuthAddressManager::onWalletCreated()
    }
 }
 
-std::shared_ptr<bs::sync::hd::SettlementLeaf> AuthAddressManager::getSettlementLeaf(const bs::Address &addr) const
+bool AuthAddressManager::hasSettlementLeaf(const bs::Address &addr) const
 {
-   const auto priWallet = walletsManager_->getPrimaryWallet();
-   if (!priWallet) {
-      logger_->warn("[{}] no primary wallet", __func__);
-      return nullptr;
-   }
-   const auto group = priWallet->getGroup(bs::hd::BlockSettle_Settlement);
-   std::shared_ptr<bs::sync::hd::SettlementLeaf> settlLeaf;
-   if (group) {
-      const auto settlGroup = std::dynamic_pointer_cast<bs::sync::hd::SettlementGroup>(group);
-      if (!settlGroup) {
-         logger_->error("[{}] wrong settlement group type", __func__);
-         return nullptr;
-      }
-      settlLeaf = settlGroup->getLeaf(addr);
-   }
-   return settlLeaf;
+   return walletsManager_->hasSettlementLeaf(addr);
 }
 
 void AuthAddressManager::createSettlementLeaf(const bs::Address &addr
    , const std::function<void()> &cb)
 {
    const auto &cbPubKey = [this, cb](const SecureBinaryData &pubKey) {
-      if (pubKey.isNull()) {
+      if (pubKey.empty()) {
          return;
       }
       if (cb) {

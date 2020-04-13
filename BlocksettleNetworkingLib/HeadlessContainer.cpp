@@ -423,7 +423,7 @@ bs::signer::RequestId HeadlessContainer::signSettlementPayoutTXRequest(const bs:
    , const bs::core::wallet::SettlementData &sd, const bs::sync::PasswordDialogData &dialogData
    , const SignTxCb &cb)
 {
-   if ((txSignReq.inputs.size() != 1) || (txSignReq.recipients.size() != 1) || sd.settlementId.isNull()) {
+   if ((txSignReq.inputs.size() != 1) || (txSignReq.recipients.size() != 1) || sd.settlementId.empty()) {
       logger_->error("[HeadlessContainer::signSettlementPayoutTXRequest] Invalid PayoutTXSignRequest");
       return 0;
    }
@@ -529,7 +529,7 @@ bs::signer::RequestId HeadlessContainer::setUserId(const BinaryData &userId, con
    headless::SetUserIdRequest request;
    auto dialogData = request.mutable_passworddialogdata();
    *dialogData = info.toProtobufMessage();
-   if (!userId.isNull()) {
+   if (!userId.empty()) {
       request.set_userid(userId.toBinStr());
    }
 
@@ -566,7 +566,7 @@ bool HeadlessContainer::createHDLeaf(const std::string &rootWalletId, const bs::
    request.set_path(path.toString());
 
    if (!pwData.empty()) {
-      if (!pwData[0].salt.isNull()) {
+      if (!pwData[0].salt.empty()) {
          request.set_salt(pwData[0].salt.toBinStr());
       }
    }
@@ -637,26 +637,6 @@ bs::signer::RequestId HeadlessContainer::DeleteHDLeaf(const std::string &leafWal
    SPDLOG_LOGGER_ERROR(logger_, "unimplemented");
    return 0;
 }
-
-//void HeadlessContainer::setLimits(const std::string &walletId, const SecureBinaryData &pass
-//   , bool autoSign)
-//{
-//   if (walletId.empty()) {
-//      logger_->error("[HeadlessContainer] no walletId for SetLimits");
-//      return;
-//   }
-//   headless::SetLimitsRequest request;
-//   request.set_rootwalletid(walletId);
-//   if (!pass.isNull()) {
-//      request.set_password(pass.toHexStr());
-//   }
-//   request.set_activateautosign(autoSign);
-
-//   headless::RequestPacket packet;
-//   packet.set_type(headless::SetLimitsRequestType);
-//   packet.set_data(request.SerializeAsString());
-//   Send(packet);
-//}
 
 bs::signer::RequestId HeadlessContainer::customDialogRequest(bs::signer::ui::GeneralDialogType signerDialog, const QVariantMap &data)
 {
@@ -826,6 +806,63 @@ void HeadlessContainer::syncTxComment(const std::string &walletId, const BinaryD
    packet.set_type(headless::SyncCommentType);
    packet.set_data(request.SerializeAsString());
    Send(packet);
+}
+
+void HeadlessContainer::setSettlAuthAddr(const std::string &walletId, const BinaryData &settlId
+   , const bs::Address &addr)
+{
+   headless::SettlementAuthAddress request;
+   request.set_wallet_id(walletId);
+   request.set_settlement_id(settlId.toBinStr());
+   request.set_auth_address(addr.display());
+
+   headless::RequestPacket packet;
+   packet.set_type(headless::SettlementAuthType);
+   packet.set_data(request.SerializeAsString());
+   Send(packet);
+}
+
+void HeadlessContainer::getSettlAuthAddr(const std::string &walletId, const BinaryData &settlId
+   , const std::function<void(const bs::Address &)> &cb)
+{
+   headless::SettlementAuthAddress request;
+   request.set_wallet_id(walletId);
+   request.set_settlement_id(settlId.toBinStr());
+
+   headless::RequestPacket packet;
+   packet.set_type(headless::SettlementAuthType);
+   packet.set_data(request.SerializeAsString());
+   const auto reqId = Send(packet);
+   cbSettlAuthMap_[reqId] = cb;
+}
+
+void HeadlessContainer::setSettlCP(const std::string &walletId, const BinaryData &payinHash, const BinaryData &settlId
+   , const BinaryData &cpPubKey)
+{
+   headless::SettlementCounterparty request;
+   request.set_wallet_id(walletId);
+   request.set_payin_hash(payinHash.toBinStr());
+   request.set_settlement_id(settlId.toBinStr());
+   request.set_cp_public_key(cpPubKey.toBinStr());
+
+   headless::RequestPacket packet;
+   packet.set_type(headless::SettlementCPType);
+   packet.set_data(request.SerializeAsString());
+   Send(packet);
+}
+
+void HeadlessContainer::getSettlCP(const std::string &walletId, const BinaryData &payinHash
+   , const std::function<void(const BinaryData &, const BinaryData &)> &cb)
+{
+   headless::SettlementCounterparty request;
+   request.set_wallet_id(walletId);
+   request.set_payin_hash(payinHash.toBinStr());
+
+   headless::RequestPacket packet;
+   packet.set_type(headless::SettlementCPType);
+   packet.set_data(request.SerializeAsString());
+   const auto reqId = Send(packet);
+   cbSettlCPMap_[reqId] = cb;
 }
 
 void HeadlessContainer::extendAddressChain(
@@ -1063,6 +1100,53 @@ void HeadlessContainer::ProcessChatNodeResponse(unsigned int id, const std::stri
       itCb->second(chatNode);
    }
    cbChatNodeMap_.erase(itCb);
+}
+
+void HeadlessContainer::ProcessSettlAuthResponse(unsigned int id, const std::string &data)
+{
+   headless::SettlementAuthAddress response;
+   if (!response.ParseFromString(data)) {
+      logger_->error("[HeadlessContainer::ProcessSettlAuthResponse] Failed to parse reply");
+      emit Error(id, "failed to parse");
+      return;
+   }
+   const auto itCb = cbSettlAuthMap_.find(id);
+   if (itCb == cbSettlAuthMap_.end()) {
+      emit Error(id, "no callback found for id " + std::to_string(id));
+      return;
+   }
+
+   if (response.wallet_id().empty()) {
+      logger_->error("[HeadlessContainer::ProcessSettlAuthResponse] wallet not found");
+      emit Error(id, "wallet not found for settlement");
+   } else {
+      itCb->second(bs::Address::fromAddressString(response.auth_address()));
+   }
+   cbSettlAuthMap_.erase(itCb);
+}
+
+void HeadlessContainer::ProcessSettlCPResponse(unsigned int id, const std::string &data)
+{
+   headless::SettlementCounterparty response;
+   if (!response.ParseFromString(data)) {
+      logger_->error("[HeadlessContainer::ProcessSettlCPResponse] Failed to parse reply");
+      emit Error(id, "failed to parse");
+      return;
+   }
+   const auto itCb = cbSettlCPMap_.find(id);
+   if (itCb == cbSettlCPMap_.end()) {
+      emit Error(id, "no callback found for id " + std::to_string(id));
+      return;
+   }
+
+   if (response.wallet_id().empty()) {
+      logger_->error("[HeadlessContainer::ProcessSettlCPResponse] wallet not found");
+      emit Error(id, "wallet not found for payin");
+   } else {
+      itCb->second(BinaryData::fromString(response.settlement_id())
+         , BinaryData::fromString(response.cp_public_key()));
+   }
+   cbSettlCPMap_.erase(itCb);
 }
 
 void HeadlessContainer::ProcessSyncWalletInfo(unsigned int id, const std::string &data)
@@ -1400,7 +1484,7 @@ void RemoteSigner::onDisconnected()
    std::set<bs::signer::RequestId> tmpReqs = std::move(signRequests_);
 
    for (const auto &id : tmpReqs) {
-      emit TXSigned(id, {}, bs::error::ErrorCode::TxCanceled, "Signer disconnected");
+      emit TXSigned(id, {}, bs::error::ErrorCode::TxCancelled, "Signer disconnected");
    }
 
    emit disconnected();
@@ -1507,6 +1591,14 @@ void RemoteSigner::onPacketReceived(headless::RequestPacket packet)
 
    case headless::ChatNodeRequestType:
       ProcessChatNodeResponse(packet.id(), packet.data());
+      break;
+
+   case headless::SettlementAuthType:
+      ProcessSettlAuthResponse(packet.id(), packet.data());
+      break;
+
+   case headless::SettlementCPType:
+      ProcessSettlCPResponse(packet.id(), packet.data());
       break;
 
    default:
