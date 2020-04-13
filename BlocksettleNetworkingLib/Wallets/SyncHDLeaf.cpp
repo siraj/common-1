@@ -127,19 +127,11 @@ bool hd::Leaf::isOwnId(const std::string &wId) const
 
 void hd::Leaf::onRefresh(const std::vector<BinaryData> &ids, bool online)
 {
-   auto cbRegistered = [this, handle = validityFlag_.handle()] () mutable {
-      ValidityGuard lock(handle);
-      if (!handle.isValid()) {
-         return;
-      }
+   auto cbRegistered = [this] {
       isRegistered_ = Registered::Registered;
       onRegistrationCompleted();
    };
-   auto cbRegisterExt = [this, online, cbRegistered, handle = validityFlag_.handle()] () mutable {
-      ValidityGuard lock(handle);
-      if (!handle.isValid()) {
-         return;
-      }
+   auto cbRegisterExt = [this, online, cbRegistered] () {
       if (isExtOnly_ || (regIdExt_.empty() && regIdInt_.empty())) {
          cbRegistered();
          if (online) {
@@ -147,11 +139,7 @@ void hd::Leaf::onRefresh(const std::vector<BinaryData> &ids, bool online)
          }
       }
    };
-   auto cbRegisterInt = [this, online, cbRegistered, handle = validityFlag_.handle()] () mutable {
-      ValidityGuard lock(handle);
-      if (!handle.isValid()) {
-         return;
-      }
+   auto cbRegisterInt = [this, online, cbRegistered] () {
       if (regIdExt_.empty() && regIdInt_.empty()) {
          cbRegistered();
          if (online) {

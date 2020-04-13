@@ -394,6 +394,7 @@ message UserScoreUpdateEvent
       AttemptToCancelAnothersTrade     = 19;
       AttemptToCancelTradeAfterSign    = 20;
       SignedPayinToCancelledTrade      = 21;
+      DealerFillRatioFailed            = 22;
    };
 
    string               user_email     = 1;
@@ -413,15 +414,31 @@ message UserScoreData
    bool                 loaded      = 3;
 }
 
+message DealerSettlementStats
+{
+   string user_email = 1;
+   string settlement_id = 2;
+   bool   success = 3;
+}
+
+message DealerSettlementResponse
+{
+   string user_email = 1;
+   string settlement_id = 2;
+   float  success_ratio = 3;
+}
+
 message StorageUserScoreMessage
 {
    oneof data {
-      UserScoreUpdateEvent update_score_request    = 1;
-      UserScoreRequest     ban_user_request        = 2;
-      UserScoreRequest     reset_score_request     = 3;
-      UserScoreRequest     load_score_request      = 4;
-      UserScoreData        update_score_response   = 5;
-      UserScoreData        load_score_response     = 6;
+      UserScoreUpdateEvent     update_score_request    = 1;
+      UserScoreRequest         ban_user_request        = 2;
+      UserScoreRequest         reset_score_request     = 3;
+      UserScoreRequest         load_score_request      = 4;
+      UserScoreData            update_score_response   = 5;
+      UserScoreData            load_score_response     = 6;
+      DealerSettlementStats    dealer_stats_request    = 7;
+      DealerSettlementResponse dealer_stats_response   = 8;
    }
 }
 

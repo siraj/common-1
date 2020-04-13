@@ -27,6 +27,7 @@ namespace bs {
       enum class GeneralDialogType {
          CreateWallet,
          ImportWallet,
+         ImportHwWallet,
          BackupWallet,
          DeleteWallet,
          ManageWallet,
@@ -41,6 +42,8 @@ namespace bs {
             return QStringLiteral("createNewWalletDialog");
          case GeneralDialogType::ImportWallet:
             return QStringLiteral("importWalletDialog");
+         case GeneralDialogType::ImportHwWallet:
+            return QStringLiteral("importHwWalletDialog");
          case GeneralDialogType::BackupWallet:
             return QStringLiteral("backupWalletDialog");
          case GeneralDialogType::DeleteWallet:
