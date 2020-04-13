@@ -195,7 +195,8 @@ void HeadlessContainer::ProcessSignTXResponse(unsigned int id, const std::string
       emit TXSigned(id, {}, bs::error::ErrorCode::FailedToParse);
       return;
    }
-   emit TXSigned(id, BinaryData::fromString(response.signedtx()), static_cast<bs::error::ErrorCode>(response.errorcode()));
+   emit TXSigned(id, BinaryData::fromString(response.signedtx())
+      , static_cast<bs::error::ErrorCode>(response.errorcode()));
 }
 
 void HeadlessContainer::ProcessSettlementSignTXResponse(unsigned int id, const std::string &data)
