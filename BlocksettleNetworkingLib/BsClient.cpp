@@ -475,6 +475,9 @@ void BsClient::OnDataReceived(const std::string &data)
          case Response::kUserStatusUpdated:
             processUserStatusUpdated(response->user_status_updated());
             return;
+         case Response::kUpdateFeeRate:
+            processUpdateFeeRate(response->update_fee_rate());
+            return;
 
          case Response::kGetEmailHash:
          case Response::kSubmitAuthAddress:
@@ -563,6 +566,7 @@ void BsClient::processGetLoginResult(const Response_GetLoginResult &response)
    result.authAddressesSigned = BinaryData::fromString(response.auth_addresses_signed());
    result.ccAddressesSigned = BinaryData::fromString(response.cc_addresses_signed());
    result.enabled = response.enabled();
+   result.feeRatePb = response.fee_rate();
    emit getLoginResultDone(result);
 }
 
@@ -599,6 +603,11 @@ void BsClient::processUserStatusUpdated(const Response_UserStatusUpdated &respon
    SPDLOG_LOGGER_DEBUG(logger_, "user account state changed, new user type: {}, enabled: {}"
       , response.user_type(), response.enabled());
    emit accountStateChanged(static_cast<bs::network::UserType>(response.user_type()), response.enabled());
+}
+
+void BsClient::processUpdateFeeRate(const Response_UpdateFeeRate &response)
+{
+   emit feeRateReceived(response.fee_rate());
 }
 
 BsClient::RequestId BsClient::newRequestId()
