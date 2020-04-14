@@ -1071,7 +1071,7 @@ BinaryData Wallet::signTXRequestWithWitness(const wallet::TXSignRequest &request
       if (itSig == inputSigs.end()) {
          throw std::invalid_argument("can't find sig for input #" + std::to_string(spender.first));
       }
-      spender.second->setWitnessData(itSig->second);
+      spender.second->setWitnessData(itSig->second, 2);
    }
    if (!signer.verify()) {
       throw std::runtime_error("failed to verify signer");

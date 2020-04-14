@@ -814,7 +814,6 @@ enum CelerType
    CelerUpdateBalance            = 11;
    CelerSaveTrade                = 12;
    CelerSaveCcTrade              = 13;
-   CelerRegisterCcDefinition     = 14;
    CelerNewCCCreated             = 15;
    CelerCreateUser               = 16;
    CelerSubscribeMerchant        = 17;
@@ -845,11 +844,6 @@ message CelerSavedTrade
    bool   is_sell = 5;
    string trade_id = 6;
    uint64 timestamp = 7;
-}
-
-message CelerRegisterCCDefinitionRequest
-{
-   string cc = 1;
 }
 
 message CelerCreateUserRequest
@@ -902,7 +896,6 @@ message CelerMessage
    CelerType type = 1;
    oneof data {
       bytes saved_trade = 2;
-      CelerRegisterCCDefinitionRequest register_cc_definition = 3;
       CelerCreateUserRequest create_user = 4;
       CelerSetUserPropertiesRequest  user_properties = 5;
       CelerSetUserPropertiesResponse user_prop_response = 6;
