@@ -42,6 +42,7 @@ namespace Blocksettle {
          class Response_ProxyPb;
          class Response_GenAddrUpdated;
          class Response_UserStatusUpdated;
+         class Response_UpdateFeeRate;
       }
    }
 }
@@ -86,6 +87,7 @@ struct BsClientLoginResult
    BinaryData authAddressesSigned;
    BinaryData ccAddressesSigned;
    bool enabled{};
+   float feeRatePb{};
 };
 
 class BsClient : public QObject, public DataConnectionListener
@@ -186,6 +188,8 @@ signals:
 
    void accountStateChanged(bs::network::UserType userType, bool enabled);
 
+   void feeRateReceived(float feeRate);
+
 private:
    using ProcessCb = std::function<void(const Blocksettle::Communication::ProxyTerminal::Response &response)>;
    using TimeoutCb = std::function<void()>;
@@ -212,6 +216,7 @@ private:
    void processProxyPb(const Blocksettle::Communication::ProxyTerminal::Response_ProxyPb &response);
    void processGenAddrUpdated(const Blocksettle::Communication::ProxyTerminal::Response_GenAddrUpdated &response);
    void processUserStatusUpdated(const Blocksettle::Communication::ProxyTerminal::Response_UserStatusUpdated &response);
+   void processUpdateFeeRate(const Blocksettle::Communication::ProxyTerminal::Response_UpdateFeeRate &response);
 
    RequestId newRequestId();
 

@@ -63,6 +63,8 @@ namespace bs {
          std::shared_ptr<bs::sync::WalletsManager> walletsMgr;
          std::shared_ptr<ArmoryConnection> armory;
          std::shared_ptr<SignContainer> signContainer;
+
+         float feeRatePb_{};
       };
 
       struct PayinArgs : public Args
