@@ -108,6 +108,7 @@ namespace bs {
             std::string xpubRoot_;
             std::string xpubNestedSegwit_;
             std::string xpubNativeSegwit_;
+            std::string xpubLegacy_;
          };
 
          class AssetEntrySettlement : public AssetEntryMeta // For saving own auth address for settlement

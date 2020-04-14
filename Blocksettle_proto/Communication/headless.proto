@@ -547,3 +547,12 @@ message ChatNodeResponse
    string wallet_id = 1;
    string b58_chat_node = 2;
 }
+
+message InputSigs
+{
+   message InputSig {
+      uint32 index = 1;
+      bytes  data = 2;
+   }
+   repeated InputSig inputSig = 1;
+}

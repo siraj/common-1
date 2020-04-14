@@ -309,10 +309,11 @@ void bs::core::hd::Wallet::createHwStructure(const bs::core::wallet::HwWalletInf
 
    std::map<AddressEntryType, std::string> xpubs = {
       { static_cast<AddressEntryType>(AddressEntryType_P2SH | AddressEntryType_P2WPKH), walletInfo.xpubNestedSegwit_ },
-      { AddressEntryType_P2WPKH, walletInfo.xpubNativeSegwit_ }
+      { AddressEntryType_P2WPKH, walletInfo.xpubNativeSegwit_ },
+      { AddressEntryType_P2PKH, walletInfo.xpubLegacy_ }
    };
 
-   for (const auto &aet : groupXBT->getAddressTypeSet()) {
+   for (const auto &aet : groupXBT->getAddressTypeHWSet()) {
       groupXBT->createLeafFromXpub(xpubs[aet], aet, 0u, lookup);
    }
    writeToDB();
