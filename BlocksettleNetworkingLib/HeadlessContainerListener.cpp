@@ -392,7 +392,7 @@ bool HeadlessContainerListener::onSignTxRequest(const std::string &clientId, con
       return false;
    }
 
-   if (!amount || !CheckSpendLimit(amount, rootWalletId)) {
+   if (amount && !CheckSpendLimit(amount, rootWalletId)) {
       SignTXResponse(clientId, packet.id(), reqType, ErrorCode::TxSpendLimitExceed);
       return false;
    }
@@ -429,10 +429,11 @@ bool HeadlessContainerListener::onSignTxRequest(const std::string &clientId, con
             SignTXResponse(clientId, id, reqType, ErrorCode::NoError, pass);
          }
 
-         
-         onXbtSpent(amount, isAutoSignActive(rootWalletId));
-         if (callbacks_) {
-            callbacks_->xbtSpent(amount, false);
+         if (amount) {
+            onXbtSpent(amount, isAutoSignActive(rootWalletId));
+            if (callbacks_) {
+               callbacks_->xbtSpent(amount, false);
+            }
          }
          return;
       }
