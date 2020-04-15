@@ -488,11 +488,14 @@ std::vector<std::string> hd::Leaf::registerWallet(
 
 void hd::Leaf::unregisterWallet()
 {
-   if (btcWallet_) {
-      btcWallet_->unregister();
-   }
-   if (btcWalletInt_) {
-      btcWalletInt_->unregister();
+   // Check armory state before unregister call as armory will throw LWS_Error if socket connection is offline
+   if (armory_ && armory_->state() == ArmoryState::Ready) {
+      if (btcWallet_) {
+         btcWallet_->unregister();
+      }
+      if (btcWalletInt_) {
+         btcWalletInt_->unregister();
+      }
    }
    bs::sync::Wallet::unregisterWallet();
 }
