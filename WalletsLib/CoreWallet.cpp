@@ -1073,9 +1073,9 @@ BinaryData Wallet::signTXRequestWithWitness(const wallet::TXSignRequest &request
       }
       spender.second->setWitnessData(itSig->second, 2);
    }
-   //if (!signer.verify()) {
-   //   throw std::runtime_error("failed to verify signer");
-   //}
+   if (!signer.verify()) {
+      throw std::runtime_error("failed to verify signer");
+   }
    return signer.serialize();
 }
 
