@@ -144,6 +144,8 @@ signals:
    void ready();
    void Error(bs::signer::RequestId id, std::string error);
    void TXSigned(bs::signer::RequestId id, BinaryData signedTX, bs::error::ErrorCode result, const std::string &errorReason = {});
+   // emited only for local signer
+   void windowVisibilityChanged(bool visible);
 
    void QWalletInfo(unsigned int id, const bs::hd::WalletInfo &);
    void PasswordChanged(const std::string &walletId, bool success);

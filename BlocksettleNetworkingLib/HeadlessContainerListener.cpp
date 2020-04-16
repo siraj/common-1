@@ -1798,6 +1798,17 @@ void HeadlessContainerListener::walletsListUpdated()
    sendData(packet.SerializeAsString());
 }
 
+void HeadlessContainerListener::windowVisibilityChanged(bool visible)
+{
+   headless::WindowStatus msg;
+   msg.set_visible(visible);
+
+   headless::RequestPacket packet;
+   packet.set_type(headless::WindowStatusType);
+   packet.set_data(msg.SerializeAsString());
+   sendData(packet.SerializeAsString());
+}
+
 void HeadlessContainerListener::resetConnection(ServerConnection *connection)
 {
    connection_ = connection;

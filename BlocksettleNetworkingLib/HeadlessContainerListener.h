@@ -110,6 +110,7 @@ public:
    bs::error::ErrorCode activateAutoSign(const std::string &walletId, const SecureBinaryData &password);
    bs::error::ErrorCode deactivateAutoSign(const std::string &walletId = {}, bs::error::ErrorCode reason = bs::error::ErrorCode::NoError);
    void walletsListUpdated();
+   void windowVisibilityChanged(bool visible);
 
    void resetConnection(ServerConnection *connection);
 
