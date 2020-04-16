@@ -1159,7 +1159,8 @@ void HeadlessContainer::ProcessWindowStatus(unsigned int id, const std::string &
       return;
    }
    SPDLOG_LOGGER_DEBUG(logger_, "local signed visible: {}", message.visible());
-   emit windowVisibilityChanged(message.visible());
+   isWindowVisible_ = message.visible();
+   emit windowVisibilityChanged(isWindowVisible_);
 }
 
 void HeadlessContainer::ProcessSyncWalletInfo(unsigned int id, const std::string &data)
