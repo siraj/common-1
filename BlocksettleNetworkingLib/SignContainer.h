@@ -135,6 +135,7 @@ public:
    virtual bool isWalletOffline(const std::string &) const { return true; }
 
    bool isLocal() const { return mode_ == OpMode::Local || mode_ == OpMode::LocalInproc; }
+   bool isWindowVisible() const { return isWindowVisible_; } // available only for local signer
 
 signals:
    void connected();
@@ -156,6 +157,7 @@ signals:
 protected:
    std::shared_ptr<spdlog::logger> logger_;
    const OpMode mode_;
+   bool isWindowVisible_{};
 };
 
 
