@@ -60,8 +60,9 @@ public:
 
    virtual void txSigned(const BinaryData &) = 0;
    virtual void cancelTxSign(const BinaryData &txId) = 0;
+   virtual void autoSignActivated(bool active, const std::string &walletId) = 0;
    virtual void updateDialogData(const Blocksettle::Communication::Internal::PasswordDialogDataWrapper &dialogData) = 0;
-   virtual void xbtSpent(int64_t, bool) = 0;
+   virtual void xbtSpent(uint64_t amount, bool autoSign) = 0;
    virtual void customDialog(const std::string &, const std::string &) = 0;
    virtual void terminalHandshakeFailed(const std::string &peerAddress) = 0;
 
@@ -200,7 +201,7 @@ private:
    bool createSettlementLeaves(const std::shared_ptr<bs::core::hd::Wallet> &wallet
       , const std::vector<bs::Address> &authAddresses);
 
-   bool CheckSpendLimit(uint64_t value, const std::string &walletId);
+   bool checkSpendLimit(uint64_t value, const std::string &walletId, bool autoSign);
 
    void sendUpdateStatuses(std::string clientId = {});
 
