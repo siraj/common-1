@@ -412,6 +412,7 @@ message UserScoreData
    string               user_email  = 1;
    uint64               score       = 2;
    bool                 loaded      = 3;
+   bool                 user_banned = 4;
 }
 
 message DealerSettlementStats
