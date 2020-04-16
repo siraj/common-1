@@ -9,6 +9,7 @@ enum PacketType
    HeadlessReadyType = 0;
    PeerConnectedType = 1;
    PeerDisconnectedType = 2;
+   WindowStatusType   = 3;  // Sends headless::WindowStatus
    TxSignedType = 4;
    CancelTxSignType = 5;
    XbtSpentType = 6;
@@ -44,7 +45,6 @@ enum PacketType
    SyncSettingsRequestType = 25;
 
    UpdateStatusType   = 26;
-   WindowStatusType   = 3;  // Sends headless::WindowStatus
    ImportWoWalletType = 27;
    ExportWoWalletType = 31;
    TerminalEventType  = 29;
